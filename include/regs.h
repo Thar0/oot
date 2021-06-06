@@ -110,4 +110,7 @@
 #define R_DISABLE_INPUT_DISPLAY     HREG(47)
 #define R_NAVI_MSG_REGION_ALPHA     nREG(87)
 
+#define R_MOTION_BLUR_ENABLED       SREG(92)
+#define R_MOTION_BLUR_ALPHA         SREG(93)
+
 #endif
