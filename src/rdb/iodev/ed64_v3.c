@@ -167,10 +167,15 @@ static s32 ed64_v3_fifo_read(void* dst, size_t n_blocks) {
     return 0;
 }
 
-s32 ed64_v3_fifo_write(void* src, size_t n_blocks) {
+static s32 ed64_v3_fifo_write(void* src, size_t n_blocks) {
     s32 ret = 0;
 
     cart_lock();
+
+    /* wait for tx buffer empty (TXE low) */
+    while (REG_RD(REG_STATUS) & STATUS_TXE) {
+        ;
+    }
 
     {
         /* copy to cart */
@@ -184,11 +189,6 @@ s32 ed64_v3_fifo_write(void* src, size_t n_blocks) {
             ;
         }
         HW_REG(PI_STATUS_REG, u32) = PI_STATUS_CLEAR_INTR;
-    }
-
-    /* wait for tx buffer empty (TXE low) */
-    while (REG_RD(REG_STATUS) & STATUS_TXE) {
-        ;
     }
 
     /* dma cart to fifo */

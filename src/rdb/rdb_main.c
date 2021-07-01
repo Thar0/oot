@@ -137,7 +137,6 @@ void Rdb_ThreadEntry(void* arg) {
                     Rdb_Printf("Pong\n");
                 }
                 break;
-                break;
         }
 
         gRdbWorking = false;

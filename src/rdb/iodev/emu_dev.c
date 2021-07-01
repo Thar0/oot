@@ -130,6 +130,11 @@ static s32 emu_dev_fifo_write(void* src, size_t n_blocks) {
 
     cart_lock();
 
+    /* wait for tx buffer empty (TXE low) */
+    while (REG_RD(REG_STATUS) & STATUS_TXE) {
+        ;
+    }
+
     {
         /* copy to cart */
         u32 n_bytes = BLK_SIZE * n_blocks;
@@ -142,11 +147,6 @@ static s32 emu_dev_fifo_write(void* src, size_t n_blocks) {
             ;
         }
         HW_REG(PI_STATUS_REG, u32) = PI_STATUS_CLEAR_INTR;
-    }
-
-    /* wait for tx buffer empty (TXE low) */
-    while (REG_RD(REG_STATUS) & STATUS_TXE) {
-        ;
     }
 
     /* dma cart to fifo */
