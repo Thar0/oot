@@ -107,6 +107,11 @@ beginseg
     include "build/src/libultra_boot_O1/__osSetHWIntrRoutine.o"
     include "build/src/libultra_boot_O1/__osGetHWIntrRoutine.o"
     include "build/asm/__osSetWatchLo.o"
+    include "build/src/rdb/rdb_main.o"
+    include "build/src/rdb/iodev/iodev.o"
+    include "build/src/rdb/iodev/ed64_v3.o"
+    include "build/src/rdb/iodev/ed64_x.o"
+    include "build/src/rdb/iodev/emu_dev.o"
     include "build/data/rsp_boot.text.o"
 endseg
 

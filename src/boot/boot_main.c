@@ -20,8 +20,6 @@ void bootproc(void) {
 
     gCartHandle = osCartRomInit();
     osDriveRomInit();
-    isPrintfInit();
-    Locale_Init();
 
     StackCheck_Init(&sIdleThreadInfo, sIdleThreadStack, sIdleThreadStack + sizeof(sIdleThreadStack), 0, 256, "idle");
     osCreateThread(&sIdleThread, 1, Idle_ThreadEntry, NULL, sIdleThreadStack + sizeof(sIdleThreadStack),

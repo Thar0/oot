@@ -35,6 +35,10 @@ void Main_ThreadEntry(void* arg) {
 }
 
 void Idle_ThreadEntry(void* arg) {
+    Rdb_Start();
+
+    Locale_Init();
+
     osSyncPrintf("アイドルスレッド(idleproc)実行開始\n");
     osSyncPrintf("作製者    : %s\n", gBuildTeam);
     osSyncPrintf("作成日時  : %s\n", gBuildDate);
@@ -80,6 +84,7 @@ void Idle_ThreadEntry(void* arg) {
     osViSwapBuffer(0x803DA80); //! @bug Invalid vram address (probably intended to be 0x803DA800)
     osCreatePiManager(OS_PRIORITY_PIMGR, &gPiMgrCmdQ, sPiMgrCmdBuff, 50);
     StackCheck_Init(&sMainStackInfo, sMainStack, sMainStack + sizeof(sMainStack), 0, 0x400, "main");
+
     osCreateThread(&gMainThread, 3, Main_ThreadEntry, arg, sMainStack + sizeof(sMainStack), Z_PRIORITY_MAIN);
     osStartThread(&gMainThread);
     osSetThreadPri(NULL, OS_PRIORITY_IDLE);
