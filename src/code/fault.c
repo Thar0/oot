@@ -270,8 +270,8 @@ void Fault_Sleep(u32 duration) {
 }
 
 void Fault_PadCallback(Input* input) {
-    //! @bug This function is not called correctly and thus will crash from reading a bad pointer at 0x800C7E4C
-    PadMgr_RequestPadData(input, 0);
+    //! @bug This function is not called correctly and thus will crash from reading a bad pointer at 0x800C7E4C | FIXED
+    PadMgr_RequestPadData(&gPadMgr, input, 0);
 }
 
 void Fault_UpdatePadImpl() {
@@ -941,8 +941,8 @@ void Fault_ThreadEntry(void* arg) {
     OSThread* faultedThread;
     s32 pad;
 
-    osSetEventMesg(OS_EVENT_CPU_BREAK, &sFaultStructPtr->queue, 1);
-    osSetEventMesg(OS_EVENT_FAULT, &sFaultStructPtr->queue, 2);
+    // osSetEventMesg(OS_EVENT_CPU_BREAK, &sFaultStructPtr->queue, 1);
+    // osSetEventMesg(OS_EVENT_FAULT, &sFaultStructPtr->queue, 2);
 
     while (true) {
         do {
@@ -986,7 +986,7 @@ void Fault_ThreadEntry(void* arg) {
             Fault_Wait5Seconds();
         } else {
             Fault_DrawCornerRec(0xF801);
-            Fault_WaitForButtonCombo();
+            // Fault_WaitForButtonCombo();
         }
 
         sFaultStructPtr->faultActive = true;
