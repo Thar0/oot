@@ -216,14 +216,14 @@ static s32 ed64_v3_probe(void) {
     cart_lock_safe();
 
     /* check firmware version */
-    if (REG_RD(REG_VER) >= 0x0116) {
+    if ((u16)REG_RD(REG_VER) >= 0x0116) {
         /* check spi device */
         /* for a v2 device we expect a write with this config to trigger one
          * clock with DAT0-DAT3 high */
         REG_WR(REG_SPI_CFG, SPI_SPEED_LO | SPI_SS | SPI_RD | SPI_DAT | SPI_1CLK);
         REG_WR(REG_SPI, 0x00);
         for (i = 0; i <= 32; i++) {
-            if (!(REG_RD(REG_STATUS) & STATUS_SPI) && REG_RD(REG_SPI) == 0x0F) {
+            if (!(REG_RD(REG_STATUS) & STATUS_SPI) && (u16)REG_RD(REG_SPI) == 0x0F) {
                 /* spi seems to work as expected */
                 ret = true;
                 break;

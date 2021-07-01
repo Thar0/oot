@@ -249,24 +249,12 @@ next_interrupt:
 /* 004810 80003C10 01400008 */  jr      $t2
 /* 004814 80003C14 00000000 */   nop   
 
-glabel IP6_Hdlr
-# .ifdef DEBUGGER
-                                lui     $at, %hi(0xBFF00018)
-                                sw      $zero, %lo(0xBFF00018)($at) # clear interrupt
-                                jal     send_mesg
-                                 li     $a0, 15*8 # send os event
-# .endif
+IP6_Hdlr:
 /* 004818 80003C18 2401DFFF */  li      $at, ~0x2000
 /* 00481C 80003C1C 1000FFF0 */  b      next_interrupt
 /* 004820 80003C20 02018024 */   and    $s0, $s0, $at
 
-glabel IP7_Hdlr
-# .ifdef DEBUGGER
-                                lui     $at, %hi(0xBFF0001C)
-                                sw      $zero, %lo(0xBFF0001C)($at) # clear interrupt
-                                jal     send_mesg
-                                 li     $a0, 16*8 # send os event
-# .endif
+IP7_Hdlr:
 /* 004824 80003C24 2401BFFF */  li      $at, ~0x4000
 /* 004828 80003C28 1000FFED */  b      next_interrupt
 /* 00482C 80003C2C 02018024 */   and    $s0, $s0, $at
