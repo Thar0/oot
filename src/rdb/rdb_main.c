@@ -3,12 +3,6 @@
 
 char sRdbPollStack[0x150]; // modify exceptasm.s if this size changes
 char sRdbThreadStack[0x1000];
-OSThread gRdbThread;
-OSMesgQueue sRdbEvtQ;
-OSMesg sRdbMesgBuf[8];
-
-s32 gRdbWorking = false;
-s32 gRdbActive = false;
 
 #define PKT_SIZE 512
 
@@ -28,8 +22,14 @@ typedef struct {
     } payload;
 } RdbPacket;
 
-RdbPacket ipkt;
-RdbPacket opkt;
+struct {
+    vs32 active;
+    OSThread thread;
+    OSMesgQueue evtQ;
+    OSMesg evtBuf[8];
+    RdbPacket ipkt;
+    RdbPacket opkt;
+} gRdb;
 
 void* Rdb_ProutSyncPrintf(void* arg, const char* str, u32 count) {
     static const u32 payload_size = sizeof(RdbPacket) - sizeof(PacketHeader);
@@ -38,8 +38,8 @@ void* Rdb_ProutSyncPrintf(void* arg, const char* str, u32 count) {
 
     s32 endsWithNewline;
 
-    if (!gRdbActive)
-        return (void*)1;
+    if (!gRdb.active)
+        return (void*)0;
 
     // silly hack to make output cleaner, it slows down the overall print rate but
     // prevents messages from getting stalled when the buffer isn't seeing much
@@ -76,40 +76,34 @@ void Rdb_Printf(const char* fmt, ...) {
 }
 
 void Rdb_PingHost(void) {
-    bzero(&opkt, sizeof(RdbPacket));
+    bzero(&gRdb.opkt, sizeof(RdbPacket));
 
-    opkt.header.type = PKT_TYPE_PING;
-    opkt.payload.raw[0] = 'P';
-    opkt.payload.raw[1] = 'I';
-    opkt.payload.raw[2] = 'N';
-    opkt.payload.raw[3] = 'G';
+    gRdb.opkt.header.type = PKT_TYPE_PING;
+    gRdb.opkt.payload.raw[0] = 'P';
+    gRdb.opkt.payload.raw[1] = 'I';
+    gRdb.opkt.payload.raw[2] = 'N';
+    gRdb.opkt.payload.raw[3] = 'G';
 
-    gIODevice->fifoWrite(&opkt, 1);
+    gIODevice->fifoWrite(&gRdb.opkt, 1);
 }
 
 void Rdb_ThreadEntry(void* arg) {
-    vu8 exit = false;
+    osCreateMesgQueue(&gRdb.evtQ, gRdb.evtBuf, ARRAY_COUNT(gRdb.evtBuf));
 
-    osCreateMesgQueue(&sRdbEvtQ, sRdbMesgBuf, ARRAY_COUNT(sRdbMesgBuf));
+    osSetEventMesg(OS_EVENT_CPU_BREAK, &gRdb.evtQ, RDB_CPU_BREAK_MSG);
+    osSetEventMesg(OS_EVENT_FAULT, &gRdb.evtQ, RDB_FAULT_MSG);
+    osSetEventMesg(OS_EVENT_SP_BREAK, &gRdb.evtQ, RDB_SP_BREAK_MSG);
+    osSetEventMesg(OS_EVENT_RDB_DATA_ARRIVAL, &gRdb.evtQ, RDB_RD_MSG);
 
-    osSetEventMesg(OS_EVENT_CPU_BREAK, &sRdbEvtQ, RDB_CPU_BREAK_MSG);
-    osSetEventMesg(OS_EVENT_FAULT, &sRdbEvtQ, RDB_FAULT_MSG);
-    osSetEventMesg(OS_EVENT_SP_BREAK, &sRdbEvtQ, RDB_SP_BREAK_MSG);
-    osSetEventMesg(OS_EVENT_RDB_DATA_ARRIVAL, &sRdbEvtQ, RDB_RD_MSG);
-
-    gRdbActive = true;
+    gRdb.active = true;
 
     Rdb_Printf("Hello from RDB\n");
     Rdb_PingHost();
 
-    while (!exit) {
-        OSEvent evt = 0xFFFFFFFF;
+    while (gRdb.active) {
+        OSEvent evt;
 
-        osRecvMesg(&sRdbEvtQ, (OSMesg*)&evt, OS_MESG_BLOCK);
-        if (evt == 0xFFFFFFFF)
-            continue;
-
-        gRdbWorking = true;
+        osRecvMesg(&gRdb.evtQ, (OSMesg*)&evt, OS_MESG_BLOCK);
 
         switch (evt) {
             case RDB_CPU_BREAK_MSG:
@@ -133,13 +127,11 @@ void Rdb_ThreadEntry(void* arg) {
                      *  read packet from fifo, else the exception handler will notice 
                      *  there is still data and continue to ask us to deal with it
                      */
-                    gIODevice->fifoRead(&ipkt, 1);
+                    gIODevice->fifoRead(&gRdb.ipkt, 1);
                     Rdb_Printf("Pong\n");
                 }
                 break;
         }
-
-        gRdbWorking = false;
     }
 }
 
@@ -148,8 +140,8 @@ s32 Rdb_Start(void) {
         return 0; // No compatible io device found, cannot start RDB
     }
 
-    osCreateThread(&gRdbThread, 0, Rdb_ThreadEntry, NULL, sRdbThreadStack + sizeof(sRdbThreadStack), OS_PRIORITY_RMON);
-    osStartThread(&gRdbThread);
+    osCreateThread(&gRdb.thread, 0, Rdb_ThreadEntry, NULL, sRdbThreadStack + sizeof(sRdbThreadStack), OS_PRIORITY_RMON);
+    osStartThread(&gRdb.thread);
 
     return 1;
 }

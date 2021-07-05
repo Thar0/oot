@@ -194,27 +194,22 @@ endrcp:
 /* 0047A0 80003BA0 F75E01A8 */  sdc1    $f30, 0x1a8($k0)
 .L80003BA0:
 # .ifdef DEBUGGER
-                                # check if rdb is idling
-                                lui     $t0, %hi(gRdbWorking)
-                                lw      $t0, %lo(gRdbWorking)($t0)
-                                bnez    $t0, no_rdb_msg
-                                 nop
                                 # check for device attached
                                 lui     $t0, %hi(gIODevice)
                                 lw      $t0, %lo(gIODevice)($t0)
                                 beqz    $t0, no_rdb_msg
                                  nop
-                                # there is a device, try poll it for a message
+                                # there is a device, try poll it for data
                                 lw      $t1, 8($t0) # load unsafe poll func
                                 beqz    $t1, no_rdb_msg # ensure non-null
-                                 lui    $at, %hi(sRdbPollStack + 0x150) # set up a small stack
+                                 lui    $at, %hi(sRdbPollStack + 0x150) # set up a small stack, TODO adjust size
                                 jalr    $t1
                                  addiu  $sp, $at, %lo(sRdbPollStack + 0x150)
-                                # check if a message exists on the FIFO
+                                # check if data exists on the fifo
                                 beqz    $v0, no_rdb_msg
                                  nop
                                 jal     send_mesg
-                                 li     $a0, 15*8 # send os event message
+                                 li     $a0, 15*8 # post event message to any listening message queues
 # .endif
 no_rdb_msg:
 /* 0047A4 80003BA4 40086800 */  mfc0    $t0, $13
