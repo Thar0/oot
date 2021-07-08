@@ -23,12 +23,12 @@ typedef struct {
 } RdbPacket;
 
 struct {
+    RdbPacket ipkt;
+    RdbPacket opkt;
     vs32 active;
     OSThread thread;
     OSMesgQueue evtQ;
     OSMesg evtBuf[8];
-    RdbPacket ipkt;
-    RdbPacket opkt;
 } gRdb;
 
 void* Rdb_ProutSyncPrintf(void* arg, const char* str, u32 count) {
