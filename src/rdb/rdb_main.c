@@ -97,9 +97,6 @@ void Rdb_ThreadEntry(void* arg) {
 
     gRdb.active = true;
 
-    Rdb_Printf("Hello from RDB\n");
-    Rdb_PingHost();
-
     while (gRdb.active) {
         OSEvent evt;
 
@@ -114,6 +111,7 @@ void Rdb_ThreadEntry(void* arg) {
             case RDB_FAULT_MSG:
                 {
                     Rdb_Printf("RDB RECEIVED FAULT MSG\n");
+                    Rdb_PingHost();
                 }
                 break;
             case RDB_SP_BREAK_MSG:
@@ -127,7 +125,9 @@ void Rdb_ThreadEntry(void* arg) {
                      *  read packet from fifo, else the exception handler will notice 
                      *  there is still data and continue to ask us to deal with it
                      */
-                    gIODevice->fifoRead(&gRdb.ipkt, 1);
+                    if (gIODevice->fifoRead(&gRdb.ipkt, 1) != 0) {
+                        Rdb_Printf("Read DMA Timed Out\n");
+                    }
                     Rdb_Printf("Pong\n");
                 }
                 break;
