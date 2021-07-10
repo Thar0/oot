@@ -79,8 +79,9 @@
 #define SPI_BYTE 0x0000
 
 /* much of this code is based directly on 
-    https://github.com/glankk/oot/blob/everdrive-v3-syncprintf/src/boot/ed64_v3.c and
-    https://github.com/glankk/gz/blob/master/src/gz/ed64_x.c */
+ *  https://github.com/glankk/oot/blob/everdrive-v3-syncprintf/src/boot/ed64_v3.c and
+ *  https://github.com/glankk/gz/blob/master/src/gz/ed64_x.c
+ */
 
 #define BLK_SIZE 512
 #define CART_ADDR 0xB4000000
@@ -134,7 +135,8 @@ static void cart_unlock(void) {
 static s32 ed64_x_fifo_poll_unsafe(void) {
     s32 ret = 0;
 
-    if (!(HW_REG(PI_STATUS_REG, u32) & PI_STATUS_BUSY)) { // don't poll if PI busy
+    // don't poll if PI busy
+    if (!(HW_REG(PI_STATUS_REG, u32) & (PI_STATUS_BUSY | PI_STATUS_IOBUSY | PI_STATUS_ERROR))) {
         cart_lock_unsafe();
 
         ret = ((REG_RD(REG_USB_CFG) & (USB_STA_PWR | USB_STA_RXF)) == USB_STA_PWR);

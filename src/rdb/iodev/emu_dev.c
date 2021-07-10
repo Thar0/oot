@@ -27,7 +27,8 @@
 #define CART_ADDR 0xB4000000
 
 /* Fictitious device based on the operation of the Everdrive 64 v3, intended for use on project64 with a js script.
-    (currently?) without disk features, however it can signal IP6 and IP7 interrupts if configured to do so         */
+ *  (currently?) without disk features, however it can signal IP6 and IP7 interrupts if configured to do so
+ */
 
 static u32 cart_irqf, cart_lat, cart_pwd;
 
@@ -61,7 +62,8 @@ static void cart_unlock(void) {
 static s32 emu_dev_fifo_poll_unsafe(void) {
     s32 ret = 0;
 
-    if (!(HW_REG(PI_STATUS_REG, u32) & PI_STATUS_BUSY)) { // don't poll if PI busy
+    // don't poll if PI busy
+    if (!(HW_REG(PI_STATUS_REG, u32) & (PI_STATUS_BUSY | PI_STATUS_IOBUSY | PI_STATUS_ERROR))) {
         cart_lock_unsafe();
 
         ret = !(REG_RD(REG_STATUS) & STATUS_RXF);
