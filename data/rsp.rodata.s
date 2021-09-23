@@ -9,18 +9,6 @@
 
 .balign 16
 
-glabel gAudioBankTable
-    .incbin "baserom.z64", 0xBCC270, 0x270
-
-glabel D_80155340
-    .incbin "baserom.z64", 0xBCC4E0, 0x1C0
-
-glabel gSequenceTable
-    .incbin "baserom.z64", 0xBCC6A0, 0x6F0
-
-glabel gAudioTable
-    .incbin "baserom.z64", 0xBCCD90, 0x80
-
 glabel rspAspMainDataStart
     .incbin "baserom.z64", 0xBCCE10, 0x2E0
 glabel rspAspMainDataEnd

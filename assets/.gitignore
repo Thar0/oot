@@ -4,3 +4,5 @@
 *.cfg
 *.vtx.inc
 *.dlist.inc
+*.s
+*.m64

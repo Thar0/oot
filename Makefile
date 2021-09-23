@@ -112,6 +112,9 @@ O_FILES       := $(foreach f,$(S_FILES:.s=.o),build/$f) \
                  $(foreach f,$(C_FILES:.c=.o),build/$f) \
                  $(foreach f,$(wildcard baserom/*),build/$f.o)
 
+AUDIO_SEQUENCES := $(wildcard assets/audio/seqs/*.s)
+AUDIO_SEQUENCES_OUT := $(foreach f,$(AUDIO_SEQUENCES:.s=.o),build/$f)
+
 # Automatic dependency files
 # (Only asm_processor dependencies are handled for now)
 DEP_FILES := $(O_FILES:.o=.asmproc.d)
@@ -170,7 +173,7 @@ endif
 $(ROM): $(ELF)
 	$(ELF2ROM) -cic 6105 $< $@
 
-$(ELF): $(TEXTURE_FILES_OUT) $(ASSET_FILES_OUT) $(O_FILES) build/ldscript.txt build/undefined_syms.txt
+$(ELF): $(TEXTURE_FILES_OUT) $(ASSET_FILES_OUT) $(AUDIO_SEQUENCES_OUT) $(O_FILES) build/ldscript.txt build/undefined_syms.txt
 	$(LD) -T build/undefined_syms.txt -T build/ldscript.txt --no-check-sections --accept-unknown-input-arch --emit-relocs -Map build/z64.map -o $@
 
 build/ldscript.txt: $(SPEC)
@@ -197,6 +200,7 @@ setup:
 	python3 fixbaserom.py
 	python3 extract_baserom.py
 	python3 extract_assets.py
+	python3 tools/audioseq_extract.py
 
 resources: $(ASSET_FILES_OUT)
 test: $(ROM)
@@ -208,6 +212,10 @@ test: $(ROM)
 
 build/baserom/%.o: baserom/%
 	$(OBJCOPY) -I binary -O elf32-big $< $@
+
+build/assets/audio/seqs/%.o: assets/audio/seqs/%.s
+	$(AS) $(ASFLAGS) $< -o $@
+	$(OBJCOPY) -O binary -j.rodata $@ $(@:.o=.m64)
 
 build/asm/%.o: asm/%.s
 	$(AS) $(ASFLAGS) $< -o $@
