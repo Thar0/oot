@@ -340,6 +340,7 @@ MKSPECRULES    := tools/mkspecrules
 MKDMADATA      := tools/mkdmadata
 BIN2C          := tools/bin2c
 FADO           := tools/fado/fado.elf
+ARMIPS         := tools/armips
 PYTHON         ?= $(VENV)/bin/python3
 BUILD_FROM_PNG := tools/assets/build_from_png/build_from_png
 BUILD_JFIF     := tools/assets/build_jfif/build_jfif
@@ -434,6 +435,7 @@ SPEC := spec/spec
 SPEC_INCLUDES := $(wildcard spec/*.inc)
 
 SRC_DIRS := $(shell find src -type d)
+RSP_DIRS := $(shell find rsp -type d)
 UNDECOMPILED_DATA_DIRS := $(shell find data -type d)
 
 ifneq ($(wildcard $(EXTRACTED_DIR)/assets/audio),)
@@ -530,6 +532,7 @@ $(shell mkdir -p $(BUILD_DIR)/baserom \
 				 $(SEGMENTS_DIR))
 $(shell mkdir -p $(foreach dir, \
                       $(SRC_DIRS) \
+                      $(RSP_DIRS) \
                       $(UNDECOMPILED_DATA_DIRS) \
                       $(SAMPLE_DIRS) \
                       $(SAMPLEBANK_DIRS) \
@@ -1005,6 +1008,21 @@ DEP_FILES += $(BUILD_DIR)/src/code/z_message.d $(BUILD_DIR)/src/code/z_game_over
 
 $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)/spec
 	$(MKDMADATA) $< $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt
+
+$(BUILD_DIR)/rsp/%.o: rsp/%.s
+	$(ARMIPS) -strequ CODE_FILE $(@:.o=.text.bin) -strequ DATA_FILE $(@:.o=.rodata.bin) $<
+	@printf ".include \"macro.inc\"\n"                                              > $(@:.o=.s)
+	@test -f $(@:.o=.text.bin)   && printf ".section .text\n"                       >> $(@:.o=.s) || true
+	@test -f $(@:.o=.text.bin)   && printf ".balign 16\n"                           >> $(@:.o=.s) || true
+	@test -f $(@:.o=.text.bin)   && printf "glabel $(@F:.o=)TextStart\n"            >> $(@:.o=.s) || true
+	@test -f $(@:.o=.text.bin)   && printf ".incbin \"rsp/$(@F:.o=.text.bin)\"\n"   >> $(@:.o=.s) || true
+	@test -f $(@:.o=.text.bin)   && printf "glabel $(@F:.o=)TextEnd\n"              >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf ".section .rodata\n"                     >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf ".balign 16\n"                           >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf "glabel $(@F:.o=)DataStart\n"            >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf ".incbin \"rsp/$(@F:.o=.rodata.bin)\"\n" >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf "glabel $(@F:.o=)DataEnd\n"              >> $(@:.o=.s) || true
+	$(AS) $(ASFLAGS) -I $(BUILD_DIR) $(@:.o=.s) -o $@
 
 # Dependencies for files that may include the dmadata header automatically generated from the spec file
 $(BUILD_DIR)/src/boot/z_std_dma.o: $(BUILD_DIR)/dmadata_table_spec.h

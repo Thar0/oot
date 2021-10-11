@@ -1,1 +1,0 @@
-clang -target mipsel object_code.s -c
