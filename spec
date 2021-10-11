@@ -123,7 +123,7 @@ beginseg
     include "$(BUILD_DIR)/src/libultra/os/sethwintrroutine.o"
     include "$(BUILD_DIR)/src/libultra/os/gethwintrroutine.o"
     include "$(BUILD_DIR)/src/libultra/os/setwatchlo.o"
-    include "$(BUILD_DIR)/data/rsp_boot.text.o"
+    include "$(BUILD_DIR)/rsp/rspboot.o"
 #ifdef COMPILER_GCC
     include "$(BUILD_DIR)/src/gcc_fix/missing_gcc_functions.o"
 #endif

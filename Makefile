@@ -149,6 +149,7 @@ MKDMADATA  := tools/mkdmadata
 ELF2ROM    := tools/elf2rom
 ZAPD       := tools/ZAPD/ZAPD.out
 FADO       := tools/fado/fado.elf
+ARMIPS     := tools/armips
 PYTHON     ?= $(VENV)/bin/python3
 
 # Command to replace path variables in the spec file. We can't use the C
@@ -216,6 +217,7 @@ SRC_DIRS := $(shell find src -type d -not -path src/gcc_fix)
 else
 SRC_DIRS := $(shell find src -type d)
 endif
+RSP_DIRS := $(shell find rsp -type d)
 
 # create extracted directories
 $(shell mkdir -p $(EXTRACTED_DIR) $(EXTRACTED_DIR)/assets $(EXTRACTED_DIR)/text)
@@ -233,9 +235,11 @@ BASEROM_BIN_FILES := $(wildcard $(EXTRACTED_DIR)/baserom/*)
 SRC_C_FILES   := $(filter-out %.inc.c,$(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.c)))
 ASSET_C_FILES := $(filter-out %.inc.c,$(foreach dir,$(ASSET_BIN_DIRS),$(wildcard $(dir)/*.c)))
 S_FILES       := $(foreach dir,$(SRC_DIRS) $(UNDECOMPILED_DATA_DIRS),$(wildcard $(dir)/*.s))
+RSP_FILES	  := $(foreach dir,$(RSP_DIRS),$(wildcard $(dir)/*.s))
 O_FILES       := $(foreach f,$(S_FILES:.s=.o),$(BUILD_DIR)/$f) \
                  $(foreach f,$(SRC_C_FILES:.c=.o),$(BUILD_DIR)/$f) \
                  $(foreach f,$(ASSET_C_FILES:.c=.o),$(f:$(EXTRACTED_DIR)/%=$(BUILD_DIR)/%)) \
+				 $(foreach f,$(RSP_FILES:.s=.o),build/$f) \
                  $(foreach f,$(BASEROM_BIN_FILES),$(BUILD_DIR)/baserom/$(notdir $f).o)
 
 OVL_RELOC_FILES := $(shell $(CPP) $(CPPFLAGS) $(SPEC) | $(SPEC_REPLACE_VARS) | grep -o '[^"]*_reloc.o' )
@@ -251,7 +255,7 @@ TEXTURE_FILES_OUT := $(foreach f,$(TEXTURE_FILES_PNG:.png=.inc.c),$(f:$(EXTRACTE
 					 $(foreach f,$(TEXTURE_FILES_JPG:.jpg=.jpg.inc.c),$(f:$(EXTRACTED_DIR)/%=$(BUILD_DIR)/%))
 
 # create build directories
-$(shell mkdir -p $(BUILD_DIR)/baserom $(BUILD_DIR)/assets/text $(foreach dir,$(SRC_DIRS) $(UNDECOMPILED_DATA_DIRS),$(BUILD_DIR)/$(dir)) $(foreach dir,$(ASSET_BIN_DIRS),$(dir:$(EXTRACTED_DIR)/%=$(BUILD_DIR)/%)))
+$(shell mkdir -p $(BUILD_DIR)/baserom $(BUILD_DIR)/assets/text $(foreach dir,$(SRC_DIRS) $(RSP_DIRS) $(UNDECOMPILED_DATA_DIRS),$(BUILD_DIR)/$(dir)) $(foreach dir,$(ASSET_BIN_DIRS),$(dir:$(EXTRACTED_DIR)/%=$(BUILD_DIR)/%)))
 
 ifeq ($(COMPILER),ido)
 $(BUILD_DIR)/src/boot/stackcheck.o: OPTFLAGS := -O2
@@ -473,6 +477,21 @@ $(BUILD_DIR)/src/%.o: src/%.s
 
 $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)/$(SPEC)
 	$(MKDMADATA) $< $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt
+
+$(BUILD_DIR)/rsp/%.o: rsp/%.s
+	$(ARMIPS) -strequ CODE_FILE $(@:.o=.text.bin) -strequ DATA_FILE $(@:.o=.rodata.bin) $<
+	@printf ".include \"macro.inc\"\n"                                              > $(@:.o=.s)
+	@test -f $(@:.o=.text.bin)   && printf ".section .text\n"                       >> $(@:.o=.s) || true
+	@test -f $(@:.o=.text.bin)   && printf ".balign 16\n"                           >> $(@:.o=.s) || true
+	@test -f $(@:.o=.text.bin)   && printf "glabel $(@F:.o=)TextStart\n"            >> $(@:.o=.s) || true
+	@test -f $(@:.o=.text.bin)   && printf ".incbin \"rsp/$(@F:.o=.text.bin)\"\n"   >> $(@:.o=.s) || true
+	@test -f $(@:.o=.text.bin)   && printf "glabel $(@F:.o=)TextEnd\n"              >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf ".section .rodata\n"                     >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf ".balign 16\n"                           >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf "glabel $(@F:.o=)DataStart\n"            >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf ".incbin \"rsp/$(@F:.o=.rodata.bin)\"\n" >> $(@:.o=.s) || true
+	@test -f $(@:.o=.rodata.bin) && printf "glabel $(@F:.o=)DataEnd\n"              >> $(@:.o=.s) || true
+	$(AS) $(ASFLAGS) -I $(BUILD_DIR) $(@:.o=.s) -o $@
 
 # Dependencies for files that may include the dmadata header automatically generated from the spec file
 $(BUILD_DIR)/src/boot/z_std_dma.o: $(BUILD_DIR)/dmadata_table_spec.h
