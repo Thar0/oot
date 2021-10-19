@@ -1,5 +1,5 @@
-CFLAGS := -Wall -Wextra -pedantic -std=gnu99 -g -O2
-PROGRAMS := bin2c mkdmadata mkldscript mkspecrules preprocess_pragmas vtxdis
+CFLAGS := -I. -Wall -Wextra -pedantic -std=gnu99 -g -O2
+PROGRAMS := armips bin2c mkdmadata mkldscript mkspecrules preprocess_pragmas vtxdis
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
@@ -23,6 +23,8 @@ ifeq ($(shell command -v clang >/dev/null 2>&1; echo $$?),0)
 else
   CC := gcc
 endif
+
+CXX := g++
 
 LLD ?= 0
 
@@ -54,6 +56,7 @@ distclean: clean
 
 .PHONY: all clean distclean
 
+armips_SOURCES             := armips.cpp
 bin2c_SOURCES              := bin2c.c
 mkdmadata_SOURCES          := mkdmadata.c spec.c util.c
 mkldscript_SOURCES         := mkldscript.c spec.c util.c
@@ -61,10 +64,13 @@ mkspecrules_SOURCES        := mkspecrules.c spec.c util.c
 preprocess_pragmas_SOURCES := preprocess_pragmas.c
 vtxdis_SOURCES             := vtxdis.c
 
+armips: CC := $(CXX)
+armips_CFLAGS := -std=c++11 -fno-exceptions -fno-rtti -pipe -Wno-unused-parameter -Wno-maybe-uninitialized
+armips_LDFLAGS := -pthread
 
-define COMPILE =
+define COMPILE
 $(1): $($1_SOURCES)
-	$(CC) $(CFLAGS) $$^ -o $$@
+	$$(CC) $(CFLAGS) $($1_CFLAGS) $$^ -o $$@ $($1_LDFLAGS)
 endef
 
 $(foreach p,$(PROGRAMS),$(eval $(call COMPILE,$(p))))
