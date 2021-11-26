@@ -447,7 +447,7 @@ void FileChoose_SetWindowVtx(GameState* thisx) {
     s16 tmp2;
     s16 tmp3;
 
-    this->windowVtx = Graph_Alloc(this->state.gfxCtx, sizeof(Vtx) * 80);
+    this->windowVtx = GRAPH_ALLOC(this->state.gfxCtx, sizeof(Vtx) * 80);
     tmp = this->windowPosX - 90;
 
     for (x = 0, i = 0; i < 4; i++) {
@@ -505,7 +505,7 @@ void FileChoose_SetWindowContentVtx(GameState* thisx) {
     s16 temp_t1;
     SramContext* sramCtx = &this->sramCtx;
 
-    this->windowContentVtx = Graph_Alloc(this->state.gfxCtx, 0x288 * sizeof(Vtx));
+    this->windowContentVtx = GRAPH_ALLOC(this->state.gfxCtx, 0x288 * sizeof(Vtx));
 
     for (phi_t2 = 0; phi_t2 < 0x288; phi_t2 += 4) {
         this->windowContentVtx[phi_t2].v.ob[0] = this->windowContentVtx[phi_t2 + 2].v.ob[0] = 0x12C;

@@ -2371,14 +2371,14 @@ s32 EnOssan_OverrideLimbDrawKokiriShopkeeper(GlobalContext* globalCtx, s32 limbI
 }
 
 Gfx* EnOssan_EndDList(GraphicsContext* gfxCtx) {
-    Gfx* disp = Graph_Alloc(gfxCtx, sizeof(Gfx));
+    Gfx* disp = GRAPH_ALLOC(gfxCtx, sizeof(Gfx));
 
     gSPEndDisplayList(disp);
     return disp;
 }
 
 Gfx* EnOssan_SetEnvColor(GraphicsContext* gfxCtx, u8 r, u8 g, u8 b, u8 a) {
-    Gfx* disp = Graph_Alloc(gfxCtx, sizeof(Gfx) * 2);
+    Gfx* disp = GRAPH_ALLOC(gfxCtx, sizeof(Gfx) * 2);
 
     gDPSetEnvColor(disp, r, g, b, a);
     gSPEndDisplayList(disp + 1);

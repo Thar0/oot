@@ -649,7 +649,7 @@ void DemoGt_Draw1(DemoGt* this, GlobalContext* globalCtx) {
     spBC = kREG(71);
     spB8 = (s16)((s32)kREG(70)) + 0x4000;
     spBA = kREG(70);
-    spB4 = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    spB4 = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     sp98 = 1.0f - Math_CosS(spC6);
 
     OPEN_DISPS(gfxCtx, "../z_demo_gt_part1.c", 458);
@@ -1270,7 +1270,7 @@ void DemoGt_Draw4(DemoGt* this, GlobalContext* globalCtx2) {
         sp68 = (s16)((s32)kREG(58)) + 0x4000;
         sp6A = kREG(58);
         gfxCtx = globalCtx->state.gfxCtx;
-        sp60 = Graph_Alloc(gfxCtx, sizeof(Mtx));
+        sp60 = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
         sp44 = 1.0f - Math_CosS(sp76);
 
         OPEN_DISPS(gfxCtx, "../z_demo_gt_part4_1.c", 217);
@@ -1389,7 +1389,7 @@ void DemoGt_Draw5(DemoGt* this, GlobalContext* globalCtx) {
     sp6A = kREG(59) - 0x4000;
     sp68 = (s16)(kREG(59) - 0x4000) + 0x4000;
     gfxCtx = globalCtx->state.gfxCtx;
-    sp60 = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    sp60 = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     sp44 = 1 - Math_CosS(sp76);
 
     OPEN_DISPS(gfxCtx, "../z_demo_gt_part4_2.c", 212);
@@ -1485,7 +1485,7 @@ void DemoGt_Draw6(DemoGt* this, GlobalContext* globalCtx) {
     sp6C = kREG(60) + 0x4000;
     sp6C += 0x4000;
     gfxCtx = globalCtx->state.gfxCtx;
-    sp64 = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    sp64 = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     sp48 = 1.0f - Math_CosS(sp78);
 
     OPEN_DISPS(gfxCtx, "../z_demo_gt_part4_3.c", 276);
@@ -1577,7 +1577,7 @@ void DemoGt_Draw7(DemoGt* this, GlobalContext* globalCtx) {
     sp62 = kREG(74) + 0x7FEC;
     sp60 = kREG(74) + 0x7FEC;
     sp60 = sp60 + 0x4000;
-    sp5C = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    sp5C = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     sp40 = 1.0f - Math_CosS(sp6E);
 
     OPEN_DISPS(gfxCtx, "../z_demo_gt_part5.c", 136);
@@ -1668,7 +1668,7 @@ void DemoGt_Draw8(DemoGt* this, GlobalContext* globalCtx) {
     sp62 = kREG(77) + 0xBE80;
     sp60 = kREG(77) + 0xBE80;
     sp60 += 0x4000;
-    sp5C = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    sp5C = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     sp40 = 1.0f - Math_CosS(sp6E);
 
     OPEN_DISPS(gfxCtx, "../z_demo_gt_part6.c", 137);

@@ -445,7 +445,7 @@ s32 func_80B4F45C(GlobalContext* globalCtx, s32 limbIndex, Gfx** dList, Vec3f* p
     s16* unk_1DC = this->unk_1DC;
 
     if (limbIndex == 14) {
-        sp74 = Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Mtx) * 7);
+        sp74 = GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Mtx) * 7);
         gSPSegment((*gfx)++, 0x0C, sp74);
 
         Matrix_Push();

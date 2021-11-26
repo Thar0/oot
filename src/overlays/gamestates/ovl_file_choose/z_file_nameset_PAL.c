@@ -38,7 +38,7 @@ void FileChoose_SetKeyboardVtx(GameState* thisx) {
     s16 phi_t1;
     s16 phi_s2;
 
-    this->keyboardVtx = Graph_Alloc(this->state.gfxCtx, sizeof(Vtx) * 4 * 5 * 13);
+    this->keyboardVtx = GRAPH_ALLOC(this->state.gfxCtx, sizeof(Vtx) * 4 * 5 * 13);
 
     phi_s1 = 0x26;
 
@@ -141,7 +141,7 @@ void FileChoose_SetNameEntryVtx(GameState* thisx) {
         gSP1Quadrangle(POLY_OPA_DISP++, phi_s0, phi_s0 + 2, phi_s0 + 3, phi_s0 + 1, 0);
     }
 
-    this->nameEntryVtx = Graph_Alloc(this->state.gfxCtx, 44 * sizeof(Vtx));
+    this->nameEntryVtx = GRAPH_ALLOC(this->state.gfxCtx, 44 * sizeof(Vtx));
 
     for (phi_s0 = 0, phi_t1 = 0; phi_t1 < 44; phi_t1 += 4, phi_s0++) {
         if ((phi_s0 > 0) && (phi_s0 < 9)) {

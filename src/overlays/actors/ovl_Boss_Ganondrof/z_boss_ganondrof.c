@@ -1464,7 +1464,7 @@ void BossGanondrof_PostLimbDraw(GlobalContext* globalCtx, s32 limbIndex, Gfx** d
 }
 
 Gfx* BossGanondrof_GetClearPixelDList(GraphicsContext* gfxCtx) {
-    Gfx* dList = (Gfx*)Graph_Alloc(gfxCtx, sizeof(Gfx) * 4);
+    Gfx* dList = (Gfx*)GRAPH_ALLOC(gfxCtx, sizeof(Gfx) * 4);
     Gfx* dListHead = dList;
 
     gDPPipeSync(dListHead++);
@@ -1476,7 +1476,7 @@ Gfx* BossGanondrof_GetClearPixelDList(GraphicsContext* gfxCtx) {
 }
 
 Gfx* BossGanondrof_GetNullDList(GraphicsContext* gfxCtx) {
-    Gfx* dList = (Gfx*)Graph_Alloc(gfxCtx, sizeof(Gfx) * 1);
+    Gfx* dList = (Gfx*)GRAPH_ALLOC(gfxCtx, sizeof(Gfx) * 1);
     Gfx* dListHead = dList;
 
     gSPEndDisplayList(dListHead++);

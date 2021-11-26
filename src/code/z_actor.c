@@ -1303,11 +1303,11 @@ Gfx* func_8002E830(Vec3f* object, Vec3f* eye, Vec3f* lightDir, GraphicsContext* 
     LookAt* lookAt;
     f32 correctedEyeX;
 
-    lookAt = Graph_Alloc(gfxCtx, sizeof(LookAt));
+    lookAt = GRAPH_ALLOC(gfxCtx, sizeof(LookAt));
 
     correctedEyeX = (eye->x == object->x) && (eye->z == object->z) ? eye->x + 0.001f : eye->x;
 
-    *hilite = Graph_Alloc(gfxCtx, sizeof(Hilite));
+    *hilite = GRAPH_ALLOC(gfxCtx, sizeof(Hilite));
 
     if (HREG(80) == 6) {
         osSyncPrintf("z_actor.c 3529 eye=[%f(%f) %f %f] object=[%f %f %f] light_direction=[%f %f %f]\n", correctedEyeX,
@@ -1367,7 +1367,7 @@ void func_8002EBCC(Actor* actor, GlobalContext* globalCtx, s32 flag) {
     hilite = func_8002EABC(&actor->world.pos, &globalCtx->view.eye, &lightDir, globalCtx->state.gfxCtx);
 
     if (flag != 0) {
-        displayList = Graph_Alloc(globalCtx->state.gfxCtx, 2 * sizeof(Gfx));
+        displayList = GRAPH_ALLOC(globalCtx->state.gfxCtx, 2 * sizeof(Gfx));
         displayListHead = displayList;
 
         OPEN_DISPS(globalCtx->state.gfxCtx, "../z_actor.c", 4384);
@@ -1393,7 +1393,7 @@ void func_8002ED80(Actor* actor, GlobalContext* globalCtx, s32 flag) {
     hilite = func_8002EB44(&actor->world.pos, &globalCtx->view.eye, &lightDir, globalCtx->state.gfxCtx);
 
     if (flag != 0) {
-        displayList = Graph_Alloc(globalCtx->state.gfxCtx, 2 * sizeof(Gfx));
+        displayList = GRAPH_ALLOC(globalCtx->state.gfxCtx, 2 * sizeof(Gfx));
         displayListHead = displayList;
 
         OPEN_DISPS(globalCtx->state.gfxCtx, "../z_actor.c", 4429);
@@ -3768,7 +3768,7 @@ void func_80034A14(Actor* actor, struct_80034A14_arg1* arg1, s16 arg2, s16 arg3)
 Gfx* func_80034B28(GraphicsContext* gfxCtx) {
     Gfx* displayList;
 
-    displayList = Graph_Alloc(gfxCtx, sizeof(Gfx));
+    displayList = GRAPH_ALLOC(gfxCtx, sizeof(Gfx));
     gSPEndDisplayList(displayList);
 
     return displayList;
@@ -3778,7 +3778,7 @@ Gfx* func_80034B54(GraphicsContext* gfxCtx) {
     Gfx* displayListHead;
     Gfx* displayList;
 
-    displayList = displayListHead = Graph_Alloc(gfxCtx, 2 * sizeof(Gfx));
+    displayList = displayListHead = GRAPH_ALLOC(gfxCtx, 2 * sizeof(Gfx));
 
     gDPSetRenderMode(displayListHead++, G_RM_FOG_SHADE_A,
                      AA_EN | Z_CMP | Z_UPD | IM_RD | CLR_ON_CVG | CVG_DST_WRAP | ZMODE_XLU | FORCE_BL |

@@ -261,7 +261,7 @@ Gfx* func_80ACEAC0(GraphicsContext* gfxCtx, u8 primR, u8 primG, u8 primB, u8 env
     Gfx* dList;
     Gfx* dListHead;
 
-    dList = Graph_Alloc(gfxCtx, 4 * sizeof(Gfx));
+    dList = GRAPH_ALLOC(gfxCtx, 4 * sizeof(Gfx));
     dListHead = dList;
 
     gDPPipeSync(dListHead++);

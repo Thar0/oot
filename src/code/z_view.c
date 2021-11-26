@@ -270,7 +270,7 @@ s32 func_800AAA9C(View* view) {
 
     OPEN_DISPS(gfxCtx, "../z_view.c", 596);
 
-    vp = Graph_Alloc(gfxCtx, sizeof(Vp));
+    vp = GRAPH_ALLOC(gfxCtx, sizeof(Vp));
     LogUtils_CheckNullPointer("vp", vp, "../z_view.c", 601);
     View_ViewportToVp(vp, &view->viewport);
     view->vp = *vp;
@@ -280,7 +280,7 @@ s32 func_800AAA9C(View* view) {
     gSPViewport(POLY_OPA_DISP++, vp);
     gSPViewport(POLY_XLU_DISP++, vp);
 
-    projection = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    projection = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     LogUtils_CheckNullPointer("projection", projection, "../z_view.c", 616);
     view->projectionPtr = projection;
 
@@ -326,7 +326,7 @@ s32 func_800AAA9C(View* view) {
     gSPPerspNormalize(POLY_XLU_DISP++, view->normal);
     gSPMatrix(POLY_XLU_DISP++, projection, G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
 
-    viewing = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    viewing = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     LogUtils_CheckNullPointer("viewing", viewing, "../z_view.c", 667);
     view->viewingPtr = viewing;
 
@@ -369,7 +369,7 @@ s32 func_800AB0A8(View* view) {
 
     OPEN_DISPS(gfxCtx, "../z_view.c", 726);
 
-    vp = Graph_Alloc(gfxCtx, sizeof(Vp));
+    vp = GRAPH_ALLOC(gfxCtx, sizeof(Vp));
     LogUtils_CheckNullPointer("vp", vp, "../z_view.c", 730);
     View_ViewportToVp(vp, &view->viewport);
     view->vp = *vp;
@@ -380,7 +380,7 @@ s32 func_800AB0A8(View* view) {
     gSPViewport(POLY_XLU_DISP++, vp);
     gSPViewport(OVERLAY_DISP++, vp);
 
-    projection = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    projection = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     LogUtils_CheckNullPointer("projection", projection, "../z_view.c", 744);
     view->projectionPtr = projection;
 
@@ -406,7 +406,7 @@ s32 func_800AB2C4(View* view) {
 
     OPEN_DISPS(gfxCtx, "../z_view.c", 777);
 
-    vp = Graph_Alloc(gfxCtx, sizeof(Vp));
+    vp = GRAPH_ALLOC(gfxCtx, sizeof(Vp));
     LogUtils_CheckNullPointer("vp", vp, "../z_view.c", 781);
     View_ViewportToVp(vp, &view->viewport);
     view->vp = *vp;
@@ -416,7 +416,7 @@ s32 func_800AB2C4(View* view) {
                   view->viewport.bottomY);
     gSPViewport(OVERLAY_DISP++, vp);
 
-    projection = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    projection = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     LogUtils_CheckNullPointer("projection", projection, "../z_view.c", 791);
     view->projectionPtr = projection;
 
@@ -444,7 +444,7 @@ s32 func_800AB560(View* view) {
 
     OPEN_DISPS(gfxCtx, "../z_view.c", 816);
 
-    vp = Graph_Alloc(gfxCtx, sizeof(Vp));
+    vp = GRAPH_ALLOC(gfxCtx, sizeof(Vp));
     LogUtils_CheckNullPointer("vp", vp, "../z_view.c", 821);
     View_ViewportToVp(vp, &view->viewport);
     view->vp = *vp;
@@ -454,7 +454,7 @@ s32 func_800AB560(View* view) {
                   view->viewport.bottomY);
     gSPViewport(OVERLAY_DISP++, vp);
 
-    projection = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    projection = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     LogUtils_CheckNullPointer("projection", projection, "../z_view.c", 833);
     view->projectionPtr = projection;
 
@@ -469,7 +469,7 @@ s32 func_800AB560(View* view) {
     gSPPerspNormalize(OVERLAY_DISP++, view->normal);
     gSPMatrix(OVERLAY_DISP++, projection, G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
 
-    viewing = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    viewing = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
     LogUtils_CheckNullPointer("viewing", viewing, "../z_view.c", 848);
     view->viewingPtr = viewing;
 
@@ -516,7 +516,7 @@ s32 func_800AB9EC(View* view, s32 arg1, Gfx** gfxp) {
     arg1 = (view->flags & arg1) | (arg1 >> 4);
 
     if (arg1 & 2) {
-        vp = Graph_Alloc(gfxCtx, sizeof(Vp));
+        vp = GRAPH_ALLOC(gfxCtx, sizeof(Vp));
         LogUtils_CheckNullPointer("vp", vp, "../z_view.c", 910);
         View_ViewportToVp(vp, &view->viewport);
 
@@ -529,7 +529,7 @@ s32 func_800AB9EC(View* view, s32 arg1, Gfx** gfxp) {
     }
 
     if (arg1 & 8) {
-        projection = Graph_Alloc(gfxCtx, sizeof(Mtx));
+        projection = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
         LogUtils_CheckNullPointer("projection", projection, "../z_view.c", 921);
         view->projectionPtr = projection;
 
@@ -540,7 +540,7 @@ s32 func_800AB9EC(View* view, s32 arg1, Gfx** gfxp) {
 
         gSPMatrix(gfx++, projection, G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_PROJECTION);
     } else if (arg1 & 6) {
-        projection = Graph_Alloc(gfxCtx, sizeof(Mtx));
+        projection = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
         LogUtils_CheckNullPointer("projection", projection, "../z_view.c", 932);
         view->projectionPtr = projection;
 
@@ -557,7 +557,7 @@ s32 func_800AB9EC(View* view, s32 arg1, Gfx** gfxp) {
     }
 
     if (arg1 & 1) {
-        viewing = Graph_Alloc(gfxCtx, sizeof(Mtx));
+        viewing = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
         LogUtils_CheckNullPointer("viewing", viewing, "../z_view.c", 948);
         view->viewingPtr = viewing;
 

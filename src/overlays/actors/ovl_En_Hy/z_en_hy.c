@@ -1170,7 +1170,7 @@ void EnHy_PostLimbDraw(GlobalContext* globalCtx, s32 limbIndex, Gfx** dList, Vec
 Gfx* EnHy_SetEnvColor(GraphicsContext* globalCtx, u8 envR, u8 envG, u8 envB, u8 envA) {
     Gfx* dList;
 
-    dList = Graph_Alloc(globalCtx, 2 * sizeof(Gfx));
+    dList = GRAPH_ALLOC(globalCtx, 2 * sizeof(Gfx));
     gDPSetEnvColor(dList, envR, envG, envB, envA);
     gSPEndDisplayList(dList + 1);
 

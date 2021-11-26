@@ -69,7 +69,7 @@ void Collider_DrawPoly(GraphicsContext* gfxCtx, Vec3f* vA, Vec3f* vB, Vec3f* vC,
     gSPSetGeometryMode(POLY_OPA_DISP++, G_LIGHTING);
     gDPPipeSync(POLY_OPA_DISP++);
 
-    vtxTbl = Graph_Alloc(gfxCtx, 3 * sizeof(Vtx));
+    vtxTbl = GRAPH_ALLOC(gfxCtx, 3 * sizeof(Vtx));
     ASSERT(vtxTbl != NULL, "vtx_tbl != NULL", "../z_collision_check.c", 726);
 
     vtxTbl[0].n.ob[0] = vA->x;

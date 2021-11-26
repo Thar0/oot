@@ -2097,7 +2097,7 @@ Gfx* BossGoma_EmptyDlist(GraphicsContext* gfxCtx) {
     Gfx* dListHead;
     Gfx* dList;
 
-    dList = dListHead = Graph_Alloc(gfxCtx, sizeof(Gfx) * 1);
+    dList = dListHead = GRAPH_ALLOC(gfxCtx, sizeof(Gfx) * 1);
 
     gSPEndDisplayList(dListHead++);
 
@@ -2108,7 +2108,7 @@ Gfx* BossGoma_NoBackfaceCullingDlist(GraphicsContext* gfxCtx) {
     Gfx* dListHead;
     Gfx* dList;
 
-    dList = dListHead = Graph_Alloc(gfxCtx, sizeof(Gfx) * 4);
+    dList = dListHead = GRAPH_ALLOC(gfxCtx, sizeof(Gfx) * 4);
 
     gDPPipeSync(dListHead++);
     gDPSetRenderMode(dListHead++, G_RM_PASS, G_RM_AA_ZB_TEX_EDGE2);

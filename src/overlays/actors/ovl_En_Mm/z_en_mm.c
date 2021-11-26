@@ -542,7 +542,7 @@ void EnMm_Draw(Actor* thisx, GlobalContext* globalCtx) {
             Vec3s sp50;
             Mtx* mtx2;
 
-            mtx = Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Mtx) * 2);
+            mtx = GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Mtx) * 2);
 
             Matrix_Put(&this->unk_208);
             mtx2 = Matrix_NewMtx(globalCtx->state.gfxCtx, "../z_en_mm.c", 1111);

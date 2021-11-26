@@ -1448,8 +1448,8 @@ void func_80091A24(GlobalContext* globalCtx, void* seg04, void* seg06, SkelAnime
     Gfx* opaRef;
     Gfx* xluRef;
     u16 perspNorm;
-    Mtx* perspMtx = Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Mtx));
-    Mtx* lookAtMtx = Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Mtx));
+    Mtx* perspMtx = GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Mtx));
+    Mtx* lookAtMtx = GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Mtx));
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_player_lib.c", 3129);
 

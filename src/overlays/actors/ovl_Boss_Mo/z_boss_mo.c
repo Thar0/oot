@@ -2431,7 +2431,7 @@ void BossMo_DrawTentacle(BossMo* this, GlobalContext* globalCtx) {
     s16 i;
     s16 notCut;
     s16 index;
-    Mtx* matrix = Graph_Alloc(globalCtx->state.gfxCtx, 41 * sizeof(Mtx));
+    Mtx* matrix = GRAPH_ALLOC(globalCtx->state.gfxCtx, 41 * sizeof(Mtx));
     f32 phi_f20;
     f32 phi_f22;
     Vec3f sp110;

@@ -789,7 +789,7 @@ void EnKanban_Draw(Actor* thisx, GlobalContext* globalCtx) {
     f32 zShift;
     f32 zShift2;
     s16 i;
-    u8* shadowTex = Graph_Alloc(globalCtx->state.gfxCtx, 0x400);
+    u8* shadowTex = GRAPH_ALLOC(globalCtx->state.gfxCtx, 0x400);
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_en_kanban.c", 1659);
     func_80093D18(globalCtx->state.gfxCtx);

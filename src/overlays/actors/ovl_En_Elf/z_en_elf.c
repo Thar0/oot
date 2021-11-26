@@ -1501,7 +1501,7 @@ void EnElf_Draw(Actor* thisx, GlobalContext* globalCtx) {
 
     if ((this->unk_2A8 != 8) && !(this->fairyFlags & 8)) {
         if (!(player->stateFlags1 & 0x100000) || (kREG(90) < this->actor.projectedPos.z)) {
-            dListHead = Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Gfx) * 4);
+            dListHead = GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Gfx) * 4);
 
             OPEN_DISPS(globalCtx->state.gfxCtx, "../z_en_elf.c", 2730);
 

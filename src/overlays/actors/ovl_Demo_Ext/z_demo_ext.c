@@ -192,7 +192,7 @@ void DemoExt_DrawVortex(Actor* thisx, GlobalContext* globalCtx) {
 
     scale = &this->scale;
     gfxCtx = globalCtx->state.gfxCtx;
-    mtx = Graph_Alloc(gfxCtx, sizeof(Mtx));
+    mtx = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
 
     OPEN_DISPS(gfxCtx, "../z_demo_ext.c", 460);
     Matrix_Push();

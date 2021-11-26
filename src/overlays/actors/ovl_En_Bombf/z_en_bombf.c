@@ -470,7 +470,7 @@ Gfx* EnBombf_NewMtxDList(GraphicsContext* gfxCtx, GlobalContext* globalCtx) {
     Gfx* displayList;
     Gfx* displayListHead;
 
-    displayList = Graph_Alloc(gfxCtx, 5 * sizeof(Gfx));
+    displayList = GRAPH_ALLOC(gfxCtx, 5 * sizeof(Gfx));
     displayListHead = displayList;
     func_800D1FD4(&globalCtx->mf_11DA0);
     gSPMatrix(displayListHead++, Matrix_NewMtx(gfxCtx, "../z_en_bombf.c", 1021),

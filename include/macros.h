@@ -128,6 +128,9 @@ extern GraphicsContext* __gfxCtx;
     }                                                   \
     (void)0
 
+#define GRAPH_ALLOC(gfxCtx, size) \
+    Graph_Alloc(gfxCtx, size)
+
 /**
  * `x` vertex x
  * `y` vertex y

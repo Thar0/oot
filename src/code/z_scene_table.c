@@ -1029,7 +1029,7 @@ void* sDCLavaFloorTextures[] = {
 void func_80099878(GlobalContext* globalCtx) {
     u32 gameplayFrames;
     s32 pad;
-    Gfx* displayListHead = Graph_Alloc(globalCtx->state.gfxCtx, 6 * sizeof(Gfx));
+    Gfx* displayListHead = GRAPH_ALLOC(globalCtx->state.gfxCtx, 6 * sizeof(Gfx));
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 4905);
 
@@ -1066,7 +1066,7 @@ void func_80099878(GlobalContext* globalCtx) {
 // Scene Draw Config 30
 void func_80099BD8(GlobalContext* globalCtx) {
     f32 temp;
-    Gfx* displayListHead = Graph_Alloc(globalCtx->state.gfxCtx, 18 * sizeof(Gfx));
+    Gfx* displayListHead = GRAPH_ALLOC(globalCtx->state.gfxCtx, 18 * sizeof(Gfx));
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 5069);
 
@@ -1668,7 +1668,7 @@ void func_8009CC00(GlobalContext* globalCtx) {
 
 Gfx* Gfx_TwoTexScrollPrimColor(GraphicsContext* gfxCtx, s32 tile1, u32 x1, u32 y1, s32 width1, s32 height1, s32 tile2,
                                u32 x2, u32 y2, s32 width2, s32 height2, s32 r, s32 g, s32 b, s32 a) {
-    Gfx* displayList = Graph_Alloc(gfxCtx, 10 * sizeof(Gfx));
+    Gfx* displayList = GRAPH_ALLOC(gfxCtx, 10 * sizeof(Gfx));
 
     x1 %= 2048;
     y1 %= 2048;
@@ -1862,7 +1862,7 @@ void func_8009DA30(GlobalContext* globalCtx) {
     u32 gameplayFrames;
     Gfx* displayListHead;
 
-    displayListHead = Graph_Alloc(globalCtx->state.gfxCtx, 3 * sizeof(Gfx));
+    displayListHead = GRAPH_ALLOC(globalCtx->state.gfxCtx, 3 * sizeof(Gfx));
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6814);
 
@@ -1960,7 +1960,7 @@ void func_8009E0B8(GlobalContext* globalCtx) {
 
     spA3 = 128;
     spA0 = 500;
-    displayListHead = Graph_Alloc(globalCtx->state.gfxCtx, 6 * sizeof(Gfx));
+    displayListHead = GRAPH_ALLOC(globalCtx->state.gfxCtx, 6 * sizeof(Gfx));
 
     if (1) {}
     if (1) {}
@@ -2236,7 +2236,7 @@ void func_8009F40C(GlobalContext* globalCtx) {
 
 // Scene Draw Config 14
 void func_8009F5D4(GlobalContext* globalCtx) {
-    Gfx* displayListHead = Graph_Alloc(globalCtx->state.gfxCtx, 3 * sizeof(Gfx));
+    Gfx* displayListHead = GRAPH_ALLOC(globalCtx->state.gfxCtx, 3 * sizeof(Gfx));
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 7461);
 

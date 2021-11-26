@@ -66,7 +66,7 @@ f32 DemoIk_GetCurFrame(DemoIk* this) {
 }
 
 Gfx* DemoIk_SetColors(GraphicsContext* gfxCtx, u8 primR, u8 primG, u8 primB, u8 envR, u8 envG, u8 envB) {
-    Gfx* head = Graph_Alloc(gfxCtx, 3 * sizeof(Gfx));
+    Gfx* head = GRAPH_ALLOC(gfxCtx, 3 * sizeof(Gfx));
     Gfx* entry = head;
 
     gDPSetPrimColor(entry++, 0x00, 0x00, primR, primG, primB, 255);

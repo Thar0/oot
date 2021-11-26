@@ -844,7 +844,7 @@ void EnRr_Draw(Actor* thisx, GlobalContext* globalCtx) {
     Vec3f zeroVec;
     EnRr* this = THIS;
     s32 i;
-    Mtx* segMtx = Graph_Alloc(globalCtx->state.gfxCtx, 4 * sizeof(Mtx));
+    Mtx* segMtx = GRAPH_ALLOC(globalCtx->state.gfxCtx, 4 * sizeof(Mtx));
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_en_rr.c", 1478);
     if (1) {}

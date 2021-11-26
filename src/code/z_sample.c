@@ -22,7 +22,7 @@ void Sample_Draw(SampleContext* this) {
     func_800AAA50(view, 15);
 
     {
-        Mtx* mtx = Graph_Alloc(gfxCtx, sizeof(Mtx));
+        Mtx* mtx = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
         guPosition(mtx, SREG(37), SREG(38), SREG(39), 1.0f, SREG(40), SREG(41), SREG(42));
         gSPMatrix(POLY_OPA_DISP++, mtx, G_MTX_LOAD);
     }

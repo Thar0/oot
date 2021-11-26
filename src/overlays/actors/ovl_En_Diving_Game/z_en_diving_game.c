@@ -530,7 +530,7 @@ void EnDivingGame_Update(Actor* thisx, GlobalContext* globalCtx2) {
 }
 
 Gfx* EnDivingGame_EmptyDList(GraphicsContext* gfxCtx) {
-    Gfx* displayList = Graph_Alloc(gfxCtx, sizeof(Gfx));
+    Gfx* displayList = GRAPH_ALLOC(gfxCtx, sizeof(Gfx));
 
     gSPEndDisplayList(displayList);
     return displayList;

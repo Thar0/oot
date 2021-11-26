@@ -609,7 +609,7 @@ s32 func_80B5458C(GlobalContext* globalCtx, s32 limbIndex, Gfx** dList, Vec3f* p
     Vec3s* unk_3F8_unk_0E = &this->unk_3F8.unk_0E;
 
     if (limbIndex == 14) {
-        sp78 = Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Mtx) * 7);
+        sp78 = GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Mtx) * 7);
         rot->x += unk_3F8_unk_08->y;
         rot->z += unk_3F8_unk_08->x;
         gSPSegment((*gfx)++, 0x0C, sp78);
@@ -2448,7 +2448,7 @@ void func_80B593D0(EnZl3* this, GlobalContext* globalCtx) {
 s32 func_80B5944C(GlobalContext* globalCtx, s32 limbIndex, Gfx** dList, Vec3f* pos, Vec3s* rot, void* thisx,
                   Gfx** gfx) {
     if (limbIndex == 14) {
-        Mtx* mtx = Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Mtx) * 7);
+        Mtx* mtx = GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Mtx) * 7);
         EnZl3* this = THIS;
         Vec3s* vec = &this->unk_3F8.unk_08;
 

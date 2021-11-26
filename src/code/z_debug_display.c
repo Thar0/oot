@@ -34,7 +34,7 @@ DebugDispObject* DebugDisplay_AddObject(f32 posX, f32 posY, f32 posZ, s16 rotX, 
                                         GraphicsContext* gfxCtx) {
     DebugDispObject* prevHead = sDebugObjectListHead;
 
-    sDebugObjectListHead = Graph_Alloc(gfxCtx, sizeof(DebugDispObject));
+    sDebugObjectListHead = GRAPH_ALLOC(gfxCtx, sizeof(DebugDispObject));
 
     sDebugObjectListHead->pos.x = posX;
     sDebugObjectListHead->pos.y = posY;

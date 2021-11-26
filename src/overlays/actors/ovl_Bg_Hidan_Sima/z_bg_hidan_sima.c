@@ -261,7 +261,7 @@ Gfx* func_8088EB54(GlobalContext* globalCtx, BgHidanSima* this, Gfx* gfx) {
         gSPSegment(gfx++, 0x09, SEGMENTED_TO_VIRTUAL(sFireballsTexs[(this->timer + s3) % 7]));
         gSPMatrix(gfx++,
                   Matrix_MtxFToMtx(Matrix_CheckFloats(&mtxF, "../z_bg_hidan_sima.c", 611),
-                                   Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Mtx))),
+                                   GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Mtx))),
                   G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
         gSPDisplayList(gfx++, gFireTempleFireballDL);
     }
@@ -270,7 +270,7 @@ Gfx* func_8088EB54(GlobalContext* globalCtx, BgHidanSima* this, Gfx* gfx) {
     gSPSegment(gfx++, 0x09, SEGMENTED_TO_VIRTUAL(sFireballsTexs[(this->timer + s3) % 7]));
     gSPMatrix(gfx++,
               Matrix_MtxFToMtx(Matrix_CheckFloats(&mtxF, "../z_bg_hidan_sima.c", 624),
-                               Graph_Alloc(globalCtx->state.gfxCtx, sizeof(Mtx))),
+                               GRAPH_ALLOC(globalCtx->state.gfxCtx, sizeof(Mtx))),
               G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
     gSPDisplayList(gfx++, gFireTempleFireballDL);
     return gfx;

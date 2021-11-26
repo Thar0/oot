@@ -2885,7 +2885,7 @@ void Interface_InitVertices(GlobalContext* globalCtx) {
     InterfaceContext* interfaceCtx = &globalCtx->interfaceCtx;
     s16 i;
 
-    interfaceCtx->actionVtx = Graph_Alloc(globalCtx->state.gfxCtx, 8 * sizeof(Vtx));
+    interfaceCtx->actionVtx = GRAPH_ALLOC(globalCtx->state.gfxCtx, 8 * sizeof(Vtx));
 
     // clang-format off
     interfaceCtx->actionVtx[0].v.ob[0] =
@@ -2934,7 +2934,7 @@ void Interface_InitVertices(GlobalContext* globalCtx) {
     interfaceCtx->actionVtx[5].v.tc[0] = interfaceCtx->actionVtx[7].v.tc[0] = 1536;
     interfaceCtx->actionVtx[6].v.tc[1] = interfaceCtx->actionVtx[7].v.tc[1] = 512;
 
-    interfaceCtx->beatingHeartVtx = Graph_Alloc(globalCtx->state.gfxCtx, 4 * sizeof(Vtx));
+    interfaceCtx->beatingHeartVtx = GRAPH_ALLOC(globalCtx->state.gfxCtx, 4 * sizeof(Vtx));
 
     interfaceCtx->beatingHeartVtx[0].v.ob[0] = interfaceCtx->beatingHeartVtx[2].v.ob[0] = -8;
     interfaceCtx->beatingHeartVtx[1].v.ob[0] = interfaceCtx->beatingHeartVtx[3].v.ob[0] = 8;

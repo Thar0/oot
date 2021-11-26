@@ -569,7 +569,7 @@ Gfx* EnBox_EmptyDList(GraphicsContext* gfxCtx) {
     Gfx* dListHead;
     Gfx* dList;
 
-    dList = Graph_Alloc(gfxCtx, sizeof(Gfx));
+    dList = GRAPH_ALLOC(gfxCtx, sizeof(Gfx));
     ASSERT(dList != NULL, "gfxp != NULL", "../z_en_box.c", 1528);
 
     dListHead = dList;
@@ -583,7 +583,7 @@ Gfx* func_809CA4A0(GraphicsContext* gfxCtx) {
     Gfx* dList;
     Gfx* dListHead;
 
-    dListHead = Graph_Alloc(gfxCtx, 2 * sizeof(Gfx));
+    dListHead = GRAPH_ALLOC(gfxCtx, 2 * sizeof(Gfx));
     ASSERT(dListHead != NULL, "gfxp != NULL", "../z_en_box.c", 1546);
 
     dList = dListHead;
@@ -601,7 +601,7 @@ Gfx* func_809CA518(GraphicsContext* gfxCtx) {
     Gfx* dList;
     Gfx* dListHead;
 
-    dListHead = Graph_Alloc(gfxCtx, 2 * sizeof(Gfx));
+    dListHead = GRAPH_ALLOC(gfxCtx, 2 * sizeof(Gfx));
     ASSERT(dListHead != NULL, "gfxp != NULL", "../z_en_box.c", 1564);
 
     dList = dListHead;

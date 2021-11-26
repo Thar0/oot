@@ -768,7 +768,7 @@ Gfx* EnGoma_NoBackfaceCullingDlist(GraphicsContext* gfxCtx) {
     Gfx* dListHead;
     Gfx* dList;
 
-    dListHead = dList = Graph_Alloc(gfxCtx, sizeof(Gfx) * 4);
+    dListHead = dList = GRAPH_ALLOC(gfxCtx, sizeof(Gfx) * 4);
     gDPPipeSync(dListHead++);
     gDPSetRenderMode(dListHead++, G_RM_PASS, G_RM_AA_ZB_TEX_EDGE2);
     gSPClearGeometryMode(dListHead++, G_CULL_BACK);

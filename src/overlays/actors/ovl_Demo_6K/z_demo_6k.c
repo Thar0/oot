@@ -771,7 +771,7 @@ void func_80968B70(Actor* thisx, GlobalContext* globalCtx) {
 void func_80968FB0(Actor* thisx, GlobalContext* globalCtx) {
     static u8 D_809693CC[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 7, 6, 5, 4, 3, 2, 1 };
     Demo6K* this = THIS;
-    Gfx* displayList = Graph_Alloc(globalCtx->state.gfxCtx, 4 * sizeof(Gfx));
+    Gfx* displayList = GRAPH_ALLOC(globalCtx->state.gfxCtx, 4 * sizeof(Gfx));
     u16 frames = globalCtx->gameplayFrames;
     f32 scaleFactor;
     s32 pad;

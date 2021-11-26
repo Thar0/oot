@@ -1709,7 +1709,7 @@ void EnXc_DrawTriforce(Actor* thisx, GlobalContext* globalCtx) {
 
     OPEN_DISPS(gfxCtx, "../z_en_oA2_inMetamol.c", 565);
     if (this->unk_2BC != 0) {
-        Mtx* mtx = Graph_Alloc(gfxCtx, sizeof(Mtx));
+        Mtx* mtx = GRAPH_ALLOC(gfxCtx, sizeof(Mtx));
         s32* primColor = this->triforcePrimColor;
         s32* envColor = this->triforceEnvColor;
         f32* scale = this->triforceScale;

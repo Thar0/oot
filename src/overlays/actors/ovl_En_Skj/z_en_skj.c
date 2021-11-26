@@ -1628,7 +1628,7 @@ Gfx* EnSkj_TranslucentDL(GraphicsContext* gfxCtx, u32 alpha) {
     Gfx* dListHead;
 
     //! @bug This only allocates space for 1 command but uses 3
-    dList = dListHead = Graph_Alloc(gfxCtx, sizeof(Gfx));
+    dList = dListHead = GRAPH_ALLOC(gfxCtx, sizeof(Gfx));
     gDPSetRenderMode(dListHead++, G_RM_FOG_SHADE_A, G_RM_AA_ZB_XLU_SURF2);
     gDPSetEnvColor(dListHead++, 0, 0, 0, alpha);
     gSPEndDisplayList(dListHead++);
@@ -1641,7 +1641,7 @@ Gfx* EnSkj_OpaqueDL(GraphicsContext* gfxCtx, u32 alpha) {
     Gfx* dListHead;
 
     //! @bug This only allocates space for 1 command but uses 2
-    dList = dListHead = Graph_Alloc(gfxCtx, sizeof(Gfx));
+    dList = dListHead = GRAPH_ALLOC(gfxCtx, sizeof(Gfx));
     gDPSetEnvColor(dListHead++, 0, 0, 0, alpha);
     gSPEndDisplayList(dListHead++);
 

@@ -1097,7 +1097,7 @@ void Gameplay_Draw(GlobalContext* globalCtx) {
             globalCtx->mf_11DA0.mf[3][0] = globalCtx->mf_11DA0.mf[3][1] = globalCtx->mf_11DA0.mf[3][2] = 0.0f;
         Matrix_Transpose(&globalCtx->mf_11DA0);
         globalCtx->unk_11DE0 = Matrix_MtxFToMtx(Matrix_CheckFloats(&globalCtx->mf_11DA0, "../z_play.c", 4005),
-                                                Graph_Alloc(gfxCtx, sizeof(Mtx)));
+                                                GRAPH_ALLOC(gfxCtx, sizeof(Mtx)));
 
         gSPSegment(POLY_OPA_DISP++, 0x01, globalCtx->unk_11DE0);
 

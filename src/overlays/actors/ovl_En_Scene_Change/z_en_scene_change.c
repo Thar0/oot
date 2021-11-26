@@ -57,7 +57,7 @@ void EnSceneChange_Draw(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad2[2];
     Gfx* displayListHead;
 
-    displayList = Graph_Alloc(globalCtx->state.gfxCtx, 0x3C0);
+    displayList = GRAPH_ALLOC(globalCtx->state.gfxCtx, 0x3C0);
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_en_scene_change.c", 290);
 
