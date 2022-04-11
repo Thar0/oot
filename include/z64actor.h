@@ -77,7 +77,7 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ DamageTable* damageTable;
-    /* 0x04 */ Vec3f displacement; // Amount to correct velocity (0x5C) by when colliding into a body
+    /* 0x04 */ Vec3f displacement; // Amount to correct actor velocity by when colliding into a body
     /* 0x10 */ s16 cylRadius; // Used for various purposes
     /* 0x12 */ s16 cylHeight; // Used for various purposes
     /* 0x14 */ s16 cylYShift; // Unused. Purpose inferred from Cylinder16 and CollisionCheck_CylSideVsLineSeg
@@ -99,6 +99,46 @@ typedef struct {
     /* 0x15 */ u8 feetFloorFlags; // Set if the actor's foot is clipped under the floor. & 1 is right foot, & 2 is left
     /* 0x18 */ Vec3f feetPos[2]; // Update by using `Actor_SetFeetPos` in PostLimbDraw
 } ActorShape; // size = 0x30
+
+#define ACTOR_FLAG_0 (1 << 0)
+#define ACTOR_FLAG_2 (1 << 2)
+#define ACTOR_FLAG_3 (1 << 3)
+#define ACTOR_FLAG_4 (1 << 4)
+#define ACTOR_FLAG_5 (1 << 5)
+#define ACTOR_FLAG_6 (1 << 6)
+#define ACTOR_FLAG_7 (1 << 7)
+#define ACTOR_FLAG_8 (1 << 8)
+#define ACTOR_FLAG_9 (1 << 9)
+#define ACTOR_FLAG_10 (1 << 10)
+#define ACTOR_FLAG_ENKUSA_CUT (1 << 11)
+#define ACTOR_FLAG_12 (1 << 12)
+#define ACTOR_FLAG_13 (1 << 13)
+#define ACTOR_FLAG_14 (1 << 14)
+#define ACTOR_FLAG_15 (1 << 15)
+#define ACTOR_FLAG_16 (1 << 16)
+#define ACTOR_FLAG_17 (1 << 17)
+#define ACTOR_FLAG_18 (1 << 18)
+#define ACTOR_FLAG_19 (1 << 19)
+#define ACTOR_FLAG_20 (1 << 20)
+#define ACTOR_FLAG_21 (1 << 21)
+#define ACTOR_FLAG_22 (1 << 22)
+#define ACTOR_FLAG_23 (1 << 23)
+#define ACTOR_FLAG_24 (1 << 24)
+#define ACTOR_FLAG_25 (1 << 25)
+#define ACTOR_FLAG_26 (1 << 26)
+#define ACTOR_FLAG_27 (1 << 27)
+#define ACTOR_FLAG_28 (1 << 28)
+
+#define BGCHECKFLAG_GROUND (1 << 0) // Standing on the ground
+#define BGCHECKFLAG_GROUND_TOUCH (1 << 1) // Has touched the ground (only active for 1 frame)
+#define BGCHECKFLAG_GROUND_LEAVE (1 << 2) // Has left the ground (only active for 1 frame)
+#define BGCHECKFLAG_WALL (1 << 3) // Touching a wall
+#define BGCHECKFLAG_CEILING (1 << 4) // Touching a ceiling
+#define BGCHECKFLAG_WATER (1 << 5) // In water
+#define BGCHECKFLAG_WATER_TOUCH (1 << 6) // Has touched water (reset when leaving water)
+#define BGCHECKFLAG_GROUND_STRICT (1 << 7) // Strictly on ground (BGCHECKFLAG_GROUND has some leeway)
+#define BGCHECKFLAG_CRUSHED (1 << 8) // Crushed between a floor and ceiling (triggers a void for player)
+#define BGCHECKFLAG_PLAYER_WALL_INTERACT (1 << 9) // Only set/used by player, related to interacting with walls
 
 typedef struct Actor {
     /* 0x000 */ s16 id; // Actor ID
@@ -125,9 +165,9 @@ typedef struct Actor {
     /* 0x07E */ s16 wallYaw; // Y rotation of the wall polygon the actor is touching
     /* 0x080 */ f32 floorHeight; // Y position of the floor polygon directly below the actor
     /* 0x084 */ f32 yDistToWater; // Distance to the surface of active waterbox. Negative value means above water
-    /* 0x088 */ u16 bgCheckFlags; // See comments below actor struct for wip docs. TODO: macros for these flags
+    /* 0x088 */ u16 bgCheckFlags; // Flags indicating how the actor is interacting with collision
     /* 0x08A */ s16 yawTowardsPlayer; // Y rotation difference between the actor and the player
-    /* 0x08C */ f32 xyzDistToPlayerSq; // Squared distance between the actor and the player in the x,y,z axis
+    /* 0x08C */ f32 xyzDistToPlayerSq; // Squared distance between the actor and the player
     /* 0x090 */ f32 xzDistToPlayer; // Distance between the actor and the player in the XZ plane
     /* 0x094 */ f32 yDistToPlayer; // Dist is negative if the actor is above the player
     /* 0x098 */ CollisionCheckInfo colChkInfo; // Variables related to the Collision Check system
@@ -163,20 +203,6 @@ typedef enum {
     /* 0 */ FOOT_LEFT,
     /* 1 */ FOOT_RIGHT
 } ActorFootIndex;
-
-/*
-BgCheckFlags WIP documentation:
-& 0x001 : Standing on the ground
-& 0x002 : Has touched the ground (only active for 1 frame)
-& 0x004 : Has left the ground (only active for 1 frame)
-& 0x008 : Touching a wall
-& 0x010 : Touching a ceiling
-& 0x020 : On or below water surface
-& 0x040 : Has touched water (actor is responsible for unsetting this the frame it touches the water)
-& 0x080 : Similar to & 0x1 but with no velocity check and is cleared every frame
-& 0x100 : Crushed between a floor and ceiling (triggers a void for player)
-& 0x200 : Unknown (only set/used by player so far)
-*/
 
 /*
 colorFilterParams WIP documentation
@@ -239,7 +265,8 @@ typedef enum {
     /* 0x16 */ ITEM00_SHIELD_HYLIAN,
     /* 0x17 */ ITEM00_TUNIC_ZORA,
     /* 0x18 */ ITEM00_TUNIC_GORON,
-    /* 0x19 */ ITEM00_BOMBS_SPECIAL
+    /* 0x19 */ ITEM00_BOMBS_SPECIAL,
+    /* 0xFF */ ITEM00_NONE = 0xFF
 } Item00Type;
 
 struct EnItem00;
@@ -259,6 +286,7 @@ typedef struct EnItem00 {
     /* 0x160 */ ColliderCylinder collider;
 } EnItem00; // size = 0x1AC
 
+// Only A_OBJ_SIGNPOST_OBLONG and A_OBJ_SIGNPOST_ARROW are used in room files.
 typedef enum {
     /* 0x00 */ A_OBJ_BLOCK_SMALL,
     /* 0x01 */ A_OBJ_BLOCK_LARGE,
@@ -271,7 +299,8 @@ typedef enum {
     /* 0x08 */ A_OBJ_TREE_STUMP,
     /* 0x09 */ A_OBJ_SIGNPOST_OBLONG,
     /* 0x0A */ A_OBJ_SIGNPOST_ARROW,
-    /* 0x0B */ A_OBJ_KNOB
+    /* 0x0B */ A_OBJ_BOULDER_FRAGMENT,
+    /* 0x0C */ A_OBJ_MAX
 } AObjType;
 
 struct EnAObj;
@@ -281,13 +310,13 @@ typedef void (*EnAObjActionFunc)(struct EnAObj*, struct GlobalContext*);
 typedef struct EnAObj {
     /* 0x000 */ DynaPolyActor dyna;
     /* 0x164 */ EnAObjActionFunc actionFunc;
-    /* 0x168 */ s32 unk_168;
+    /* 0x168 */ s32 rotateWaitTimer;
     /* 0x16C */ s16 textId;
-    /* 0x16E */ s16 unk_16E;
-    /* 0x170 */ s16 unk_170;
-    /* 0x172 */ s16 unk_172;
-    /* 0x174 */ s16 unk_174;
-    /* 0x178 */ f32 unk_178;
+    /* 0x16E */ s16 rotateState;
+    /* 0x170 */ s16 rotateForTimer;
+    /* 0x172 */ s16 rotSpeedY;
+    /* 0x174 */ s16 rotSpeedX;
+    /* 0x178 */ f32 focusYoffset;
     /* 0x17C */ ColliderCylinder collider;
 } EnAObj; // size = 0x1C8
 
@@ -303,7 +332,8 @@ typedef enum {
     /* 0x08 */ ACTORCAT_MISC,
     /* 0x09 */ ACTORCAT_BOSS,
     /* 0x0A */ ACTORCAT_DOOR,
-    /* 0x0B */ ACTORCAT_CHEST
+    /* 0x0B */ ACTORCAT_CHEST,
+    /* 0x0C */ ACTORCAT_MAX
 } ActorCategory;
 
 #define DEFINE_ACTOR(_0, enum, _2) enum,
@@ -318,5 +348,20 @@ typedef enum {
 #undef DEFINE_ACTOR
 #undef DEFINE_ACTOR_INTERNAL
 #undef DEFINE_ACTOR_UNSET
+
+typedef enum {
+    DOORLOCK_NORMAL,
+    DOORLOCK_BOSS,
+    DOORLOCK_NORMAL_SPIRIT
+} DoorLockType;
+
+#define UPDBGCHECKINFO_FLAG_0 (1 << 0) // check wall
+#define UPDBGCHECKINFO_FLAG_1 (1 << 1) // check ceiling
+#define UPDBGCHECKINFO_FLAG_2 (1 << 2) // check floor and water
+#define UPDBGCHECKINFO_FLAG_3 (1 << 3)
+#define UPDBGCHECKINFO_FLAG_4 (1 << 4)
+#define UPDBGCHECKINFO_FLAG_5 (1 << 5) // unused
+#define UPDBGCHECKINFO_FLAG_6 (1 << 6) // disable water ripples
+#define UPDBGCHECKINFO_FLAG_7 (1 << 7) // alternate wall check?
 
 #endif

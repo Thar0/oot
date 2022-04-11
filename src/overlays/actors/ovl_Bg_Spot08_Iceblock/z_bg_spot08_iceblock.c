@@ -7,9 +7,7 @@
 #include "z_bg_spot08_iceblock.h"
 #include "objects/object_spot08_obj/object_spot08_obj.h"
 
-#define FLAGS 0x00000000
-
-#define THIS ((BgSpot08Iceblock*)thisx)
+#define FLAGS 0
 
 void BgSpot08Iceblock_Init(Actor* thisx, GlobalContext* globalCtx);
 void BgSpot08Iceblock_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -50,7 +48,7 @@ void BgSpot08Iceblock_InitDynaPoly(BgSpot08Iceblock* this, GlobalContext* global
     CollisionHeader_GetVirtual(collision, &colHeader);
     this->dyna.bgId = DynaPoly_SetBgActor(globalCtx, &globalCtx->colCtx.dyna, &this->dyna.actor, colHeader);
     if (this->dyna.bgId == BG_ACTOR_MAX) {
-        // Warning: move BG registration failed
+        // "Warning: move BG registration failed"
         osSyncPrintf("Warning : move BG 登録失敗(%s %d)(name %d)(arg_data 0x%04x)\n", "../z_bg_spot08_iceblock.c", 0xD9,
                      this->dyna.actor.id, this->dyna.actor.params);
     }
@@ -63,7 +61,7 @@ void BgSpot08Iceblock_CheckParams(BgSpot08Iceblock* this) {
             this->dyna.actor.params = 0x10;
             break;
         default:
-            // Error: arg_data setting error
+            // "Error: arg_data setting error"
             osSyncPrintf("Error : arg_data 設定ミスです。(%s %d)(arg_data 0x%04x)\n", "../z_bg_spot08_iceblock.c", 0xF6,
                          this->dyna.actor.params);
             this->dyna.actor.params = 0x10;
@@ -248,7 +246,7 @@ void BgSpot08Iceblock_Roll(BgSpot08Iceblock* this, GlobalContext* globalCtx) {
     // Rotation by the angle between surfaceNormal and the vertical about rotationAxis
     Matrix_RotateAxis(Math_FAcosF(Math3D_Cos(&sVerticalVector, &this->surfaceNormal)), &this->rotationAxis,
                       MTXMODE_NEW);
-    Matrix_RotateY(this->dyna.actor.shape.rot.y * (M_PI / 0x8000), MTXMODE_APPLY);
+    Matrix_RotateY(BINANG_TO_RAD(this->dyna.actor.shape.rot.y), MTXMODE_APPLY);
     Matrix_Get(&mtx);
     Matrix_MtxFToYXZRotS(&mtx, &this->dyna.actor.shape.rot, 0);
 }
@@ -283,10 +281,10 @@ static InitChainEntry sInitChain[] = {
 };
 
 void BgSpot08Iceblock_Init(Actor* thisx, GlobalContext* globalCtx) {
-    BgSpot08Iceblock* this = THIS;
+    BgSpot08Iceblock* this = (BgSpot08Iceblock*)thisx;
     CollisionHeader* colHeader;
 
-    // spot08 ice floe
+    // "spot08 ice floe"
     osSyncPrintf("(spot08 流氷)(arg_data 0x%04x)\n", this->dyna.actor.params);
     BgSpot08Iceblock_CheckParams(this);
 
@@ -351,7 +349,7 @@ void BgSpot08Iceblock_Init(Actor* thisx, GlobalContext* globalCtx) {
 }
 
 void BgSpot08Iceblock_Destroy(Actor* thisx, GlobalContext* globalCtx) {
-    BgSpot08Iceblock* this = THIS;
+    BgSpot08Iceblock* this = (BgSpot08Iceblock*)thisx;
 
     DynaPoly_DeleteBgActor(globalCtx, &globalCtx->colCtx.dyna, this->dyna.bgId);
 }
@@ -417,7 +415,7 @@ void BgSpot08Iceblock_SetupNoAction(BgSpot08Iceblock* this) {
 }
 
 void BgSpot08Iceblock_Update(Actor* thisx, GlobalContext* globalCtx) {
-    BgSpot08Iceblock* this = THIS;
+    BgSpot08Iceblock* this = (BgSpot08Iceblock*)thisx;
 
     if (Rand_ZeroOne() < 0.05f) {
         this->bobIncrSlow = Rand_S16Offset(300, 100);
@@ -433,7 +431,7 @@ void BgSpot08Iceblock_Update(Actor* thisx, GlobalContext* globalCtx) {
 
 void BgSpot08Iceblock_Draw(Actor* thisx, GlobalContext* globalCtx) {
     Gfx* dList;
-    BgSpot08Iceblock* this = THIS;
+    BgSpot08Iceblock* this = (BgSpot08Iceblock*)thisx;
 
     switch (this->dyna.actor.params & 0x200) {
         case 0:

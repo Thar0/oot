@@ -1,7 +1,27 @@
 #include "global.h"
 
+#include "scenes/overworld/spot00/spot00_scene.h"
 #include "scenes/overworld/spot00/spot00_room_0.h"
+#include "scenes/overworld/spot01/spot01_scene.h"
+#include "scenes/overworld/spot07/spot07_scene.h"
+#include "scenes/overworld/spot12/spot12_scene.h"
+#include "scenes/overworld/spot16/spot16_scene.h"
 #include "scenes/overworld/spot16/spot16_room_0.h"
+#include "scenes/overworld/spot18/spot18_scene.h"
+#include "scenes/overworld/spot20/spot20_scene.h"
+#include "scenes/overworld/souko/souko_scene.h"
+
+#include "scenes/dungeons/men/men_scene.h"
+#include "scenes/dungeons/ddan/ddan_scene.h"
+#include "scenes/dungeons/ydan/ydan_scene.h"
+#include "scenes/dungeons/Bmori1/Bmori1_scene.h"
+#include "scenes/dungeons/MIZUsin/MIZUsin_scene.h"
+#include "scenes/dungeons/gerudoway/gerudoway_scene.h"
+#include "scenes/dungeons/jyasinzou/jyasinzou_scene.h"
+#include "scenes/indoors/miharigoya/miharigoya_scene.h"
+#include "scenes/dungeons/ice_doukutu/ice_doukutu_scene.h"
+
+#include "overlays/actors/ovl_Bg_Dodoago/z_bg_dodoago.h"
 
 #define ENTRANCE(scene, spawn, continueBgm, displayTitleCard, fadeIn, fadeOut)                                     \
     {                                                                                                              \
@@ -790,127 +810,31 @@ EntranceInfo gEntranceTable[] = {
     ENTRANCE(0x5C, 0x08, 0, 1, 0x03, 0x03), ENTRANCE(0x5C, 0x08, 0, 1, 0x03, 0x03),
 };
 
-#define TITLED_SCENE(name, title, unk_10, config, unk_12)                                            \
-    {                                                                                                \
-        (u32) _##name##SegmentRomStart, (u32)_##name##SegmentRomEnd, (u32)_##title##SegmentRomStart, \
-            (u32)_##title##SegmentRomEnd, unk_10, config, unk_12, 0                                  \
-    }
+// Linker symbol declarations (used in the table below)
+#define DEFINE_SCENE(name, title, _2, _3, _4, _5) \
+    DECLARE_ROM_SEGMENT(name)                     \
+    DECLARE_ROM_SEGMENT(title)
 
-#define UNTITLED_SCENE(name, unk_10, config, unk_12) \
-    { (u32) _##name##SegmentRomStart, (u32)_##name##SegmentRomEnd, 0, 0, unk_10, config, unk_12, 0 }
+#include "tables/scene_table.h"
+
+#undef DEFINE_SCENE
+
+// Scene Table definition
+#define DEFINE_SCENE(name, title, _2, config, unk_10, unk_12) \
+    { ROM_FILE(name), ROM_FILE(title), unk_10, config, unk_12, 0 },
+
+// Handle `none` as a special case for scenes without a title card
+#define _noneSegmentRomStart NULL
+#define _noneSegmentRomEnd NULL
 
 SceneTableEntry gSceneTable[] = {
-    TITLED_SCENE(ydan_scene, g_pn_06, 1, 19, 2),
-    TITLED_SCENE(ddan_scene, g_pn_08, 1, 20, 3),
-    TITLED_SCENE(bdan_scene, g_pn_07, 1, 21, 4),
-    TITLED_SCENE(Bmori1_scene, g_pn_01, 2, 22, 5),
-    TITLED_SCENE(HIDAN_scene, g_pn_03, 2, 18, 6),
-    TITLED_SCENE(MIZUsin_scene, g_pn_04, 1, 23, 7),
-    TITLED_SCENE(jyasinzou_scene, g_pn_05, 1, 25, 8),
-    TITLED_SCENE(HAKAdan_scene, g_pn_02, 2, 24, 9),
-    TITLED_SCENE(HAKAdanCH_scene, g_pn_54, 2, 24, 10),
-    TITLED_SCENE(ice_doukutu_scene, g_pn_10, 0, 37, 0),
-    UNTITLED_SCENE(ganon_scene, 2, 0, 0),
-    TITLED_SCENE(men_scene, g_pn_11, 0, 27, 0),
-    TITLED_SCENE(gerudoway_scene, g_pn_49, 0, 40, 0),
-    TITLED_SCENE(ganontika_scene, g_pn_09, 0, 26, 0),
-    UNTITLED_SCENE(ganon_sonogo_scene, 0, 51, 0),
-    UNTITLED_SCENE(ganontikasonogo_scene, 0, 52, 0),
-    TITLED_SCENE(takaraya_scene, g_pn_51, 0, 0, 0),
-    UNTITLED_SCENE(ydan_boss_scene, 0, 28, 0),
-    UNTITLED_SCENE(ddan_boss_scene, 0, 0, 0),
-    UNTITLED_SCENE(bdan_boss_scene, 0, 21, 0),
-    UNTITLED_SCENE(moribossroom_scene, 1, 0, 0),
-    UNTITLED_SCENE(FIRE_bs_scene, 0, 18, 0),
-    UNTITLED_SCENE(MIZUsin_bs_scene, 0, 29, 0),
-    UNTITLED_SCENE(jyasinboss_scene, 0, 0, 0),
-    UNTITLED_SCENE(HAKAdan_bs_scene, 0, 24, 0),
-    UNTITLED_SCENE(ganon_boss_scene, 0, 0, 0),
-    UNTITLED_SCENE(ganon_final_scene, 0, 38, 0),
-    UNTITLED_SCENE(entra_scene, 0, 0, 0),
-    UNTITLED_SCENE(entra_n_scene, 0, 0, 0),
-    UNTITLED_SCENE(enrui_scene, 0, 0, 0),
-    TITLED_SCENE(market_alley_scene, g_pn_18, 0, 0, 0),
-    TITLED_SCENE(market_alley_n_scene, g_pn_18, 0, 0, 0),
-    TITLED_SCENE(market_day_scene, g_pn_17, 0, 0, 0),
-    TITLED_SCENE(market_night_scene, g_pn_17, 0, 0, 0),
-    TITLED_SCENE(market_ruins_scene, g_pn_17, 0, 0, 0),
-    UNTITLED_SCENE(shrine_scene, 0, 0, 0),
-    UNTITLED_SCENE(shrine_n_scene, 0, 0, 0),
-    UNTITLED_SCENE(shrine_r_scene, 0, 0, 0),
-    UNTITLED_SCENE(kokiri_home_scene, 0, 0, 0),
-    UNTITLED_SCENE(kokiri_home3_scene, 0, 0, 0),
-    UNTITLED_SCENE(kokiri_home4_scene, 0, 0, 0),
-    UNTITLED_SCENE(kokiri_home5_scene, 0, 0, 0),
-    UNTITLED_SCENE(kakariko_scene, 0, 0, 0),
-    UNTITLED_SCENE(kakariko3_scene, 0, 0, 0),
-    TITLED_SCENE(shop1_scene, g_pn_23, 0, 0, 0),
-    TITLED_SCENE(kokiri_shop_scene, g_pn_19, 0, 0, 0),
-    TITLED_SCENE(golon_scene, g_pn_20, 0, 0, 0),
-    TITLED_SCENE(zoora_scene, g_pn_21, 0, 0, 0),
-    TITLED_SCENE(drag_scene, g_pn_24, 0, 0, 0),
-    TITLED_SCENE(alley_shop_scene, g_pn_24, 0, 0, 0),
-    TITLED_SCENE(night_shop_scene, g_pn_56, 0, 0, 0),
-    TITLED_SCENE(face_shop_scene, g_pn_50, 0, 0, 0),
-    UNTITLED_SCENE(link_home_scene, 0, 0, 0),
-    UNTITLED_SCENE(impa_scene, 0, 0, 0),
-    TITLED_SCENE(malon_stable_scene, g_pn_48, 0, 0, 0),
-    UNTITLED_SCENE(labo_scene, 0, 0, 0),
-    TITLED_SCENE(hylia_labo_scene, g_pn_26, 0, 43, 0),
-    UNTITLED_SCENE(tent_scene, 0, 0, 0),
-    TITLED_SCENE(hut_scene, g_pn_25, 0, 0, 0),
-    TITLED_SCENE(daiyousei_izumi_scene, g_pn_13, 0, 33, 0),
-    TITLED_SCENE(yousei_izumi_tate_scene, g_pn_45, 0, 39, 0),
-    TITLED_SCENE(yousei_izumi_yoko_scene, g_pn_13, 0, 33, 0),
-    UNTITLED_SCENE(kakusiana_scene, 0, 31, 0),
-    UNTITLED_SCENE(hakaana_scene, 0, 48, 0),
-    UNTITLED_SCENE(hakaana2_scene, 0, 39, 0),
-    TITLED_SCENE(hakaana_ouke_scene, g_pn_44, 0, 42, 0),
-    TITLED_SCENE(syatekijyou_scene, g_pn_15, 0, 34, 0),
-    TITLED_SCENE(tokinoma_scene, g_pn_16, 0, 30, 0),
-    TITLED_SCENE(kenjyanoma_scene, g_pn_14, 0, 32, 0),
-    TITLED_SCENE(hairal_niwa_scene, g_pn_12, 0, 35, 0),
-    TITLED_SCENE(hairal_niwa_n_scene, g_pn_12, 0, 35, 0),
-    UNTITLED_SCENE(hiral_demo_scene, 0, 0, 0),
-    TITLED_SCENE(hakasitarelay_scene, g_pn_57, 0, 48, 0),
-    TITLED_SCENE(turibori_scene, g_pn_46, 0, 50, 0),
-    TITLED_SCENE(nakaniwa_scene, g_pn_12, 0, 47, 0),
-    TITLED_SCENE(bowling_scene, g_pn_47, 0, 41, 0),
-    UNTITLED_SCENE(souko_scene, 0, 44, 0),
-    UNTITLED_SCENE(miharigoya_scene, 0, 45, 0),
-    TITLED_SCENE(mahouya_scene, g_pn_24, 0, 46, 0),
-    UNTITLED_SCENE(ganon_demo_scene, 0, 36, 0),
-    TITLED_SCENE(kinsuta_scene, g_pn_22, 0, 0, 0),
-    TITLED_SCENE(spot00_scene, g_pn_27, 0, 1, 0),
-    TITLED_SCENE(spot01_scene, g_pn_28, 0, 2, 0),
-    TITLED_SCENE(spot02_scene, g_pn_29, 0, 0, 0),
-    TITLED_SCENE(spot03_scene, g_pn_30, 0, 3, 0),
-    TITLED_SCENE(spot04_scene, g_pn_31, 0, 4, 0),
-    TITLED_SCENE(spot05_scene, g_pn_52, 0, 47, 0),
-    TITLED_SCENE(spot06_scene, g_pn_32, 0, 5, 0),
-    TITLED_SCENE(spot07_scene, g_pn_33, 0, 6, 0),
-    TITLED_SCENE(spot08_scene, g_pn_34, 0, 7, 0),
-    TITLED_SCENE(spot09_scene, g_pn_35, 0, 8, 0),
-    TITLED_SCENE(spot10_scene, g_pn_36, 0, 9, 0),
-    TITLED_SCENE(spot11_scene, g_pn_55, 0, 10, 0),
-    TITLED_SCENE(spot12_scene, g_pn_53, 0, 11, 0),
-    TITLED_SCENE(spot13_scene, g_pn_37, 0, 12, 0),
-    TITLED_SCENE(spot15_scene, g_pn_38, 0, 13, 0),
-    TITLED_SCENE(spot16_scene, g_pn_39, 0, 14, 0),
-    TITLED_SCENE(spot17_scene, g_pn_40, 0, 15, 0),
-    TITLED_SCENE(spot18_scene, g_pn_41, 0, 16, 0),
-    TITLED_SCENE(spot20_scene, g_pn_42, 0, 17, 0),
-    TITLED_SCENE(ganon_tou_scene, g_pn_43, 0, 36, 0),
-    UNTITLED_SCENE(test01_scene, 0, 47, 0),
-    UNTITLED_SCENE(besitu_scene, 0, 49, 0),
-    UNTITLED_SCENE(depth_test_scene, 0, 0, 0),
-    UNTITLED_SCENE(syotes_scene, 0, 0, 0),
-    UNTITLED_SCENE(syotes2_scene, 0, 0, 0),
-    UNTITLED_SCENE(sutaru_scene, 0, 0, 0),
-    TITLED_SCENE(hairal_niwa2_scene, g_pn_12, 0, 35, 0),
-    UNTITLED_SCENE(sasatest_scene, 0, 0, 0),
-    UNTITLED_SCENE(testroom_scene, 0, 0, 0),
+#include "tables/scene_table.h"
 };
+
+#undef _noneSegmentRomStart
+#undef _noneSegmentRomEnd
+
+#undef DEFINE_SCENE
 
 Gfx sDefaultDisplayList[] = {
     gsSPSegment(0x08, gEmptyDL),
@@ -956,7 +880,10 @@ void func_80099550(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 4735);
 }
 
-u32 D_8012A2F8[] = { 0x0200BA18, 0x0200CA18 };
+void* D_8012A2F8[] = {
+    gYdanTex_00BA18,
+    gYdanTex_00CA18,
+};
 
 // Scene Draw Config 19
 void func_800995DC(GlobalContext* globalCtx) {
@@ -995,20 +922,26 @@ void func_80099760(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 4859);
 }
 
-u32 D_8012A300[] = { 0x02012378, 0x02013378 };
-u32 D_8012A308[] = { 0x02011F78, 0x02014778, 0x02014378, 0x02013F78, 0x02014B78, 0x02013B78, 0x02012F78, 0x02012B78 };
+void* gDCEntranceTextures[] = {
+    gDCDayEntranceTex,
+    gDCNightEntranceTex,
+};
+void* sDCLavaFloorTextures[] = {
+    gDCLavaFloor1Tex, gDCLavaFloor2Tex, gDCLavaFloor3Tex, gDCLavaFloor4Tex,
+    gDCLavaFloor5Tex, gDCLavaFloor6Tex, gDCLavaFloor7Tex, gDCLavaFloor8Tex,
+};
 
-// Scene Draw Config 20
+// Scene Draw Config 20 - Dodongo's Cavern
 void func_80099878(GlobalContext* globalCtx) {
     u32 gameplayFrames;
     s32 pad;
-    Gfx* displayListHead = Graph_Alloc(globalCtx->state.gfxCtx, 6 * sizeof(Gfx));
+    Gfx* displayListHead = Graph_Alloc(globalCtx->state.gfxCtx, 2 * sizeof(Gfx[3]));
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 4905);
 
     gameplayFrames = globalCtx->gameplayFrames;
-    gSPSegment(POLY_OPA_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A300[gSaveContext.nightFlag]));
-    gSPSegment(POLY_OPA_DISP++, 0x09, SEGMENTED_TO_VIRTUAL(D_8012A308[(s32)(gameplayFrames & 14) >> 1]));
+    gSPSegment(POLY_OPA_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(gDCEntranceTextures[gSaveContext.nightFlag]));
+    gSPSegment(POLY_OPA_DISP++, 0x09, SEGMENTED_TO_VIRTUAL(sDCLavaFloorTextures[(s32)(gameplayFrames & 14) >> 1]));
     gSPSegment(POLY_XLU_DISP++, 0x09,
                Gfx_TwoTexScroll(globalCtx->state.gfxCtx, 0, (gameplayFrames * 1) % 256, 0, 64, 32, 1, 0,
                                 (gameplayFrames * 1) % 128, 64, 32));
@@ -1026,11 +959,12 @@ void func_80099878(GlobalContext* globalCtx) {
 
     gSPSegment(POLY_OPA_DISP++, 0x0B, displayListHead);
     gDPPipeSync(displayListHead++);
-    gDPSetEnvColor(displayListHead++, 255, 255, 255, globalCtx->roomCtx.unk_74[0]);
+    gDPSetEnvColor(displayListHead++, 255, 255, 255, globalCtx->roomCtx.unk_74[BGDODOAGO_EYE_LEFT]);
     gSPEndDisplayList(displayListHead++);
+
     gSPSegment(POLY_OPA_DISP++, 0x0C, displayListHead);
     gDPPipeSync(displayListHead++);
-    gDPSetEnvColor(displayListHead++, 255, 255, 255, globalCtx->roomCtx.unk_74[1]);
+    gDPSetEnvColor(displayListHead++, 255, 255, 255, globalCtx->roomCtx.unk_74[BGDODOAGO_EYE_RIGHT]);
     gSPEndDisplayList(displayListHead);
 
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 4956);
@@ -1092,9 +1026,9 @@ void func_80099BD8(GlobalContext* globalCtx) {
         gCustomLensFlarePos.x = -20.0f;
         gCustomLensFlarePos.y = 1220.0f;
         gCustomLensFlarePos.z = -684.0f;
-        D_8015FD06 = 10;
-        D_8015FD08 = 8.0f;
-        D_8015FD0C = 200;
+        gLensFlareScale = 10;
+        gLensFlareColorIntensity = 8.0f;
+        gLensFlareScreenFillAlpha = 200;
     }
 }
 
@@ -1245,7 +1179,10 @@ void func_8009AE30(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 5416);
 }
 
-u32 D_8012A328[] = { 0x0200BD20, 0x0200B920 };
+void* sThievesHideoutEntranceTextures[] = {
+    gThievesHideoutDayEntranceTex,
+    gThievesHideoutNightEntranceTex,
+};
 
 // Scene Draw Config 40
 void func_8009AFE0(GlobalContext* globalCtx) {
@@ -1258,14 +1195,17 @@ void func_8009AFE0(GlobalContext* globalCtx) {
 
     { s32 pad[2]; }
 
-    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A328[gSaveContext.nightFlag]));
+    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sThievesHideoutEntranceTextures[gSaveContext.nightFlag]));
 
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 5507);
 }
 
-u32 D_8012A330[] = { 0x02014C30, 0x02015830 };
+void* D_8012A330[] = {
+    gWaterTempleDayEntranceTex,
+    gWaterTempleNightEntranceTex,
+};
 
-// Scene Draw Config 23
+// Scene Draw Config 23 (Water Temple)
 void func_8009B0FC(GlobalContext* globalCtx) {
     u32 gameplayFrames;
     s32 spB0;
@@ -1496,7 +1436,10 @@ void func_8009C0AC(GlobalContext* globalCtx) {
     }
 }
 
-u32 D_8012A338[] = { 0x0200FAC0, 0x0200F8C0 };
+void* sIceCavernEntranceTextures[] = {
+    gIceCavernDayEntranceTex,
+    gIceCavernNightEntranceTex,
+};
 
 // Scene Draw Config 37
 void func_8009C3EC(GlobalContext* globalCtx) {
@@ -1507,7 +1450,7 @@ void func_8009C3EC(GlobalContext* globalCtx) {
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6042);
 
     gameplayFrames = globalCtx->gameplayFrames;
-    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A338[gSaveContext.nightFlag]));
+    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sIceCavernEntranceTextures[gSaveContext.nightFlag]));
     gSPSegment(POLY_OPA_DISP++, 0x09,
                Gfx_TwoTexScroll(globalCtx->state.gfxCtx, 0, 127 - gameplayFrames % 128, (gameplayFrames * 1) % 128, 32,
                                 32, 1, gameplayFrames % 128, (gameplayFrames * 1) % 128, 32, 32));
@@ -1597,7 +1540,10 @@ void func_8009CAC0(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6264);
 }
 
-u32 D_8012A340[] = { 0x0200F8C0, 0x020100C0 };
+void* sGTGEntranceTextures[] = {
+    gGTGDayEntranceTex,
+    gGTGNightEntranceTex,
+};
 
 // Scene Draw Config 27
 void func_8009CC00(GlobalContext* globalCtx) {
@@ -1608,7 +1554,7 @@ void func_8009CC00(GlobalContext* globalCtx) {
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6290);
 
     gameplayFrames = globalCtx->gameplayFrames;
-    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A340[gSaveContext.nightFlag]));
+    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sGTGEntranceTextures[gSaveContext.nightFlag]));
     gSPSegment(POLY_OPA_DISP++, 0x09,
                Gfx_TwoTexScroll(globalCtx->state.gfxCtx, 0, 127 - gameplayFrames % 128, (gameplayFrames * 1) % 128, 32,
                                 32, 1, gameplayFrames % 128, (gameplayFrames * 1) % 128, 32, 32));
@@ -1693,7 +1639,10 @@ void func_8009D0E8(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6491);
 }
 
-u32 D_8012A348[] = { 0x02005210, 0x02005010 };
+void* sLonLonHouseEntranceTextures[] = {
+    gLonLonHouseDayEntranceTex,
+    gLonLonHouseNightEntranceTex,
+};
 
 // Scene Draw Config 44
 void func_8009D31C(GlobalContext* globalCtx) {
@@ -1701,7 +1650,7 @@ void func_8009D31C(GlobalContext* globalCtx) {
 
     { s32 pad[2]; }
 
-    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A348[gSaveContext.nightFlag]));
+    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sLonLonHouseEntranceTextures[gSaveContext.nightFlag]));
 
     gDPPipeSync(POLY_OPA_DISP++);
     gDPSetEnvColor(POLY_OPA_DISP++, 128, 128, 128, 128);
@@ -1712,8 +1661,14 @@ void func_8009D31C(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6528);
 }
 
-u32 D_8012A350[] = { 0x02006550, 0x02003550 };
-u32 D_8012A358[] = { 0x02002350, 0x02001350 };
+void* sGuardHouseView2Textures[] = {
+    gGuardHouseOutSideView1DayTex,
+    gGuardHouseOutSideView1NightTex,
+};
+void* sGuardHouseView1Textures[] = {
+    gGuardHouseOutSideView2DayTex,
+    gGuardHouseOutSideView2NightTex,
+};
 
 // Scene Draw Config 45
 void func_8009D438(GlobalContext* globalCtx) {
@@ -1727,8 +1682,8 @@ void func_8009D438(GlobalContext* globalCtx) {
         var = gSaveContext.nightFlag;
     }
 
-    gSPSegment(POLY_OPA_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A358[var]));
-    gSPSegment(POLY_OPA_DISP++, 0x09, SEGMENTED_TO_VIRTUAL(D_8012A350[var]));
+    gSPSegment(POLY_OPA_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sGuardHouseView1Textures[var]));
+    gSPSegment(POLY_OPA_DISP++, 0x09, SEGMENTED_TO_VIRTUAL(sGuardHouseView2Textures[var]));
 
     gDPPipeSync(POLY_OPA_DISP++);
     gDPSetEnvColor(POLY_OPA_DISP++, 128, 128, 128, 128);
@@ -1760,7 +1715,10 @@ void func_8009D5B4(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6615);
 }
 
-u32 D_8012A360[] = { 0x02014D90, 0x02014590 };
+void* sForestTempleEntranceTextures[] = {
+    gForestTempleDayEntranceTex,
+    gForestTempleNightEntranceTex,
+};
 
 // Scene Draw Config 22
 void func_8009D758(GlobalContext* globalCtx) {
@@ -1771,7 +1729,7 @@ void func_8009D758(GlobalContext* globalCtx) {
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6640);
 
     gameplayFrames = globalCtx->gameplayFrames;
-    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A360[gSaveContext.nightFlag]));
+    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sForestTempleEntranceTextures[gSaveContext.nightFlag]));
     gSPSegment(POLY_XLU_DISP++, 0x09,
                Gfx_TwoTexScroll(globalCtx->state.gfxCtx, 0, 127 - gameplayFrames % 128, (gameplayFrames * 1) % 128, 32,
                                 32, 1, gameplayFrames % 128, (gameplayFrames * 1) % 128, 32, 32));
@@ -1790,7 +1748,10 @@ void func_8009D758(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6671);
 }
 
-u32 D_8012A368[] = { 0x02018920, 0x02018020 };
+void* sSpiritTempleEntranceTextures[] = {
+    gSpiritTempleDayEntranceTex,
+    gSpiritTempleNightEntranceTex,
+};
 
 // Scene Draw Config 25
 void func_8009D974(GlobalContext* globalCtx) {
@@ -1798,7 +1759,7 @@ void func_8009D974(GlobalContext* globalCtx) {
 
     { s32 pad[2]; }
 
-    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A368[gSaveContext.nightFlag]));
+    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sSpiritTempleEntranceTextures[gSaveContext.nightFlag]));
 
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6762);
 }
@@ -1849,7 +1810,10 @@ void func_8009DA30(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 6866);
 }
 
-u32 D_8012A370[] = { 0x02015B50, 0x02016B50 };
+void* sKakarikoWindowTextures[] = {
+    gKakarikoVillageDayWindowTex,
+    gKakarikoVillageNightWindowTex,
+};
 
 // Scene Draw Config 2
 void func_8009DD5C(GlobalContext* globalCtx) {
@@ -1857,7 +1821,7 @@ void func_8009DD5C(GlobalContext* globalCtx) {
 
     { s32 pad[2]; }
 
-    gSPSegment(POLY_OPA_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A370[gSaveContext.nightFlag]));
+    gSPSegment(POLY_OPA_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sKakarikoWindowTextures[gSaveContext.nightFlag]));
 
     gDPPipeSync(POLY_OPA_DISP++);
     gDPSetEnvColor(POLY_OPA_DISP++, 128, 128, 128, 128);
@@ -1974,7 +1938,10 @@ void func_8009E54C(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 7097);
 }
 
-u32 D_8012A378[] = { 0x02008F98, 0x02008FD8 };
+void* sZorasDomainEntranceTextures[] = {
+    gZorasDomainDayEntranceTex,
+    gZorasDomainNightEntranceTex,
+};
 
 // Scene Draw Config 6
 void func_8009E730(GlobalContext* globalCtx) {
@@ -1993,7 +1960,7 @@ void func_8009E730(GlobalContext* globalCtx) {
     gDPPipeSync(POLY_OPA_DISP++);
     gDPSetEnvColor(POLY_OPA_DISP++, 128, 128, 128, 128);
 
-    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A378[gSaveContext.nightFlag]));
+    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sZorasDomainEntranceTextures[gSaveContext.nightFlag]));
 
     { s32 pad[2]; }
 
@@ -2112,7 +2079,10 @@ void func_8009F074(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 7339);
 }
 
-u32 D_8012A380[] = { 0x02009678, 0x0200DE78 };
+void* D_8012A380[] = {
+    gSpot12_009678Tex,
+    gSpot12_00DE78Tex,
+};
 
 // Scene Draw Config 11
 void func_8009F1B4(GlobalContext* globalCtx) {
@@ -2231,7 +2201,10 @@ void func_8009F7D4(GlobalContext* globalCtx) {
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 7530);
 }
 
-u32 D_8012A388[] = { 0x02009808, 0x02008FC8 };
+void* sGoronCityEntranceTextures[] = {
+    gGoronCityDayEntranceTex,
+    gGoronCityNightEntranceTex,
+};
 
 // Scene Draw Config 16
 void func_8009F9D0(GlobalContext* globalCtx) {
@@ -2250,14 +2223,17 @@ void func_8009F9D0(GlobalContext* globalCtx) {
     gDPPipeSync(POLY_XLU_DISP++);
     gDPSetEnvColor(POLY_XLU_DISP++, 128, 128, 128, 128);
 
-    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A388[gSaveContext.nightFlag]));
+    gSPSegment(POLY_XLU_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sGoronCityEntranceTextures[gSaveContext.nightFlag]));
 
     { s32 pad[2]; }
 
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_scene_table.c", 7578);
 }
 
-u32 D_8012A390[] = { 0x020081E0, 0x0200FBE0 };
+void* sLonLonRanchWindowTextures[] = {
+    gLonLonRanchDayWindowTex,
+    gLonLonRangeNightWindowsTex,
+};
 
 // Scene Draw Config 17
 void func_8009FB74(GlobalContext* globalCtx) {
@@ -2265,7 +2241,7 @@ void func_8009FB74(GlobalContext* globalCtx) {
 
     { s32 pad[2]; }
 
-    gSPSegment(POLY_OPA_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(D_8012A390[gSaveContext.nightFlag]));
+    gSPSegment(POLY_OPA_DISP++, 0x08, SEGMENTED_TO_VIRTUAL(sLonLonRanchWindowTextures[gSaveContext.nightFlag]));
 
     gDPPipeSync(POLY_OPA_DISP++);
     gDPSetEnvColor(POLY_OPA_DISP++, 128, 128, 128, 128);
@@ -2331,16 +2307,19 @@ void func_8009FE58(GlobalContext* globalCtx) {
     gDPSetEnvColor(POLY_XLU_DISP++, 128, 128, 128, 128);
 
     if (FrameAdvance_IsEnabled(globalCtx) != true) {
+
         D_8012A39C += 1820;
         D_8012A3A0 += 1820;
 
         temp = 0.020000001f;
-        func_800AA76C(&globalCtx->view, ((360.00018f / 65535.0f) * (M_PI / 180.0f)) * temp * Math_CosS(D_8012A39C),
-                      ((360.00018f / 65535.0f) * (M_PI / 180.0f)) * temp * Math_SinS(D_8012A39C),
-                      ((360.00018f / 65535.0f) * (M_PI / 180.0f)) * temp * Math_SinS(D_8012A3A0));
-        func_800AA78C(&globalCtx->view, 1.f + (0.79999995f * temp * Math_SinS(D_8012A3A0)),
-                      1.f + (0.39999998f * temp * Math_CosS(D_8012A3A0)), 1.f + (1 * temp * Math_CosS(D_8012A39C)));
-        func_800AA7AC(&globalCtx->view, 0.95f);
+        View_SetDistortionOrientation(&globalCtx->view,
+                                      ((360.00018f / 65535.0f) * (M_PI / 180.0f)) * temp * Math_CosS(D_8012A39C),
+                                      ((360.00018f / 65535.0f) * (M_PI / 180.0f)) * temp * Math_SinS(D_8012A39C),
+                                      ((360.00018f / 65535.0f) * (M_PI / 180.0f)) * temp * Math_SinS(D_8012A3A0));
+        View_SetDistortionScale(&globalCtx->view, 1.f + (0.79999995f * temp * Math_SinS(D_8012A3A0)),
+                                1.f + (0.39999998f * temp * Math_CosS(D_8012A3A0)),
+                                1.f + (1 * temp * Math_CosS(D_8012A39C)));
+        View_SetDistortionSpeed(&globalCtx->view, 0.95f);
 
         switch (globalCtx->roomCtx.unk_74[0]) {
             case 0:

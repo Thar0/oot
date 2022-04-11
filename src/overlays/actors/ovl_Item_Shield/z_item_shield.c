@@ -6,10 +6,9 @@
 
 #include "vt.h"
 #include "z_item_shield.h"
+#include "objects/object_link_child/object_link_child.h"
 
-#define FLAGS 0x00000010
-
-#define THIS ((ItemShield*)thisx)
+#define FLAGS ACTOR_FLAG_4
 
 void ItemShield_Init(Actor* thisx, GlobalContext* globalCtx);
 void ItemShield_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -18,8 +17,6 @@ void ItemShield_Draw(Actor* thisx, GlobalContext* globalCtx);
 
 void func_80B86F68(ItemShield* this, GlobalContext* globalCtx);
 void func_80B86BC8(ItemShield* this, GlobalContext* globalCtx);
-
-extern Gfx D_060224F8[];
 
 static ColliderCylinderInit sCylinderInit = {
     {
@@ -61,7 +58,7 @@ void ItemShield_SetupAction(ItemShield* this, ItemShieldActionFunc actionFunc) {
 }
 
 void ItemShield_Init(Actor* thisx, GlobalContext* globalCtx) {
-    ItemShield* this = THIS;
+    ItemShield* this = (ItemShield*)thisx;
     s32 i;
 
     this->timer = 0;
@@ -94,7 +91,7 @@ void ItemShield_Init(Actor* thisx, GlobalContext* globalCtx) {
 }
 
 void ItemShield_Destroy(Actor* thisx, GlobalContext* globalCtx) {
-    ItemShield* this = THIS;
+    ItemShield* this = (ItemShield*)thisx;
 
     Collider_DestroyCylinder(globalCtx, &this->collider);
 }
@@ -106,8 +103,8 @@ void func_80B86AC8(ItemShield* this, GlobalContext* globalCtx) {
         return;
     }
     func_8002F434(&this->actor, globalCtx, GI_SHIELD_DEKU, 30.0f, 50.0f);
-    Actor_UpdateBgCheckInfo(globalCtx, &this->actor, 10.0f, 10.0f, 0.0f, 5);
-    if (this->actor.bgCheckFlags & 1) {
+    Actor_UpdateBgCheckInfo(globalCtx, &this->actor, 10.0f, 10.0f, 0.0f, UPDBGCHECKINFO_FLAG_0 | UPDBGCHECKINFO_FLAG_2);
+    if (this->actor.bgCheckFlags & BGCHECKFLAG_GROUND) {
         this->timer--;
         if (this->timer < 60) {
             if (this->timer & 1) {
@@ -151,7 +148,7 @@ void func_80B86CA8(ItemShield* this, GlobalContext* globalCtx) {
     s32 temp;
 
     Actor_MoveForward(&this->actor);
-    Actor_UpdateBgCheckInfo(globalCtx, &this->actor, 10.0f, 10.0f, 0.0f, 5);
+    Actor_UpdateBgCheckInfo(globalCtx, &this->actor, 10.0f, 10.0f, 0.0f, UPDBGCHECKINFO_FLAG_0 | UPDBGCHECKINFO_FLAG_2);
     this->actor.shape.yOffset = ABS(Math_SinS(this->actor.shape.rot.x)) * 1500.0f;
 
     for (i = 0; i < 8; i++) {
@@ -170,7 +167,7 @@ void func_80B86CA8(ItemShield* this, GlobalContext* globalCtx) {
             this->unk_1A8[i].z = Rand_CenteredFloat(15.0f);
         }
     }
-    if (this->actor.bgCheckFlags & 1) {
+    if (this->actor.bgCheckFlags & BGCHECKFLAG_GROUND) {
         this->unk_198 -= this->actor.shape.rot.x >> 1;
         this->unk_198 -= this->unk_198 >> 2;
         this->actor.shape.rot.x += this->unk_198;
@@ -213,20 +210,20 @@ void func_80B86F68(ItemShield* this, GlobalContext* globalCtx) {
 }
 
 void ItemShield_Update(Actor* thisx, GlobalContext* globalCtx) {
-    ItemShield* this = THIS;
+    ItemShield* this = (ItemShield*)thisx;
 
     this->actionFunc(this, globalCtx);
 }
 
 void ItemShield_Draw(Actor* thisx, GlobalContext* globalCtx) {
-    ItemShield* this = THIS;
+    ItemShield* this = (ItemShield*)thisx;
 
     if (!(this->unk_19C & 2)) {
         OPEN_DISPS(globalCtx->state.gfxCtx, "../z_item_shield.c", 457);
         func_80093D18(globalCtx->state.gfxCtx);
         gSPMatrix(POLY_OPA_DISP++, Matrix_NewMtx(globalCtx->state.gfxCtx, "../z_item_shield.c", 460),
                   G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
-        gSPDisplayList(POLY_OPA_DISP++, SEGMENTED_TO_VIRTUAL(D_060224F8));
+        gSPDisplayList(POLY_OPA_DISP++, SEGMENTED_TO_VIRTUAL(gLinkChildDekuShieldDL));
         CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_item_shield.c", 465);
     }
 }

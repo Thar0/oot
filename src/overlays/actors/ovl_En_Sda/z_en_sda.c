@@ -6,9 +6,7 @@
 
 #include "z_en_sda.h"
 
-#define FLAGS 0x00000030
-
-#define THIS ((EnSda*)thisx)
+#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5)
 
 void EnSda_Init(Actor* thisx, GlobalContext* globalCtx);
 void EnSda_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -61,8 +59,8 @@ static u8 D_80AFA15C[] = {
     2, 2, 2, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 3,
 };
 
-static s8 D_80AFA16C[] = {
-    2, 9, 10, 11, 12, 13, 14, 0, 15, -1, 3, 4, 5, 6, 7, 8, -1, 1, 0, 0,
+static s8 D_80AFA16C[PLAYER_BODYPART_MAX] = {
+    2, 9, 10, 11, 12, 13, 14, 0, 15, -1, 3, 4, 5, 6, 7, 8, -1, 1,
 };
 
 static Vec3f D_80AFA180[] = {
@@ -86,31 +84,7 @@ static Vec3f D_80AFA288[] = {
 
 static u32 D_80AFA390[] = { 0, 0 };
 
-static Vtx D_80AFA398[] = {
-    VTX(-100, 0, -100, 0, 2048, 255, 255, 255, 255),
-    VTX(100, 0, -100, 2048, 2048, 255, 255, 255, 255),
-    VTX(100, 0, 100, 2048, 0, 255, 255, 255, 255),
-    VTX(-100, 0, 100, 0, 0, 255, 255, 255, 255),
-};
-
-static Gfx D_80AFA3D8[] = {
-    gsDPPipeSync(),
-    gsDPSetTextureLUT(G_TT_NONE),
-    gsSPTexture(0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, G_ON),
-    gsSPEndDisplayList(),
-};
-
-static Gfx D_80AFA3F8[] = {
-    gsDPSetCombineLERP(PRIMITIVE, ENVIRONMENT, TEXEL0, ENVIRONMENT, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, COMBINED, 0, 0, 0,
-                       COMBINED),
-    gsDPSetRenderMode(AA_EN | Z_CMP | IM_RD | CLR_ON_CVG | CVG_DST_WRAP | ZMODE_DEC | FORCE_BL |
-                          GBL_c1(G_BL_CLR_IN, G_BL_0, G_BL_CLR_IN, G_BL_1),
-                      G_RM_AA_ZB_XLU_DECAL2),
-    gsSPClearGeometryMode(G_CULL_BACK | G_FOG | G_LIGHTING | G_TEXTURE_GEN | G_TEXTURE_GEN_LINEAR),
-    gsSPVertex(&D_80AFA398, 4, 0),
-    gsSP2Triangles(0, 1, 2, 0, 0, 2, 3, 0),
-    gsSPEndDisplayList(),
-};
+#include "overlays/ovl_En_Sda/ovl_En_Sda.c"
 
 static Vec3f D_80AFA660[16];
 
@@ -122,7 +96,7 @@ void EnSda_Destroy(Actor* thisx, GlobalContext* globalCtx) {
 
 void EnSda_Update(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    EnSda* this = THIS;
+    EnSda* this = (EnSda*)thisx;
     Player* player;
 
     osSyncPrintf("SDA MOVE\n");
@@ -139,7 +113,7 @@ void EnSda_Update(Actor* thisx, GlobalContext* globalCtx) {
 }
 
 void EnSda_Draw(Actor* thisx, GlobalContext* globalCtx) {
-    EnSda* this = THIS;
+    EnSda* this = (EnSda*)thisx;
     Player* player;
     u8* shadowTexture = Graph_Alloc(globalCtx->state.gfxCtx, 0x1000);
 
@@ -291,8 +265,8 @@ void func_80AF95C4(EnSda* this, u8* shadowTexture, Player* player, GlobalContext
             *shadowTextureTemp32 = 0;
         }
     }
-    Matrix_RotateX((BREG(50) + 70) / 100.0f, 0);
-    for (i = 0; i < 18; i++) {
+    Matrix_RotateX((BREG(50) + 70) / 100.0f, MTXMODE_NEW);
+    for (i = 0; i < PLAYER_BODYPART_MAX; i++) {
         if (D_80AFA16C[i] >= 0) {
             D_80AFA660[D_80AFA16C[i]] = player->bodyPartsPos[i];
         }
@@ -312,8 +286,8 @@ void func_80AF95C4(EnSda* this, u8* shadowTexture, Player* player, GlobalContext
         sp178.x *= (KREG(88) - 1);
         Matrix_Mult(&player->shieldMf, MTXMODE_NEW);
         Matrix_MultVec3f(&D_80AFA0D0, &sp16C);
-        Matrix_RotateY((sp178.y / 32768.0f) * M_PI, MTXMODE_NEW);
-        Matrix_RotateX((sp178.x / 32768.0f) * M_PI, MTXMODE_APPLY);
+        Matrix_RotateY(BINANG_TO_RAD_ALT(sp178.y), MTXMODE_NEW);
+        Matrix_RotateX(BINANG_TO_RAD_ALT(sp178.x), MTXMODE_APPLY);
         for (i = 0; i < 22; i++) {
             Matrix_MultVec3f(&D_80AFA180[i], &sp188);
             if (1) {}
@@ -321,7 +295,7 @@ void func_80AF95C4(EnSda* this, u8* shadowTexture, Player* player, GlobalContext
             sp64[i].y = (((KREG(82) / 100.0f) + 4.0f) * sp188.y) + sp16C.y;
             sp64[i].z = (((KREG(82) / 100.0f) + 4.0f) * sp188.z) + sp16C.z;
         }
-        Matrix_RotateX((BREG(50) + 70) / 100.0f, 0);
+        Matrix_RotateX((BREG(50) + 70) / 100.0f, MTXMODE_NEW);
         for (i = 0; i < 22; i++) {
             sp194.x = sp64[i].x - player->actor.world.pos.x;
             sp194.y = sp64[i].y - player->actor.world.pos.y + KREG(80) + 16.0f;

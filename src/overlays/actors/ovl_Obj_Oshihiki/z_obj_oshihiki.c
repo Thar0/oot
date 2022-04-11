@@ -8,9 +8,7 @@
 #include "overlays/actors/ovl_Obj_Switch/z_obj_switch.h"
 #include "objects/gameplay_dangeon_keep/gameplay_dangeon_keep.h"
 
-#define FLAGS 0x00000010
-
-#define THIS ((ObjOshihiki*)thisx)
+#define FLAGS ACTOR_FLAG_4
 
 void ObjOshihiki_Init(Actor* thisx, GlobalContext* globalCtx);
 void ObjOshihiki_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -95,7 +93,7 @@ void ObjOshihiki_InitDynapoly(ObjOshihiki* this, GlobalContext* globalCtx, Colli
     this->dyna.bgId = DynaPoly_SetBgActor(globalCtx, &globalCtx->colCtx.dyna, &this->dyna.actor, colHeader);
 
     if (this->dyna.bgId == BG_ACTOR_MAX) {
-        // Warning : move BG registration failure
+        // "Warning : move BG registration failure"
         osSyncPrintf("Warning : move BG 登録失敗(%s %d)(name %d)(arg_data 0x%04x)\n", "../z_obj_oshihiki.c", 280,
                      this->dyna.actor.id, this->dyna.actor.params);
     }
@@ -213,7 +211,7 @@ void ObjOshihiki_CheckType(ObjOshihiki* this, GlobalContext* globalCtx) {
             ObjOshihiki_InitDynapoly(this, globalCtx, &gPushBlockCol, 1);
             break;
         default:
-            // Error : type cannot be determined
+            // "Error : type cannot be determined"
             osSyncPrintf("Error : タイプが判別できない(%s %d)(arg_data 0x%04x)\n", "../z_obj_oshihiki.c", 444,
                          this->dyna.actor.params);
             break;
@@ -271,7 +269,7 @@ void ObjOshihiki_SetColor(ObjOshihiki* this, GlobalContext* globalCtx) {
 
 void ObjOshihiki_Init(Actor* thisx, GlobalContext* globalCtx2) {
     GlobalContext* globalCtx = globalCtx2;
-    ObjOshihiki* this = THIS;
+    ObjOshihiki* this = (ObjOshihiki*)thisx;
 
     ObjOshihiki_CheckType(this, globalCtx);
 
@@ -304,13 +302,13 @@ void ObjOshihiki_Init(Actor* thisx, GlobalContext* globalCtx2) {
     ObjOshihiki_SetColor(this, globalCtx);
     ObjOshihiki_ResetFloors(this);
     ObjOshihiki_SetupOnActor(this, globalCtx);
-    // (dungeon keep push-pull block)
+    // "(dungeon keep push-pull block)"
     osSyncPrintf("(dungeon keep 押し引きブロック)(arg_data 0x%04x)\n", this->dyna.actor.params);
 }
 
 void ObjOshihiki_Destroy(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    ObjOshihiki* this = THIS;
+    ObjOshihiki* this = (ObjOshihiki*)thisx;
 
     DynaPoly_DeleteBgActor(globalCtx, &globalCtx->colCtx.dyna, this->dyna.bgId);
 }
@@ -340,33 +338,18 @@ void ObjOshihiki_SetFloors(ObjOshihiki* this, GlobalContext* globalCtx) {
 }
 
 s16 ObjOshihiki_GetHighestFloor(ObjOshihiki* this) {
+    s32 i;
     s16 highestFloor = 0;
-    s16 temp = 1;
-    f32 phi_f0 = this->floorHeights[temp];
 
-    if (phi_f0 > this->floorHeights[highestFloor]) {
-        highestFloor = temp;
-    } else if ((this->floorBgIds[temp] == BGCHECK_SCENE) && ((phi_f0 - this->floorHeights[highestFloor]) > -0.001f)) {
-        highestFloor = temp;
+    for (i = 1; i < ARRAY_COUNT(this->floorHeights); i++) {
+        if (this->floorHeights[i] > this->floorHeights[highestFloor]) {
+            highestFloor = i;
+        } else if ((this->floorBgIds[i] == BGCHECK_SCENE) &&
+                   ((this->floorHeights[i] - this->floorHeights[highestFloor]) > -0.001f)) {
+            highestFloor = i;
+        }
     }
-    if (this->floorHeights[temp + 1] > this->floorHeights[highestFloor]) {
-        highestFloor = temp + 1;
-    } else if ((this->floorBgIds[temp + 1] == BGCHECK_SCENE) &&
-               ((this->floorHeights[temp + 1] - this->floorHeights[highestFloor]) > -0.001f)) {
-        highestFloor = temp + 1;
-    }
-    if (this->floorHeights[temp + 2] > this->floorHeights[highestFloor]) {
-        highestFloor = temp + 2;
-    } else if ((this->floorBgIds[temp + 2] == BGCHECK_SCENE) &&
-               ((this->floorHeights[temp + 2] - this->floorHeights[highestFloor]) > -0.001f)) {
-        highestFloor = temp + 2;
-    }
-    if (this->floorHeights[temp + 3] > this->floorHeights[highestFloor]) {
-        highestFloor = temp + 3;
-    } else if ((this->floorBgIds[temp + 3] == BGCHECK_SCENE) &&
-               ((this->floorHeights[temp + 3] - this->floorHeights[highestFloor]) > -0.001f)) {
-        highestFloor = temp + 3;
-    }
+
     return highestFloor;
 }
 
@@ -390,7 +373,7 @@ s32 ObjOshihiki_CheckFloor(ObjOshihiki* this, GlobalContext* globalCtx) {
 
 s32 ObjOshihiki_CheckGround(ObjOshihiki* this, GlobalContext* globalCtx) {
     if (this->dyna.actor.world.pos.y <= BGCHECK_Y_MIN + 10.0f) {
-        // Warning : Push-pull block fell too much
+        // "Warning : Push-pull block fell too much"
         osSyncPrintf("Warning : 押し引きブロック落ちすぎた(%s %d)(arg_data 0x%04x)\n", "../z_obj_oshihiki.c", 809,
                      this->dyna.actor.params);
         Actor_Kill(&this->dyna.actor);
@@ -477,11 +460,11 @@ void ObjOshihiki_OnScene(ObjOshihiki* this, GlobalContext* globalCtx) {
             this->direction = this->dyna.unk_150;
             ObjOshihiki_SetupPush(this, globalCtx);
         } else {
-            player->stateFlags2 &= ~0x10;
+            player->stateFlags2 &= ~PLAYER_STATE2_4;
             this->dyna.unk_150 = 0.0f;
         }
     } else {
-        player->stateFlags2 &= ~0x10;
+        player->stateFlags2 &= ~PLAYER_STATE2_4;
         this->dyna.unk_150 = 0.0f;
     }
 }
@@ -518,11 +501,11 @@ void ObjOshihiki_OnActor(ObjOshihiki* this, GlobalContext* globalCtx) {
                         this->direction = this->dyna.unk_150;
                         ObjOshihiki_SetupPush(this, globalCtx);
                     } else {
-                        player->stateFlags2 &= ~0x10;
+                        player->stateFlags2 &= ~PLAYER_STATE2_4;
                         this->dyna.unk_150 = 0.0f;
                     }
                 } else {
-                    player->stateFlags2 &= ~0x10;
+                    player->stateFlags2 &= ~PLAYER_STATE2_4;
                     this->dyna.unk_150 = 0.0f;
                 }
             } else {
@@ -570,7 +553,7 @@ void ObjOshihiki_Push(ObjOshihiki* this, GlobalContext* globalCtx) {
     if (!ObjOshihiki_CheckFloor(this, globalCtx)) {
         thisx->home.pos.x = thisx->world.pos.x;
         thisx->home.pos.z = thisx->world.pos.z;
-        player->stateFlags2 &= ~0x10;
+        player->stateFlags2 &= ~PLAYER_STATE2_4;
         this->dyna.unk_150 = 0.0f;
         this->pushDist = 0.0f;
         this->pushSpeed = 0.0f;
@@ -583,7 +566,7 @@ void ObjOshihiki_Push(ObjOshihiki* this, GlobalContext* globalCtx) {
 
         thisx->home.pos.x = thisx->world.pos.x;
         thisx->home.pos.z = thisx->world.pos.z;
-        player->stateFlags2 &= ~0x10;
+        player->stateFlags2 &= ~PLAYER_STATE2_4;
         this->dyna.unk_150 = 0.0f;
         this->pushDist = 0.0f;
         this->pushSpeed = 0.0f;
@@ -611,7 +594,7 @@ void ObjOshihiki_Fall(ObjOshihiki* this, GlobalContext* globalCtx) {
     this->stateFlags |= PUSHBLOCK_FALL;
     if (fabsf(this->dyna.unk_150) > 0.001f) {
         this->dyna.unk_150 = 0.0f;
-        player->stateFlags2 &= ~0x10;
+        player->stateFlags2 &= ~PLAYER_STATE2_4;
     }
     Actor_MoveForward(&this->dyna.actor);
     if (ObjOshihiki_CheckGround(this, globalCtx)) {
@@ -630,7 +613,7 @@ void ObjOshihiki_Fall(ObjOshihiki* this, GlobalContext* globalCtx) {
 
 void ObjOshihiki_Update(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    ObjOshihiki* this = THIS;
+    ObjOshihiki* this = (ObjOshihiki*)thisx;
 
     this->stateFlags &=
         ~(PUSHBLOCK_SETUP_FALL | PUSHBLOCK_FALL | PUSHBLOCK_SETUP_PUSH | PUSHBLOCK_PUSH | PUSHBLOCK_SETUP_ON_ACTOR |
@@ -653,11 +636,11 @@ void ObjOshihiki_Update(Actor* thisx, GlobalContext* globalCtx) {
 
 void ObjOshihiki_Draw(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    ObjOshihiki* this = THIS;
+    ObjOshihiki* this = (ObjOshihiki*)thisx;
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_obj_oshihiki.c", 1289);
     if (ObjOshihiki_MoveWithBlockUnder(this, globalCtx)) {
-        Matrix_Translate(this->underDistX * 10.0f, 0.0f, this->underDistZ * 10.0f, 1);
+        Matrix_Translate(this->underDistX * 10.0f, 0.0f, this->underDistZ * 10.0f, MTXMODE_APPLY);
     }
     this->stateFlags &= ~PUSHBLOCK_MOVE_UNDER;
     func_80093D18(globalCtx->state.gfxCtx);
@@ -682,6 +665,6 @@ void ObjOshihiki_Draw(Actor* thisx, GlobalContext* globalCtx) {
             break;
     }
 
-    gSPDisplayList(POLY_OPA_DISP++, &gPushBlockDL);
+    gSPDisplayList(POLY_OPA_DISP++, gPushBlockDL);
     CLOSE_DISPS(globalCtx->state.gfxCtx, "../z_obj_oshihiki.c", 1334);
 }

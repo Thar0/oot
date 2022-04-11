@@ -3,9 +3,7 @@
 #include "../ovl_En_Diving_Game/z_en_diving_game.h"
 #include "objects/gameplay_keep/gameplay_keep.h"
 
-#define FLAGS 0x00000010
-
-#define THIS ((EnExRuppy*)thisx)
+#define FLAGS ACTOR_FLAG_4
 
 void EnExRuppy_Init(Actor* thisx, GlobalContext* globalCtx);
 void EnExRuppy_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -43,7 +41,7 @@ const ActorInit En_Ex_Ruppy_InitVars = {
 };
 
 void EnExRuppy_Init(Actor* thisx, GlobalContext* globalCtx) {
-    EnExRuppy* this = THIS;
+    EnExRuppy* this = (EnExRuppy*)thisx;
     EnDivingGame* divingGame;
     f32 temp1;
     f32 temp2;
@@ -107,7 +105,7 @@ void EnExRuppy_Init(Actor* thisx, GlobalContext* globalCtx) {
             this->unk_15A = this->actor.world.rot.z;
             this->actor.world.rot.z = 0;
             this->timer = 30;
-            this->actor.flags &= ~1;
+            this->actor.flags &= ~ACTOR_FLAG_0;
             this->actionFunc = EnExRuppy_DropIntoWater;
             break;
 
@@ -125,7 +123,7 @@ void EnExRuppy_Init(Actor* thisx, GlobalContext* globalCtx) {
             osSyncPrintf(VT_FGCOL(GREEN) "☆☆☆☆☆ わーなーコイン ☆☆☆☆☆ \n" VT_RST);
             this->actor.shape.shadowScale = 6.0f;
             this->actor.shape.yOffset = 700.0f;
-            this->actor.flags &= ~1;
+            this->actor.flags &= ~ACTOR_FLAG_0;
             this->actionFunc = EnExRuppy_WaitToBlowUp;
             break;
 
@@ -147,13 +145,13 @@ void EnExRuppy_Init(Actor* thisx, GlobalContext* globalCtx) {
             osSyncPrintf(VT_FGCOL(GREEN) "☆☆☆☆☆ ノーマルルピー ☆☆☆☆☆ \n" VT_RST);
             this->actor.shape.shadowScale = 6.0f;
             this->actor.shape.yOffset = 700.0f;
-            this->actor.flags &= ~1;
+            this->actor.flags &= ~ACTOR_FLAG_0;
             this->actionFunc = EnExRuppy_WaitAsCollectible;
             break;
 
         case 4: // Progress markers in the shooting gallery
             this->actor.gravity = -3.0f;
-            this->actor.flags &= ~1;
+            this->actor.flags &= ~ACTOR_FLAG_0;
             Actor_SetScale(&this->actor, 0.01f);
             this->actor.shape.shadowScale = 6.0f;
             this->actor.shape.yOffset = -700.0f;
@@ -215,7 +213,7 @@ void EnExRuppy_DropIntoWater(EnExRuppy* this, GlobalContext* globalCtx) {
     func_80078884(NA_SE_EV_RAINBOW_SHOWER - SFX_FLAG);
     divingGame = (EnDivingGame*)this->actor.parent;
     if ((divingGame != NULL) && (divingGame->actor.update != NULL) &&
-        ((divingGame->unk_296 == 0) || (this->actor.bgCheckFlags & 0x20) || (this->timer == 0))) {
+        ((divingGame->unk_296 == 0) || (this->actor.bgCheckFlags & BGCHECKFLAG_WATER) || (this->timer == 0))) {
         this->invisible = true;
         this->actor.speedXZ = 0.0f;
         this->actor.velocity.x = this->actor.velocity.y = this->actor.velocity.z = 0.0f;
@@ -251,7 +249,7 @@ void EnExRuppy_Sink(EnExRuppy* this, GlobalContext* globalCtx) {
     Vec3f pos;
     s32 pad;
 
-    if ((this->actor.bgCheckFlags & 0x20) && (this->actor.yDistToWater > 15.0f)) {
+    if ((this->actor.bgCheckFlags & BGCHECKFLAG_WATER) && (this->actor.yDistToWater > 15.0f)) {
         pos = this->actor.world.pos;
         pos.y += this->actor.yDistToWater;
         this->actor.velocity.y = -1.0f;
@@ -365,7 +363,7 @@ void EnExRuppy_GalleryTarget(EnExRuppy* this, GlobalContext* globalCtx) {
 }
 
 void EnExRuppy_Update(Actor* thisx, GlobalContext* globalCtx) {
-    EnExRuppy* this = THIS;
+    EnExRuppy* this = (EnExRuppy*)thisx;
 
     this->actor.shape.rot.y += 1960;
     this->actionFunc(this, globalCtx);
@@ -373,7 +371,8 @@ void EnExRuppy_Update(Actor* thisx, GlobalContext* globalCtx) {
         this->timer--;
     }
     Actor_MoveForward(&this->actor);
-    Actor_UpdateBgCheckInfo(globalCtx, &this->actor, 20.0f, 20.0f, 50.0f, 0x1C);
+    Actor_UpdateBgCheckInfo(globalCtx, &this->actor, 20.0f, 20.0f, 50.0f,
+                            UPDBGCHECKINFO_FLAG_2 | UPDBGCHECKINFO_FLAG_3 | UPDBGCHECKINFO_FLAG_4);
 }
 
 void EnExRuppy_Draw(Actor* thisx, GlobalContext* globalCtx) {
@@ -381,7 +380,7 @@ void EnExRuppy_Draw(Actor* thisx, GlobalContext* globalCtx) {
         gRupeeGreenTex, gRupeeBlueTex, gRupeeRedTex, gRupeePinkTex, gRupeeOrangeTex,
     };
     s32 pad;
-    EnExRuppy* this = THIS;
+    EnExRuppy* this = (EnExRuppy*)thisx;
 
     if (!this->invisible) {
         OPEN_DISPS(globalCtx->state.gfxCtx, "../z_en_ex_ruppy.c", 774);

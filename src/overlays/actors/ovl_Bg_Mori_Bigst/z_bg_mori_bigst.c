@@ -7,9 +7,7 @@
 #include "z_bg_mori_bigst.h"
 #include "objects/object_mori_objects/object_mori_objects.h"
 
-#define FLAGS 0x00000010
-
-#define THIS ((BgMoriBigst*)thisx)
+#define FLAGS ACTOR_FLAG_4
 
 void BgMoriBigst_Init(Actor* thisx, GlobalContext* globalCtx);
 void BgMoriBigst_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -61,7 +59,7 @@ void BgMoriBigst_InitDynapoly(BgMoriBigst* this, GlobalContext* globalCtx, Colli
     this->dyna.bgId = DynaPoly_SetBgActor(globalCtx, &globalCtx->colCtx.dyna, &this->dyna.actor, colHeader);
 
     if (this->dyna.bgId == BG_ACTOR_MAX) {
-        // Warning : move BG login failed
+        // "Warning : move BG login failed"
         osSyncPrintf("Warning : move BG 登録失敗(%s %d)(name %d)(arg_data 0x%04x)\n", "../z_bg_mori_bigst.c", 190,
                      this->dyna.actor.id, this->dyna.actor.params);
     }
@@ -69,9 +67,9 @@ void BgMoriBigst_InitDynapoly(BgMoriBigst* this, GlobalContext* globalCtx, Colli
 
 void BgMoriBigst_Init(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    BgMoriBigst* this = THIS;
+    BgMoriBigst* this = (BgMoriBigst*)thisx;
 
-    // mori (bigST.keyceiling)
+    // "mori (bigST.keyceiling)"
     osSyncPrintf("mori (bigST.鍵型天井)(arg : %04x)(sw %d)(noE %d)(roomC %d)(playerPosY %f)\n", this->dyna.actor.params,
                  Flags_GetSwitch(globalCtx, (this->dyna.actor.params >> 8) & 0x3F),
                  Flags_GetTempClear(globalCtx, this->dyna.actor.room), Flags_GetClear(globalCtx, this->dyna.actor.room),
@@ -80,7 +78,7 @@ void BgMoriBigst_Init(Actor* thisx, GlobalContext* globalCtx) {
     Actor_ProcessInitChain(&this->dyna.actor, sInitChain);
     this->moriTexObjIndex = Object_GetIndex(&globalCtx->objectCtx, OBJECT_MORI_TEX);
     if (this->moriTexObjIndex < 0) {
-        // 【Big Stalfos key ceiling】 bank danger!
+        // "【Big Stalfos key ceiling】 bank danger!"
         osSyncPrintf("【ビッグスタルフォス鍵型天井】 バンク危険！\n");
         osSyncPrintf("%s %d\n", "../z_bg_mori_bigst.c", 234);
         Actor_Kill(&this->dyna.actor);
@@ -97,7 +95,7 @@ void BgMoriBigst_Init(Actor* thisx, GlobalContext* globalCtx) {
 
 void BgMoriBigst_Destroy(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    BgMoriBigst* this = THIS;
+    BgMoriBigst* this = (BgMoriBigst*)thisx;
 
     DynaPoly_DeleteBgActor(globalCtx, &globalCtx->colCtx.dyna, this->dyna.bgId);
 }
@@ -138,7 +136,7 @@ void BgMoriBigst_SetupStalfosFight(BgMoriBigst* this, GlobalContext* globalCtx) 
         this->dyna.actor.child = NULL;
         this->dyna.actor.home.rot.z++;
     } else {
-        // Second Stalfos failure
+        // "Second Stalfos failure"
         osSyncPrintf("Warning : 第２スタルフォス発生失敗\n");
     }
     Flags_SetClear(globalCtx, this->dyna.actor.room);
@@ -199,7 +197,7 @@ void BgMoriBigst_SetupStalfosPairFight(BgMoriBigst* this, GlobalContext* globalC
         this->dyna.actor.child = NULL;
         this->dyna.actor.home.rot.z++;
     } else {
-        // Warning: 3-1 Stalfos failure
+        // "Warning: 3-1 Stalfos failure"
         osSyncPrintf("Warning : 第３-1スタルフォス発生失敗\n");
     }
     stalfos2 = Actor_SpawnAsChild(&globalCtx->actorCtx, &this->dyna.actor, globalCtx, ACTOR_EN_TEST, 170.0f, 827.0f,
@@ -208,7 +206,7 @@ void BgMoriBigst_SetupStalfosPairFight(BgMoriBigst* this, GlobalContext* globalC
         this->dyna.actor.child = NULL;
         this->dyna.actor.home.rot.z++;
     } else {
-        // Warning: 3-2 Stalfos failure
+        // "Warning: 3-2 Stalfos failure"
         osSyncPrintf("Warning : 第３-2スタルフォス発生失敗\n");
     }
     Flags_SetClear(globalCtx, this->dyna.actor.room);
@@ -227,7 +225,7 @@ void BgMoriBigst_SetupDone(BgMoriBigst* this, GlobalContext* globalCtx) {
 
 void BgMoriBigst_Update(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    BgMoriBigst* this = THIS;
+    BgMoriBigst* this = (BgMoriBigst*)thisx;
 
     Actor_SetFocus(&this->dyna.actor, 50.0f);
     if (this->waitTimer > 0) {
@@ -243,7 +241,7 @@ void BgMoriBigst_Update(Actor* thisx, GlobalContext* globalCtx) {
 
 void BgMoriBigst_Draw(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    BgMoriBigst* this = THIS;
+    BgMoriBigst* this = (BgMoriBigst*)thisx;
 
     OPEN_DISPS(globalCtx->state.gfxCtx, "../z_bg_mori_bigst.c", 541);
     func_80093D18(globalCtx->state.gfxCtx);

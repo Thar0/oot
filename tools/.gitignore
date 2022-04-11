@@ -1,9 +1,11 @@
 # Output files
 *.exe
-yaz0
-makeromfs
 elf2rom
+makeromfs
+mkdmadata
 mkldscript
+reloc_prereq
 vtxdis
+yaz0
 
 graphovl/

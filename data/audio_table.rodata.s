@@ -9,5 +9,5 @@
 
 .balign 16
 
-glabel gAudioTable
+glabel gSampleBankTable
     .incbin "baserom.z64", 0xBCCD90, 0x80

@@ -9,9 +9,7 @@
 #include "objects/gameplay_keep/gameplay_keep.h"
 #include "objects/object_syokudai/object_syokudai.h"
 
-#define FLAGS 0x00000410
-
-#define THIS ((ObjSyokudai*)thisx)
+#define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_10)
 
 void ObjSyokudai_Init(Actor* thisx, GlobalContext* globalCtx);
 void ObjSyokudai_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -82,7 +80,7 @@ static s32 sLitTorchCount;
 void ObjSyokudai_Init(Actor* thisx, GlobalContext* globalCtx) {
     static u8 sColTypesStand[] = { 0x09, 0x0B, 0x0B };
     s32 pad;
-    ObjSyokudai* this = THIS;
+    ObjSyokudai* this = (ObjSyokudai*)thisx;
     s32 torchType = this->actor.params & 0xF000;
 
     Actor_ProcessInitChain(&this->actor, sInitChain);
@@ -112,7 +110,7 @@ void ObjSyokudai_Init(Actor* thisx, GlobalContext* globalCtx) {
 
 void ObjSyokudai_Destroy(Actor* thisx, GlobalContext* globalCtx) {
     s32 pad;
-    ObjSyokudai* this = THIS;
+    ObjSyokudai* this = (ObjSyokudai*)thisx;
 
     Collider_DestroyCylinder(globalCtx, &this->colliderStand);
     Collider_DestroyCylinder(globalCtx, &this->colliderFlame);
@@ -121,7 +119,7 @@ void ObjSyokudai_Destroy(Actor* thisx, GlobalContext* globalCtx) {
 
 void ObjSyokudai_Update(Actor* thisx, GlobalContext* globalCtx2) {
     GlobalContext* globalCtx = globalCtx2;
-    ObjSyokudai* this = THIS;
+    ObjSyokudai* this = (ObjSyokudai*)thisx;
     s32 torchCount = (this->actor.params >> 6) & 0xF;
     s32 switchFlag = this->actor.params & 0x3F;
     s32 torchType = this->actor.params & 0xF000;
@@ -177,8 +175,8 @@ void ObjSyokudai_Update(Actor* thisx, GlobalContext* globalCtx2) {
             if (dmgFlags & 0x20820) {
                 interactionType = 1;
             }
-        } else if (player->heldItemActionParam == 6) {
-            Math_Vec3f_Diff(&player->swordInfo[0].tip, &this->actor.world.pos, &tipToFlame);
+        } else if (player->heldItemActionParam == PLAYER_AP_STICK) {
+            Math_Vec3f_Diff(&player->meleeWeaponInfo[0].tip, &this->actor.world.pos, &tipToFlame);
             tipToFlame.y -= 67.0f;
             if ((SQ(tipToFlame.x) + SQ(tipToFlame.y) + SQ(tipToFlame.z)) < SQ(20.0f)) {
                 interactionType = -1;
@@ -261,7 +259,7 @@ void ObjSyokudai_Update(Actor* thisx, GlobalContext* globalCtx2) {
 void ObjSyokudai_Draw(Actor* thisx, GlobalContext* globalCtx) {
     static Gfx* displayLists[] = { gGoldenTorchDL, gTimedTorchDL, gWoodenTorchDL };
     s32 pad;
-    ObjSyokudai* this = THIS;
+    ObjSyokudai* this = (ObjSyokudai*)thisx;
     s32 timerMax;
 
     timerMax = (((this->actor.params >> 6) & 0xF) * 50) + 100;
@@ -295,9 +293,9 @@ void ObjSyokudai_Draw(Actor* thisx, GlobalContext* globalCtx) {
         gDPSetEnvColor(POLY_XLU_DISP++, 255, 0, 0, 0);
 
         Matrix_Translate(0.0f, 52.0f, 0.0f, MTXMODE_APPLY);
-        Matrix_RotateY((s16)(Camera_GetCamDirYaw(GET_ACTIVE_CAM(globalCtx)) - this->actor.shape.rot.y + 0x8000) *
-                           (M_PI / 0x8000),
-                       MTXMODE_APPLY);
+        Matrix_RotateY(
+            BINANG_TO_RAD((s16)(Camera_GetCamDirYaw(GET_ACTIVE_CAM(globalCtx)) - this->actor.shape.rot.y + 0x8000)),
+            MTXMODE_APPLY);
         Matrix_Scale(flameScale, flameScale, flameScale, MTXMODE_APPLY);
 
         gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(globalCtx->state.gfxCtx, "../z_obj_syokudai.c", 745),

@@ -4,9 +4,7 @@
 #include "objects/object_jya_obj/object_jya_obj.h"
 #include "vt.h"
 
-#define FLAGS 0x00000010
-
-#define THIS ((BgJyaCobra*)thisx)
+#define FLAGS ACTOR_FLAG_4
 
 void BgJyaCobra_Init(Actor* thisx, GlobalContext* globalCtx);
 void BgJyaCobra_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -18,22 +16,7 @@ void func_80896950(BgJyaCobra* this, GlobalContext* globalCtx);
 void func_808969F8(BgJyaCobra* this, GlobalContext* globalCtx);
 void func_80896ABC(BgJyaCobra* this, GlobalContext* globalCtx);
 
-static Vtx sShadowVtx[4] = {
-    VTX(-800, 0, -800, 0, 2048, 255, 255, 255, 255),
-    VTX(800, 0, -800, 2048, 2048, 255, 255, 255, 255),
-    VTX(800, 0, 800, 2048, 0, 255, 255, 255, 255),
-    VTX(-800, 0, 800, 0, 0, 255, 255, 255, 255),
-};
-
-static Gfx sShadowDL[] = {
-    gsDPPipeSync(),
-    gsDPSetCombineLERP(PRIMITIVE, 0, TEXEL0, 0, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, COMBINED, 0, 0, 0, COMBINED),
-    gsDPSetRenderMode(G_RM_PASS, G_RM_AA_ZB_XLU_DECAL2),
-    gsSPClearGeometryMode(G_CULL_BACK | G_FOG | G_LIGHTING | G_TEXTURE_GEN | G_TEXTURE_GEN_LINEAR),
-    gsSPVertex(sShadowVtx, 4, 0),
-    gsSP2Triangles(0, 1, 2, 0, 0, 2, 3, 0),
-    gsSPEndDisplayList(),
-};
+#include "overlays/ovl_Bg_Jya_Cobra/ovl_Bg_Jya_Cobra.c"
 
 const ActorInit Bg_Jya_Cobra_InitVars = {
     ACTOR_BG_JYA_COBRA,
@@ -141,7 +124,7 @@ void BgJyaCobra_InitDynapoly(BgJyaCobra* this, GlobalContext* globalCtx, Collisi
     CollisionHeader_GetVirtual(collision, &colHeader);
     this->dyna.bgId = DynaPoly_SetBgActor(globalCtx, &globalCtx->colCtx.dyna, &this->dyna.actor, colHeader);
     if (this->dyna.bgId == BG_ACTOR_MAX) {
-        // Warning : move BG Registration Failure
+        // "Warning : move BG Registration Failure"
         osSyncPrintf("Warning : move BG 登録失敗(%s %d)(name %d)(arg_data 0x%04x)\n", "../z_bg_jya_cobra.c", 247,
                      this->dyna.actor.id, this->dyna.actor.params);
     }
@@ -152,7 +135,7 @@ void BgJyaCobra_SpawnRay(BgJyaCobra* this, GlobalContext* globalCtx) {
                        this->dyna.actor.world.pos.y + 57.0f, this->dyna.actor.world.pos.z, 0, 0, 0, 6);
     if (this->dyna.actor.child == NULL) {
         osSyncPrintf(VT_FGCOL(RED));
-        // Ｅｒｒｏｒ : Mir Ray occurrence failure
+        // "Ｅｒｒｏｒ : Mir Ray occurrence failure"
         osSyncPrintf("Ｅｒｒｏｒ : Mir Ray 発生失敗 (%s %d)\n", "../z_bg_jya_cobra.c", 270);
         osSyncPrintf(VT_RST);
     }
@@ -195,8 +178,8 @@ void func_80895A70(BgJyaCobra* this) {
 
         mirRay->unLit = 0;
         Math_Vec3f_Copy(&mirRay->sourcePt, &this->unk_180);
-        Matrix_RotateY(this->dyna.actor.shape.rot.y * (M_PI / 0x8000), MTXMODE_NEW);
-        Matrix_RotateX(D_80897308[this->dyna.actor.params & 3] * (M_PI / 0x8000), MTXMODE_APPLY);
+        Matrix_RotateY(BINANG_TO_RAD(this->dyna.actor.shape.rot.y), MTXMODE_NEW);
+        Matrix_RotateX(BINANG_TO_RAD(D_80897308[this->dyna.actor.params & 3]), MTXMODE_APPLY);
         sp28.x = 0.0f;
         sp28.y = 0.0;
         sp28.z = this->unk_190 * 2800.0f;
@@ -298,7 +281,7 @@ void BgJyaCobra_UpdateShadowFromSide(BgJyaCobra* this) {
     Matrix_RotateX((M_PI / 4), MTXMODE_NEW);
     rotY = !(this->dyna.actor.params & 3) ? (this->dyna.actor.shape.rot.y + 0x4000)
                                           : (this->dyna.actor.shape.rot.y - 0x4000);
-    Matrix_RotateY(rotY * (M_PI / 0x8000), MTXMODE_APPLY);
+    Matrix_RotateY(BINANG_TO_RAD(rotY), MTXMODE_APPLY);
     Matrix_Scale(0.9f, 0.9f, 0.9f, MTXMODE_APPLY);
 
     for (i = 0; i < 25; i++) {
@@ -365,7 +348,7 @@ void BgJyaCobra_UpdateShadowFromSide(BgJyaCobra* this) {
         temp_s2[j * 0x40 + 0] = 0;
         temp_s2[j * 0x40 + 0x3F] = 0;
     }
-    if (D_80897398) {}
+    if (D_80897398[0][0]) {}
 }
 
 /*
@@ -412,7 +395,7 @@ void BgJyaCobra_UpdateShadowFromTop(BgJyaCobra* this) {
 }
 
 void BgJyaCobra_Init(Actor* thisx, GlobalContext* globalCtx) {
-    BgJyaCobra* this = THIS;
+    BgJyaCobra* this = (BgJyaCobra*)thisx;
 
     BgJyaCobra_InitDynapoly(this, globalCtx, &gCobraCol, DPM_UNK);
     Actor_ProcessInitChain(&this->dyna.actor, sInitChain);
@@ -434,13 +417,13 @@ void BgJyaCobra_Init(Actor* thisx, GlobalContext* globalCtx) {
         BgJyaCobra_UpdateShadowFromTop(this);
     }
 
-    // (jya cobra)
+    // "(jya cobra)"
     osSyncPrintf("(jya コブラ)(arg_data 0x%04x)(act %x)(txt %x)(txt16 %x)\n", this->dyna.actor.params, this,
                  &this->shadowTexture, ALIGN16((s32)(&this->shadowTexture)));
 }
 
 void BgJyaCobra_Destroy(Actor* thisx, GlobalContext* globalCtx) {
-    BgJyaCobra* this = THIS;
+    BgJyaCobra* this = (BgJyaCobra*)thisx;
 
     DynaPoly_DeleteBgActor(globalCtx, &globalCtx->colCtx.dyna, this->dyna.bgId);
 }
@@ -466,7 +449,7 @@ void func_80896950(BgJyaCobra* this, GlobalContext* globalCtx) {
 
     if (fabsf(this->dyna.unk_150) > 0.001f) {
         this->dyna.unk_150 = 0.0f;
-        player->stateFlags2 &= ~0x10;
+        player->stateFlags2 &= ~PLAYER_STATE2_4;
     }
 }
 
@@ -507,7 +490,7 @@ void func_80896ABC(BgJyaCobra* this, GlobalContext* globalCtx) {
 
     if (Math_ScaledStepToS(&this->unk_170, this->unk_16A * 0x2000, this->unk_16E)) {
         this->unk_16C = (this->unk_16C + this->unk_16A) & 7;
-        player->stateFlags2 &= ~0x10;
+        player->stateFlags2 &= ~PLAYER_STATE2_4;
         this->dyna.unk_150 = 0.0f;
         func_80896918(this, globalCtx);
     } else {
@@ -515,7 +498,7 @@ void func_80896ABC(BgJyaCobra* this, GlobalContext* globalCtx) {
             (this->unk_16C * 0x2000) + this->dyna.actor.home.rot.y + this->unk_170;
     }
 
-    if (player->stateFlags2 & 0x10) {
+    if (player->stateFlags2 & PLAYER_STATE2_4) {
         if (this->unk_172) {
             func_80895BEC(this, globalCtx);
         }
@@ -527,9 +510,9 @@ void func_80896ABC(BgJyaCobra* this, GlobalContext* globalCtx) {
     func_8002F974(&this->dyna.actor, NA_SE_EV_ROCK_SLIDE - SFX_FLAG);
 }
 
-void BgJyaCobra_Update(Actor* thisx, GlobalContext* globalCtx) {
-    s32 pad;
-    BgJyaCobra* this = THIS;
+void BgJyaCobra_Update(Actor* thisx, GlobalContext* globalCtx2) {
+    GlobalContext* globalCtx = globalCtx2;
+    BgJyaCobra* this = (BgJyaCobra*)thisx;
 
     this->actionFunc(this, globalCtx);
 
@@ -562,7 +545,7 @@ void func_80896D78(BgJyaCobra* this, GlobalContext* globalCtx) {
     sp44.x = D_80897308[this->dyna.actor.params & 3] + this->dyna.actor.shape.rot.x;
     sp44.y = this->dyna.actor.shape.rot.y;
     sp44.z = this->dyna.actor.shape.rot.z;
-    func_800D1694(this->unk_180.x, this->unk_180.y, this->unk_180.z, &sp44);
+    Matrix_SetTranslateRotateYXZ(this->unk_180.x, this->unk_180.y, this->unk_180.z, &sp44);
 
     Matrix_Scale(0.1f, 0.1f, this->unk_190, MTXMODE_APPLY);
     gSPMatrix(POLY_XLU_DISP++, Matrix_NewMtx(globalCtx->state.gfxCtx, "../z_bg_jya_cobra.c", 939),
@@ -598,7 +581,7 @@ void BgJyaCobra_DrawShadow(BgJyaCobra* this, GlobalContext* globalCtx) {
         Math_Vec3f_Copy(&sp64, &this->dyna.actor.world.pos);
     }
 
-    func_800D1694(sp64.x, sp64.y, sp64.z, phi_a3);
+    Matrix_SetTranslateRotateYXZ(sp64.x, sp64.y, sp64.z, phi_a3);
 
     Matrix_Scale(D_80897548[params].x, D_80897548[params].y, D_80897548[params].z, MTXMODE_APPLY);
     Matrix_Translate(0.0f, 0.0f, 40.0f, MTXMODE_APPLY);
@@ -617,7 +600,7 @@ void BgJyaCobra_DrawShadow(BgJyaCobra* this, GlobalContext* globalCtx) {
 }
 
 void BgJyaCobra_Draw(Actor* thisx, GlobalContext* globalCtx) {
-    BgJyaCobra* this = THIS;
+    BgJyaCobra* this = (BgJyaCobra*)thisx;
 
     func_80896CB4(globalCtx);
     Gfx_DrawDListOpa(globalCtx, gCobra1DL);

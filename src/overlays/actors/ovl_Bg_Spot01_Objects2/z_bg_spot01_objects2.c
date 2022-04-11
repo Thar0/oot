@@ -8,9 +8,7 @@
 #include "objects/object_spot01_matoya/object_spot01_matoya.h"
 #include "objects/object_spot01_matoyab/object_spot01_matoyab.h"
 
-#define FLAGS 0x00000010
-
-#define THIS ((BgSpot01Objects2*)thisx)
+#define FLAGS ACTOR_FLAG_4
 
 void BgSpot01Objects2_Init(Actor* thisx, GlobalContext* globalCtx);
 void BgSpot01Objects2_Destroy(Actor* thisx, GlobalContext* globalCtx);
@@ -39,10 +37,13 @@ static InitChainEntry sInitChain[] = {
     ICHAIN_VEC3F_DIV1000(scale, 100, ICHAIN_STOP),
 };
 
-static Gfx* D_808AC510[] = { 0x06001EB0, 0x06002780, 0x06003078, 0x06001228, 0x06001528 };
+static Gfx* D_808AC510[] = {
+    gKakarikoPotionShopSignDL,   gKakarikoShootingGallerySignDL, gKakarikoBazaarSignDL,
+    gKakarikoConstructionSiteDL, gKakarikoShootingGalleryDL,
+};
 
 void BgSpot01Objects2_Init(Actor* thisx, GlobalContext* globalCtx) {
-    BgSpot01Objects2* this = THIS;
+    BgSpot01Objects2* this = (BgSpot01Objects2*)thisx;
 
     switch (this->dyna.actor.params & 7) {
         case 0:
@@ -60,7 +61,7 @@ void BgSpot01Objects2_Init(Actor* thisx, GlobalContext* globalCtx) {
     if (this->objectId >= 0) {
         this->objBankIndex = Object_GetIndex(&globalCtx->objectCtx, this->objectId);
         if (this->objBankIndex < 0) {
-            // There was no bank setting.
+            // "There was no bank setting."
             osSyncPrintf("-----------------------------バンク設定ありませんでした.");
             Actor_Kill(&this->dyna.actor);
             return;
@@ -91,7 +92,7 @@ void func_808AC2BC(BgSpot01Objects2* this, GlobalContext* globalCtx) {
     Vec3f position;
 
     if (Object_IsLoaded(&globalCtx->objectCtx, this->objBankIndex)) {
-        // ---- Successful bank switching!!
+        // "---- Successful bank switching!!"
         osSyncPrintf("-----バンク切り換え成功！！\n");
         gSegments[6] = VIRTUAL_TO_PHYSICAL(globalCtx->objectCtx.status[this->objBankIndex].segment);
 
@@ -128,7 +129,7 @@ void func_808AC474(BgSpot01Objects2* this, GlobalContext* globalCtx) {
 }
 
 void BgSpot01Objects2_Update(Actor* thisx, GlobalContext* globalCtx) {
-    BgSpot01Objects2* this = THIS;
+    BgSpot01Objects2* this = (BgSpot01Objects2*)thisx;
 
     this->actionFunc(this, globalCtx);
 }

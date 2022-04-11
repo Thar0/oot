@@ -55,12 +55,12 @@ void Jpeg_ScheduleDecoderTask(JpegContext* ctx) {
 
     ctx->scTask.next = NULL;
     ctx->scTask.flags = OS_SC_NEEDS_RSP;
-    ctx->scTask.msgQ = &ctx->mq;
+    ctx->scTask.msgQueue = &ctx->mq;
     ctx->scTask.msg = NULL;
     ctx->scTask.framebuffer = NULL;
     ctx->scTask.list.t = sJpegTask;
 
-    osSendMesg(&gSchedContext.cmdQ, (OSMesg)&ctx->scTask, OS_MESG_BLOCK);
+    osSendMesg(&gSchedContext.cmdQueue, (OSMesg)&ctx->scTask, OS_MESG_BLOCK);
     Sched_SendEntryMsg(&gSchedContext); // osScKickEntryMsg
     osRecvMesg(&ctx->mq, NULL, OS_MESG_BLOCK);
 }
@@ -179,9 +179,9 @@ void Jpeg_ParseMarkers(u8* ptr, JpegContext* ctx) {
                     // Start of Frame, stores important metadata of the image.
                     // Only used for extracting the sampling factors (ctx->mode).
                     osSyncPrintf("MARKER_SOF   %d "
-                                 "精度%02x " // accuracy
-                                 "垂直%d "   // vertical
-                                 "水平%d "   // horizontal
+                                 "精度%02x " // "accuracy"
+                                 "垂直%d "   // "vertical"
+                                 "水平%d "   // "horizontal"
                                  "compo%02x "
                                  "(1:Y)%d (H0=2,V0=1(422) or 2(420))%02x (量子化テーブル)%02x "
                                  "(2:Cb)%d (H1=1,V1=1)%02x (量子化テーブル)%02x "

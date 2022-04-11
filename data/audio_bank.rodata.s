@@ -9,5 +9,5 @@
 
 .balign 16
 
-glabel gAudioBankTable
+glabel gSoundFontTable
     .incbin "baserom.z64", 0xBCC270, 0x270

@@ -1,6 +1,8 @@
 #ifndef ULTRA64_THREAD_H
 #define ULTRA64_THREAD_H
 
+#include "types.h"
+
 #define OS_PRIORITY_MAX      255
 #define OS_PRIORITY_VIMGR    254
 #define OS_PRIORITY_RMON     250
@@ -10,10 +12,15 @@
 #define OS_PRIORITY_APPMAX   127
 #define OS_PRIORITY_IDLE       0
 
+#define OS_PRIORITY_THREADTAIL -1
+
 #define OS_STATE_STOPPED    1
 #define OS_STATE_RUNNABLE   2
 #define OS_STATE_RUNNING    4
 #define OS_STATE_WAITING    8
+
+#define OS_FLAG_CPU_BREAK   1
+#define OS_FLAG_FAULT       2
 
 typedef s32 OSPri;
 typedef s32 OSId;
@@ -23,6 +30,7 @@ typedef union {
         /* 0x00 */ f32 f_odd;
         /* 0x04 */ f32 f_even;
     } f;
+    f64 d;
 } __OSfp; // size = 0x08
 
 typedef struct {
@@ -44,16 +52,21 @@ typedef struct {
 } __OSThreadprofile; // size = 0x10
 
 typedef struct OSThread {
-    /*0x00*/ struct OSThread* next;
-    /*0x04*/ OSPri priority;
-    /*0x08*/ struct OSThread** queue;
-    /*0x0C*/ struct OSThread* tlnext;
-    /*0x10*/ u16 state;
-    /*0x12*/ u16 flags;
-    /*0x14*/ OSId id;
-    /*0x18*/ s32 fp;
-    /*0x1C*/ __OSThreadprofile* thprof;
-    /*0x20*/ __OSThreadContext context;
+    /* 0x00 */ struct OSThread* next;
+    /* 0x04 */ OSPri priority;
+    /* 0x08 */ struct OSThread** queue;
+    /* 0x0C */ struct OSThread* tlnext;
+    /* 0x10 */ u16 state;
+    /* 0x12 */ u16 flags;
+    /* 0x14 */ OSId id;
+    /* 0x18 */ s32 fp;
+    /* 0x1C */ __OSThreadprofile* thprof;
+    /* 0x20 */ __OSThreadContext context;
 } OSThread; // size = 0x1B0
+
+typedef struct {
+    OSThread* next;
+    OSPri priority;
+} __OSThreadTail; // size = 0x8
 
 #endif
