@@ -7,7 +7,7 @@ audioseq = open("baserom/Audioseq", "rb").read()
 seqheader = baserom[0xBCC6A0:][:0x6F0]
 num, = struct.unpack(">H", seqheader[:2])
 
-os.makedirs("assets/audio/seqs/", exist_ok=True)
+os.makedirs("assets/audio/seq/", exist_ok=True)
 
 print(num)
 for i in range(num):
@@ -15,10 +15,10 @@ for i in range(num):
     offset, length = struct.unpack(">II", data[:8])
     # print(f"Sequence {i}: OFFSET={offset:08X} LEN={length:08X}")
     data = audioseq[offset : offset + length]
-    with open(f"assets/audio/seqs/{i}.m64", "wb") as f:
+    with open(f"assets/audio/seq/{i}.m64", "wb") as f:
         f.write(data)
 
 for i in range(num):
     print(f"Sequence {i}")
     # TODO don't os.system this
-    os.system(f"python3 tools/seq_decoder.py assets/audio/seqs/{i}.m64 AudioSeq_{i} > assets/audio/seqs/{i}.s")
+    os.system(f"python3 tools/seq_decoder.py assets/audio/seq/{i}.m64 AudioSeq_{i} > assets/audio/seq/{i}.s")

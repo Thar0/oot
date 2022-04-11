@@ -165,7 +165,7 @@ O_FILES       := $(foreach f,$(S_FILES:.s=.o),build/$f) \
                  $(foreach f,$(C_FILES:.c=.o),build/$f) \
                  $(foreach f,$(wildcard baserom/*),build/$f.o)
 
-AUDIO_SEQUENCES := $(wildcard assets/audio/seqs/*.s)
+AUDIO_SEQUENCES := $(wildcard assets/audio/seq/*.s)
 AUDIO_SEQUENCES_OUT := $(foreach f,$(AUDIO_SEQUENCES:.s=.o),build/$f)
 
 OVL_RELOC_FILES := $(shell $(CPP) $(CPPFLAGS) $(SPEC) | grep -o '[^"]*_reloc.o' )
@@ -293,10 +293,6 @@ build/undefined_syms.txt: undefined_syms.txt
 build/baserom/%.o: baserom/%
 	$(OBJCOPY) -I binary -O elf32-big $< $@
 
-build/assets/audio/seqs/%.o: assets/audio/seqs/%.s
-	$(AS) $(ASFLAGS) $< -o $@
-	$(OBJCOPY) -O binary -j.rodata $@ $(@:.o=.m64)
-
 build/asm/%.o: asm/%.s
 	$(AS) $(ASFLAGS) $< -o $@
 
@@ -310,6 +306,10 @@ build/assets/text/fra_message_data_static.o: build/assets/text/message_data.enc.
 build/assets/text/ger_message_data_static.o: build/assets/text/message_data.enc.h
 build/assets/text/nes_message_data_static.o: build/assets/text/message_data.enc.h
 build/assets/text/staff_message_data_static.o: build/assets/text/message_data_staff.enc.h
+
+build/assets/audio/seq/%.o: assets/audio/seq/%.s
+	$(AS) $(ASFLAGS) $< -o $@
+	$(OBJCOPY) -O binary -j.rodata $@ $(@:.o=.m64)
 
 build/assets/%.o: assets/%.c
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
