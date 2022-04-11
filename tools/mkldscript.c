@@ -139,6 +139,24 @@ static void write_ld_script(FILE *fout)
 
         fprintf(fout, "        _%sSegmentSDataEnd = .;\n", seg->name);
 
+        fprintf(fout, "        _%sSegmentCtorsStart = .;\n", seg->name);
+
+        for (j = 0; j < seg->includesCount; j++)
+            fprintf(fout, "            %s (.ctors)\n", seg->includes[j].fpath);
+
+        fprintf(fout, "        _%sSegmentCtorsEnd = .;\n", seg->name);
+
+        fprintf(fout, "    _%sSegmentCtorsSize = ABSOLUTE( _%sSegmentCtorsEnd - _%sSegmentCtorsStart );\n", seg->name, seg->name, seg->name);
+
+        fprintf(fout, "        _%sSegmentDtorsStart = .;\n", seg->name);
+
+        for (j = 0; j < seg->includesCount; j++)
+            fprintf(fout, "            %s (.dtors)\n", seg->includes[j].fpath);
+
+        fprintf(fout, "        _%sSegmentDtorsEnd = .;\n", seg->name);
+
+        fprintf(fout, "    _%sSegmentDtorsSize = ABSOLUTE( _%sSegmentDtorsEnd - _%sSegmentDtorsStart );\n", seg->name, seg->name, seg->name);
+
         fprintf(fout, "        _%sSegmentOvlStart = .;\n", seg->name);
 
         for (j = 0; j < seg->includesCount; j++)

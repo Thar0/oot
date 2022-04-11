@@ -32,9 +32,12 @@
       &name##_InitVars,                   \
       #name,                              \
       allocType,                          \
-      0 },
+      0,                                  \
+      NULL,                               \
+      NULL                                \
+    },
 
-#define DEFINE_ACTOR_INTERNAL(name, _1, allocType) { 0, 0, NULL, NULL, NULL, &name##_InitVars, #name, allocType, 0 },
+#define DEFINE_ACTOR_INTERNAL(name, _1, allocType) { 0, 0, NULL, NULL, NULL, &name##_InitVars, #name, allocType, 0, NULL, NULL },
 
 #define DEFINE_ACTOR_UNSET(_0) { 0 },
 

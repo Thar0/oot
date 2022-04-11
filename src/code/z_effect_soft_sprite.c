@@ -28,6 +28,7 @@ void EffectSs_InitInfo(GlobalContext* globalCtx, s32 tableSize) {
     overlay = &gEffectSsOverlayTable[0];
     for (i = 0; i < ARRAY_COUNT(gEffectSsOverlayTable); i++) {
         overlay->loadedRamAddr = NULL;
+        overlay->dtorsStart = overlay->dtorsEnd = NULL;
         overlay++;
     }
 }
@@ -52,9 +53,12 @@ void EffectSs_ClearAll(GlobalContext* globalCtx) {
         addr = overlay->loadedRamAddr;
 
         if (addr != NULL) {
+            do_ctors_dtors_list(overlay->dtorsStart, overlay->dtorsEnd);
+
             ZeldaArena_FreeDebug(addr, "../z_effect_soft_sprite.c", 337);
         }
 
+        overlay->dtorsStart = overlay->dtorsEnd = NULL;
         overlay->loadedRamAddr = NULL;
         overlay++;
     }
@@ -204,7 +208,7 @@ void EffectSs_Spawn(GlobalContext* globalCtx, s32 type, s32 priority, void* init
             }
 
             Overlay_Load(overlayEntry->vromStart, overlayEntry->vromEnd, overlayEntry->vramStart, overlayEntry->vramEnd,
-                         overlayEntry->loadedRamAddr);
+                         overlayEntry->loadedRamAddr, &overlayEntry->dtorsStart, &overlayEntry->dtorsEnd);
 
             osSyncPrintf(VT_FGCOL(GREEN));
             osSyncPrintf("EFFECT SS OVL:SegRom %08x %08x, Seg %08x %08x, RamStart %08x, type: %d\n",

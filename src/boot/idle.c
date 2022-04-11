@@ -16,10 +16,18 @@ u32 gViConfigFeatures = OS_VI_DITHER_FILTER_ON | OS_VI_GAMMA_OFF;
 f32 gViConfigXScale = 1.0;
 f32 gViConfigYScale = 1.0;
 
+extern u8 _bootSegmentCtorsStart[], _bootSegmentCtorsEnd[];
+extern u8 _codeSegmentCtorsStart[], _codeSegmentCtorsEnd[];
+extern u8 _codeSegmentDtorsStart[], _codeSegmentDtorsEnd[];
+extern u8 _bootSegmentDtorsStart[], _bootSegmentDtorsEnd[];
+
 void Main_ThreadEntry(void* arg) {
     OSTime time;
 
     osSyncPrintf("mainx 実行開始\n");
+
+    do_ctors_dtors_list(_bootSegmentCtorsStart, _bootSegmentCtorsEnd);
+
     DmaMgr_Init();
     osSyncPrintf("codeセグメントロード中...");
     time = osGetTime();
@@ -29,9 +37,15 @@ void Main_ThreadEntry(void* arg) {
     osSyncPrintf("\rcodeセグメントロード中...完了\n");
     osSyncPrintf("転送時間 %6.3f\n");
     bzero(_codeSegmentBssStart, _codeSegmentBssEnd - _codeSegmentBssStart);
+
+    do_ctors_dtors_list(_codeSegmentCtorsStart, _codeSegmentCtorsEnd);
+
     osSyncPrintf("codeセグメントBSSクリア完了\n");
     Main(arg);
     osSyncPrintf("mainx 実行終了\n");
+
+    do_ctors_dtors_list(_codeSegmentDtorsStart, _codeSegmentDtorsEnd);
+    do_ctors_dtors_list(_bootSegmentDtorsStart, _bootSegmentDtorsEnd);
 }
 
 void Idle_ThreadEntry(void* arg) {

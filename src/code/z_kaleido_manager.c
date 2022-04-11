@@ -4,7 +4,7 @@
 #define KALEIDO_OVERLAY(name)                                                                                \
     {                                                                                                        \
         NULL, (u32)_ovl_##name##SegmentRomStart, (u32)_ovl_##name##SegmentRomEnd, _ovl_##name##SegmentStart, \
-            _ovl_##name##SegmentEnd, 0, #name,                                                               \
+            _ovl_##name##SegmentEnd, 0, #name, NULL, NULL                                                    \
     }
 
 KaleidoMgrOverlay gKaleidoMgrOverlayTable[] = {
@@ -20,7 +20,7 @@ void KaleidoManager_LoadOvl(KaleidoMgrOverlay* ovl) {
     LogUtils_CheckNullPointer("KaleidoArea_allocp", sKaleidoAreaPtr, "../z_kaleido_manager.c", 99);
 
     ovl->loadedRamAddr = sKaleidoAreaPtr;
-    Overlay_Load(ovl->vromStart, ovl->vromEnd, ovl->vramStart, ovl->vramEnd, ovl->loadedRamAddr);
+    Overlay_Load(ovl->vromStart, ovl->vromEnd, ovl->vramStart, ovl->vramEnd, ovl->loadedRamAddr, &ovl->dtorsStart, &ovl->dtorsEnd);
 
     osSyncPrintf(VT_FGCOL(GREEN));
     osSyncPrintf("OVL(k):Seg:%08x-%08x Ram:%08x-%08x Off:%08x %s\n", ovl->vramStart, ovl->vramEnd, ovl->loadedRamAddr,
@@ -34,6 +34,9 @@ void KaleidoManager_LoadOvl(KaleidoMgrOverlay* ovl) {
 
 void KaleidoManager_ClearOvl(KaleidoMgrOverlay* ovl) {
     if (ovl->loadedRamAddr != NULL) {
+        do_ctors_dtors_list(ovl->dtorsStart, ovl->dtorsEnd);
+        ovl->dtorsStart = ovl->dtorsEnd = NULL;
+
         ovl->offset = 0;
         bzero(ovl->loadedRamAddr, (u32)ovl->vramEnd - (u32)ovl->vramStart);
         ovl->loadedRamAddr = NULL;

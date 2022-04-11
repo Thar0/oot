@@ -38,16 +38,18 @@ typedef struct {
 typedef struct {
     FairySectionInfo symtabInfo;
     char* strtab;
-    Elf32_Word progBitsSizes[3];
+    Elf32_Word progBitsSizes[5];
     vc_vector* progBitsSections;
-    FairySectionInfo relocTablesInfo[3];
+    FairySectionInfo relocTablesInfo[5];
 } FairyFileInfo;
 
 typedef enum {
     FAIRY_SECTION_TEXT,
     FAIRY_SECTION_DATA,
     FAIRY_SECTION_RODATA,
-    FAIRY_SECTION_OTHER //,
+    FAIRY_SECTION_CTORS,
+    FAIRY_SECTION_DTORS,
+    FAIRY_SECTION_OTHER
 } FairySection;
 
 /* Prints debugging information to stderr. To be used via the macros. */

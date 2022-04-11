@@ -54,7 +54,9 @@ typedef struct {
     /* 0x18 */ char* name;
     /* 0x1C */ u16 allocType;
     /* 0x1E */ s8 numLoaded; // original name: "clients"
-} ActorOverlay; // size = 0x20
+    /* 0x20 */ void* dtorsStart;
+    /* 0x24 */ void* dtorsEnd;
+} ActorOverlay; // size = 0x28
 
 typedef struct {
     u8 table[32];

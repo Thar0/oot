@@ -29,7 +29,7 @@ endif
 
 # Set prefix to mips binutils binaries (mips-linux-gnu-ld => 'mips-linux-gnu-') - Change at your own risk!
 # In nearly all cases, not having 'mips-linux-gnu-*' binaries on the PATH is indicative of missing dependencies
-MIPS_BINUTILS_PREFIX ?= mips-linux-gnu-
+MIPS_BINUTILS_PREFIX ?= mips64-ultra-elf-
 
 ifeq ($(NON_MATCHING),1)
   CFLAGS += -DNON_MATCHING
@@ -107,7 +107,7 @@ ZAPD       := tools/ZAPD/ZAPD.out
 FADO       := tools/fado/fado.elf
 
 ifeq ($(COMPILER),gcc)
-  OPTFLAGS := -Os -ffast-math -fno-unsafe-math-optimizations
+  OPTFLAGS := -Os -fno-reorder-functions -ffast-math -fno-unsafe-math-optimizations
 else
   OPTFLAGS := -O2
 endif
@@ -317,19 +317,19 @@ build/src/dmadata/dmadata.o: build/dmadata_table_spec.h
 build/src/%.o: src/%.c
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
 	$(CC_CHECK) $<
-	@$(OBJDUMP) -d $@ > $(@:.o=.s)
+	@$(OBJDUMP) -drz -l --source $@ > $(@:.o=.s)
 
 build/src/libultra/libc/ll.o: src/libultra/libc/ll.c
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
 	$(CC_CHECK) $<
 	python3 tools/set_o32abi_bit.py $@
-	@$(OBJDUMP) -d $@ > $(@:.o=.s)
+	@$(OBJDUMP) -drz -l --source $@ > $(@:.o=.s)
 
 build/src/libultra/libc/llcvt.o: src/libultra/libc/llcvt.c
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
 	$(CC_CHECK) $<
 	python3 tools/set_o32abi_bit.py $@
-	@$(OBJDUMP) -d $@ > $(@:.o=.s)
+	@$(OBJDUMP) -drz -l --source $@ > $(@:.o=.s)
 
 build/src/overlays/%_reloc.o: build/$(SPEC)
 	$(FADO) $$(tools/reloc_prereq $< $(notdir $*)) -n $(notdir $*) -o $(@:.o=.s) -M $(@:.o=.d)

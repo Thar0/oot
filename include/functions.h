@@ -18,6 +18,7 @@ f32 sqrtf(f32 f);
 f64 sqrt(f64 d);
 #pragma intrinsic(sqrt)
 
+void do_ctors_dtors_list(void* list, void* end);
 void cleararena(void);
 void bootproc(void);
 void Main_ThreadEntry(void* arg);
@@ -2053,11 +2054,11 @@ Gfx* GfxPrint_Close(GfxPrint* this);
 s32 GfxPrint_Printf(GfxPrint* this, const char* fmt, ...);
 void RcpUtils_PrintRegisterStatus(void);
 void RcpUtils_Reset(void);
-void* Overlay_AllocateAndLoad(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd);
+void* Overlay_AllocateAndLoad(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd, void** dtorsStart, void** dtorsEnd);
 void MtxConv_F2L(Mtx* m1, MtxF* m2);
 void MtxConv_L2F(MtxF* m1, Mtx* m2);
 void Overlay_Relocate(void* allocatedVRamAddress, OverlayRelocationSection* overlayInfo, void* vRamAddress);
-s32 Overlay_Load(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd, void* allocatedVRamAddress);
+s32 Overlay_Load(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd, void* allocatedVRamAddr, void** dtorsStart, void** dtorsEnd);
 // ? func_800FC800(?);
 // ? func_800FC83C(?);
 // ? func_800FCAB4(?);

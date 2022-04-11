@@ -209,7 +209,9 @@ typedef struct {
     /* 0x10 */ void* loadedRamAddr;
     /* 0x14 */ EffectSsInit* initInfo;
     /* 0x18 */ u8 unk_18;
-} EffectSsOverlay; // size = 0x1C
+    /* 0x1C */ void* dtorsStart;
+    /* 0x20 */ void* dtorsEnd;
+} EffectSsOverlay; // size = 0x24
 
 typedef struct EffectSs {
     /* 0x00 */ Vec3f pos;

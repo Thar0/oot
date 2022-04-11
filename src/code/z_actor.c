@@ -1969,6 +1969,7 @@ void func_800304DC(GlobalContext* globalCtx, ActorContext* actorCtx, ActorEntry*
 
     overlayEntry = &gActorOverlayTable[0];
     for (i = 0; i < ARRAY_COUNT(gActorOverlayTable); i++) {
+        overlayEntry->dtorsStart = overlayEntry->dtorsEnd = NULL;
         overlayEntry->loadedRamAddr = NULL;
         overlayEntry->numLoaded = 0;
         overlayEntry++;
@@ -2637,12 +2638,16 @@ void Actor_FreeOverlay(ActorOverlay* actorOverlay) {
                     // "Absolute magic field reserved, so deallocation will not occur"
                     osSyncPrintf("絶対魔法領域確保なので解放しません\n");
                 }
+                do_ctors_dtors_list(actorOverlay->dtorsStart, actorOverlay->dtorsEnd);
+                actorOverlay->dtorsStart = actorOverlay->dtorsEnd = NULL;
                 actorOverlay->loadedRamAddr = NULL;
             } else {
                 if (HREG(20) != 0) {
                     osSyncPrintf("オーバーレイ解放します\n"); // "Overlay deallocated"
                 }
+                do_ctors_dtors_list(actorOverlay->dtorsStart, actorOverlay->dtorsEnd);
                 ZeldaArena_FreeDebug(actorOverlay->loadedRamAddr, "../z_actor.c", 6834);
+                actorOverlay->dtorsStart = actorOverlay->dtorsEnd = NULL;
                 actorOverlay->loadedRamAddr = NULL;
             }
         }
@@ -2720,7 +2725,7 @@ Actor* Actor_Spawn(ActorContext* actorCtx, GlobalContext* globalCtx, s16 actorId
             }
 
             Overlay_Load(overlayEntry->vromStart, overlayEntry->vromEnd, overlayEntry->vramStart, overlayEntry->vramEnd,
-                         overlayEntry->loadedRamAddr);
+                         overlayEntry->loadedRamAddr, &overlayEntry->dtorsStart, &overlayEntry->dtorsEnd);
 
             osSyncPrintf(VT_FGCOL(GREEN));
             osSyncPrintf("OVL(a):Seg:%08x-%08x Ram:%08x-%08x Off:%08x %s\n", overlayEntry->vramStart,

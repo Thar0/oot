@@ -252,17 +252,19 @@ void Fairy_PrintSectionTable(FILE* inputFile) {
     }
 }
 
-typedef enum { REL_SECTION_NONE, REL_SECTION_TEXT, REL_SECTION_DATA, REL_SECTION_RODATA } FairyOverlayRelSection;
+typedef enum { REL_SECTION_NONE, REL_SECTION_TEXT, REL_SECTION_DATA, REL_SECTION_RODATA, REL_SECTION_CTORS, REL_SECTION_DTORS } FairyOverlayRelSection;
 
 const char* relSectionStrings[] = {
     NULL,
     ".text",
     ".data",
     ".rodata",
+    ".ctors",
+    ".dtors",
 };
 
 static uint32_t Fairy_PackReloc(FairyOverlayRelSection sec, FairyRel rel) {
-    return (sec << 0x1E) | (ELF32_R_TYPE(rel.r_info) << 0x18) | rel.r_offset;
+    return (sec << 29) | (ELF32_R_TYPE(rel.r_info) << 24) | rel.r_offset;
 }
 
 void Fairy_PrintSectionSizes(FairySecHeader* sectionTable, FILE* inputFile, size_t tableSize, char* shstrtab) {
@@ -282,6 +284,8 @@ void Fairy_PrintSectionSizes(FairySecHeader* sectionTable, FILE* inputFile, size
     uint32_t textSize = 0;
     uint32_t dataSize = 0;
     uint32_t rodataSize = 0;
+    uint32_t ctorsSize = 0;
+    uint32_t dtorsSize = 0;
     uint32_t bssSize = 0;
     uint32_t relocCount = 0;
 
@@ -305,6 +309,16 @@ void Fairy_PrintSectionSizes(FairySecHeader* sectionTable, FILE* inputFile, size
         sectionName = &shstrtab[currentHeader.sh_name + 1]; /* ignore the initial '.' */
         switch (currentHeader.sh_type) {
             case SHT_PROGBITS:
+                if (Fairy_StartsWith(sectionName, "ctors")) {
+                    printf("ctors\n");
+                    ctorsSize += currentHeader.sh_size;
+                    break;
+                }
+                if (Fairy_StartsWith(sectionName, "dtors")) {
+                    printf("dtors\n");
+                    dtorsSize += currentHeader.sh_size;
+                    break;
+                }
                 if (Fairy_StartsWith(sectionName, "rodata")) {
                     printf("rodata\n");
                     rodataSize += currentHeader.sh_size;
@@ -332,7 +346,13 @@ void Fairy_PrintSectionSizes(FairySecHeader* sectionTable, FILE* inputFile, size
             case SHT_REL:
                 relocSectionIndices[currentRelocSection] = currentSection;
                 sectionName += 4; /* ignore the "rel." part */
-                if (Fairy_StartsWith(sectionName, "rodata")) {
+                 if (Fairy_StartsWith(sectionName, "ctors")) {
+                    printf(".rel.ctors\n");
+                    relocSectionSection[currentRelocSection] = REL_SECTION_CTORS;
+                } else  if (Fairy_StartsWith(sectionName, "dtors")) {
+                    printf(".rel.dtors\n");
+                    relocSectionSection[currentRelocSection] = REL_SECTION_DTORS;
+                } else if (Fairy_StartsWith(sectionName, "rodata")) {
                     printf(".rel.rodata\n");
                     relocSectionSection[currentRelocSection] = REL_SECTION_RODATA;
                 } else if (Fairy_StartsWith(sectionName, "data")) {
@@ -370,6 +390,8 @@ void Fairy_PrintSectionSizes(FairySecHeader* sectionTable, FILE* inputFile, size
     printf(".word 0x%08X # .text size\n", textSize);
     printf(".word 0x%08X # .data size\n", dataSize);
     printf(".word 0x%08X # .rodata size\n", rodataSize);
+    printf(".word 0x%08X # .ctors size\n", ctorsSize);
+    printf(".word 0x%08X # .dtors size\n", dtorsSize);
     printf(".word 0x%08X # .bss size\n\n", bssSize);
 
     if (!symtabFound) {

@@ -6,6 +6,15 @@ STACK(sIdleThreadStack, 0x400);
 StackEntry sIdleThreadInfo;
 STACK(sBootThreadStack, 0x400);
 
+void do_ctors_dtors_list(void* list, void* end) {
+    void (**funclist)(void) = list;
+
+    while (funclist != end) {
+        (*funclist)();
+        *(funclist++) = NULL;
+    }
+}
+
 void cleararena(void) {
     bzero(_dmadataSegmentStart, osMemSize - OS_K0_TO_PHYSICAL(_dmadataSegmentStart));
 }

@@ -746,7 +746,9 @@ typedef struct {
     /* 0x10 */ void* vramEnd;
     /* 0x14 */ u32 offset; // loadedRamAddr - vramStart
     /* 0x18 */ const char* name;
-} KaleidoMgrOverlay; // size = 0x1C
+    /* 0x1C */ void* dtorsStart;
+    /* 0x20 */ void* dtorsEnd;
+} KaleidoMgrOverlay; // size = 0x20
 
 typedef enum {
     /* 0x00 */ KALEIDO_OVL_KALEIDO_SCOPE,
@@ -1403,7 +1405,9 @@ typedef struct {
     /* 0x24 */ UNK_PTR   unk_24;
     /* 0x28 */ UNK_TYPE4 unk_28;
     /* 0x2C */ u32       instanceSize;
-} GameStateOverlay; // size = 0x30
+    /* 0x30 */ void* dtorsStart;
+    /* 0x34 */ void* dtorsEnd;
+} GameStateOverlay; // size = 0x38
 
 typedef struct PreNMIContext {
     /* 0x00 */ GameState state;
@@ -1662,6 +1666,8 @@ typedef struct OverlayRelocationSection {
     /* 0x00 */ u32 textSize;
     /* 0x04 */ u32 dataSize;
     /* 0x08 */ u32 rodataSize;
+    /* 0x08 */ u32 ctorsSize;
+    /* 0x08 */ u32 dtorsSize;
     /* 0x0C */ u32 bssSize;
     /* 0x10 */ u32 nRelocations;
     /* 0x14 */ u32 relocations[1];

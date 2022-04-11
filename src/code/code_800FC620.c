@@ -20,7 +20,7 @@ char D_80134488[0x18] = {
     0xFF, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00,
 };
 
-s32 Overlay_Load(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd, void* allocatedVRamAddr) {
+s32 Overlay_Load(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd, void* allocatedVRamAddr, void** dtorsStart, void** dtorsEnd) {
     s32 pad;
     u32 end;
     u32 bssSize;
@@ -28,6 +28,8 @@ s32 Overlay_Load(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd, voi
     u32 relocCnt;
     u32 ovlOffset;
     u32 size;
+    void* ctorsStart;
+    void* ctorsEnd;
 
     if (gOverlayLogSeverity >= 3) {
         // "Start loading dynamic link function"
@@ -79,6 +81,13 @@ s32 Overlay_Load(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd, voi
         osSyncPrintf("REL領域をクリアします(%08x-%08x)\n", ovl, (u32)ovl + size);
     }
 
+    ctorsStart = (u32)allocatedVRamAddr + ovl->textSize + ovl->dataSize + ovl->rodataSize;
+    ctorsEnd = (u32)ctorsStart + ovl->ctorsSize;
+    if (dtorsStart != NULL && dtorsEnd != NULL) {
+        *dtorsStart = ctorsEnd;
+        *dtorsEnd = (u32)*dtorsStart + ovl->dtorsSize;
+    }
+
     bzero(ovl, size);
 
     size = (u32)vRamEnd - (u32)vRamStart;
@@ -89,6 +98,9 @@ s32 Overlay_Load(u32 vRomStart, u32 vRomEnd, void* vRamStart, void* vRamEnd, voi
         // "Finish loading dynamic link function"
         osSyncPrintf("ダイナミックリンクファンクションのロードを終了します\n\n");
     }
+
+    do_ctors_dtors_list(ctorsStart, ctorsEnd);
+
     return size;
 }
 

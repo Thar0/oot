@@ -11,7 +11,8 @@ void Overlay_LoadGameState(GameStateOverlay* overlayEntry) {
         overlayEntry->unk_28 = 0;
     } else {
         overlayEntry->loadedRamAddr = Overlay_AllocateAndLoad(overlayEntry->vromStart, overlayEntry->vromEnd,
-                                                              overlayEntry->vramStart, overlayEntry->vramEnd);
+                                                              overlayEntry->vramStart, overlayEntry->vramEnd,
+                                                              &overlayEntry->dtorsStart, &overlayEntry->dtorsEnd);
 
         if (overlayEntry->loadedRamAddr == NULL) {
             osSyncPrintf("ロードに失敗しました\n"); // "Loading failed"
@@ -103,6 +104,9 @@ void Overlay_FreeGameState(GameStateOverlay* overlayEntry) {
             } else {
                 overlayEntry->unk_24 = NULL;
             }
+
+            do_ctors_dtors_list(overlayEntry->dtorsStart, overlayEntry->dtorsEnd);
+            overlayEntry->dtorsStart = overlayEntry->dtorsEnd = NULL;
 
             SystemArena_FreeDebug(overlayEntry->loadedRamAddr, "../z_DLF.c", 149);
             overlayEntry->loadedRamAddr = NULL;

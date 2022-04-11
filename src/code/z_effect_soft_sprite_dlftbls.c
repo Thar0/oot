@@ -28,6 +28,8 @@
         NULL,                              \
         &name##_InitVars,                  \
         1,                                 \
+        NULL,                              \
+        NULL,                              \
     },
 
 #define DEFINE_EFFECT_SS_UNSET(_0) { 0 },

@@ -269,6 +269,10 @@ void Fairy_InitFile(FairyFileInfo* fileInfo, FILE* file) {
                             sectionType = FAIRY_SECTION_DATA;
                         } else if (Fairy_StartsWith(sectionName, "rodata")) { /* May be several */
                             sectionType = FAIRY_SECTION_RODATA;
+                        } else if (strcmp(sectionName, "ctors") == 0) {
+                            sectionType = FAIRY_SECTION_CTORS;
+                        } else if (strcmp(sectionName, "dtors") == 0) {
+                            sectionType = FAIRY_SECTION_DTORS;
                         }
 
                         if (sectionType != FAIRY_SECTION_OTHER) {
@@ -330,6 +334,12 @@ void Fairy_InitFile(FairyFileInfo* fileInfo, FILE* file) {
                         } else if (strcmp(&shstrtab[currentSection.sh_name + 5], "rodata") == 0) {
                             relocSection = FAIRY_SECTION_RODATA;
                             FAIRY_DEBUG_PRINTF("%s", "Found rel.rodata section\n");
+                        } else if (strcmp(&shstrtab[currentSection.sh_name + 5], "ctors") == 0) {
+                            relocSection = FAIRY_SECTION_CTORS;
+                            FAIRY_DEBUG_PRINTF("%s", "Found rel.ctors section\n");
+                        } else if (strcmp(&shstrtab[currentSection.sh_name + 5], "dtors") == 0) {
+                            relocSection = FAIRY_SECTION_DTORS;
+                            FAIRY_DEBUG_PRINTF("%s", "Found rel.dtors section\n");
                         } else {
                             break;
                         }
