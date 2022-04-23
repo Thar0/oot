@@ -20,7 +20,7 @@ void util_fatal_error(const char *msgfmt, ...)
 
     fputs(ERRMSG_END "\n", stderr);
 
-    exit(1);
+    exit(EXIT_FAILURE);
 }
 
 // reads a whole file into memory, and returns a malloc'd pointer to the data.

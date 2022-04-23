@@ -101,6 +101,7 @@ CHECK_WARNINGS := -Wall -Wextra -Wno-format-security -Wno-unknown-pragmas -Wno-u
 
 CPP        := cpp
 MKLDSCRIPT := tools/mkldscript
+MKDEP      := tools/mkdep
 MKDMADATA  := tools/mkdmadata
 ELF2ROM    := tools/elf2rom
 ZAPD       := tools/ZAPD/ZAPD.out
@@ -167,9 +168,14 @@ O_FILES       := $(foreach f,$(S_FILES:.s=.o),build/$f) \
 
 OVL_RELOC_FILES := $(shell $(CPP) $(CPPFLAGS) $(SPEC) | grep -o '[^"]*_reloc.o' )
 
+SEGMENTS            := $(shell $(CPP) $(CPPFLAGS) $(SPEC) | grep -o '^[ \t]*name[ \t]\+".\+"' | sed 's/.*"\(.*\)".*/\1/g' )
+SEGMENTS_DIR        := build/segments
+SEGMENTS_OBJ        := $(SEGMENTS:%=$(SEGMENTS_DIR)/%.plf)
+.PRECIOUS: $(SEGMENTS:%=$(SEGMENTS_DIR)/%.lcf)
+
 # Automatic dependency files
 # (Only asm_processor dependencies and reloc dependencies are handled for now)
-DEP_FILES := $(O_FILES:.o=.asmproc.d) $(OVL_RELOC_FILES:.o=.d)
+DEP_FILES := $(O_FILES:.o=.asmproc.d) $(OVL_RELOC_FILES:.o=.d) $(SEGMENTS_OBJ:.plf=.d)
 
 
 TEXTURE_FILES_PNG := $(foreach dir,$(ASSET_BIN_DIRS),$(wildcard $(dir)/*.png))
@@ -178,7 +184,7 @@ TEXTURE_FILES_OUT := $(foreach f,$(TEXTURE_FILES_PNG:.png=.inc.c),build/$f) \
 					 $(foreach f,$(TEXTURE_FILES_JPG:.jpg=.jpg.inc.c),build/$f) \
 
 # create build directories
-$(shell mkdir -p build/baserom build/assets/text $(foreach dir,$(SRC_DIRS) $(ASM_DIRS) $(ASSET_BIN_DIRS),build/$(dir)))
+$(shell mkdir -p build/baserom build/segments build/assets/text $(foreach dir,$(SRC_DIRS) $(ASM_DIRS) $(ASSET_BIN_DIRS),build/$(dir)))
 
 ifeq ($(COMPILER),ido)
 build/src/code/fault.o: CFLAGS += -trapuv
@@ -255,15 +261,35 @@ test: $(ROM)
 	$(EMULATOR) $(EMU_FLAGS) $<
 
 
-.PHONY: all clean setup test distclean assetclean
+.PHONY: all clean setup test distclean assetclean build_objs
 
 #### Various Recipes ####
 
 $(ROM): $(ELF)
 	$(ELF2ROM) -cic 6105 $< $@
 
-$(ELF): $(TEXTURE_FILES_OUT) $(ASSET_FILES_OUT) $(O_FILES) $(OVL_RELOC_FILES) build/ldscript.txt build/undefined_syms.txt
-	$(LD) -T build/undefined_syms.txt -T build/ldscript.txt --no-check-sections --accept-unknown-input-arch --emit-relocs -Map build/z64.map -o $@
+$(ELF): $(SEGMENTS_OBJ) build/ldscript.lcf build/undefined_syms.txt
+	$(LD) -T build/undefined_syms.txt -T build/ldscript.lcf --no-check-sections --emit-relocs -Map build/z64.map -o $@
+#	$(MKDEP) build/$(SPEC) build/$(ELF:.elf=.d)
+
+# TODO: ideally this would not depend on everything and only what the linker script takes as input
+# TODO: this rebuilds all .plf files even if everything is up to date
+build_objs: $(O_FILES) $(TEXTURE_FILES_OUT) $(ASSET_FILES_OUT) $(OVL_RELOC_FILES)
+$(SEGMENTS_DIR)/%.plf: $(SEGMENTS_DIR)/%.lcf build_objs
+	$(LD) -r -T $< --accept-unknown-input-arch -Map $(@:.plf=.map) -o $@
+#	$(MKDEP) build/$(SPEC) $(@:.plf=.d) $(@F:.plf=)
+
+build/ldscript.lcf: build/$(SPEC)
+	$(MKLDSCRIPT) $< $@
+
+$(SEGMENTS_DIR)/%.lcf: build/$(SPEC)
+	$(MKLDSCRIPT) $< $@ $(@F:.lcf=) -d
+
+build/$(SPEC): $(SPEC)
+	$(CPP) $(CPPFLAGS) $< > $@
+
+build/undefined_syms.txt: undefined_syms.txt
+	$(CPP) $(CPPFLAGS) $< > $@
 
 ## Order-only prerequisites 
 # These ensure e.g. the O_FILES are built before the OVL_RELOC_FILES.
@@ -276,16 +302,6 @@ asset_files: $(TEXTURE_FILES_OUT) $(ASSET_FILES_OUT)
 $(O_FILES): | asset_files
 
 .PHONY: o_files asset_files
-
-
-build/$(SPEC): $(SPEC)
-	$(CPP) $(CPPFLAGS) $< > $@
-
-build/ldscript.txt: build/$(SPEC)
-	$(MKLDSCRIPT) $< $@
-
-build/undefined_syms.txt: undefined_syms.txt
-	$(CPP) $(CPPFLAGS) $< > $@
 
 build/baserom/%.o: baserom/%
 	$(OBJCOPY) -I binary -O elf32-big $< $@

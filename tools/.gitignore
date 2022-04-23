@@ -2,6 +2,7 @@
 *.exe
 elf2rom
 makeromfs
+mkdep
 mkdmadata
 mkldscript
 reloc_prereq

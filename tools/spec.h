@@ -54,6 +54,8 @@ void parse_rom_spec(char* spec, struct Segment** segments, int* segment_count);
 
 bool get_single_segment_by_name(struct Segment* dstSegment, char *spec, const char *segmentName);
 
+struct Segment *segment_by_name(const char *segname, struct Segment *segments, int segment_count);
+
 void free_single_segment_elements(struct Segment *segment);
 
 void free_rom_spec(struct Segment* segments, int segment_count);

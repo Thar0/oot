@@ -353,6 +353,18 @@ void free_single_segment_elements(struct Segment *segment) {
     }
 }
 
+struct Segment *segment_by_name(const char *segname, struct Segment *segments, int segment_count)
+{
+    int i;
+
+    for (i = 0; i < segment_count; i++)
+    {
+        if (strcmp(segments[i].name, segname) == 0)
+            return &segments[i];
+    }
+    return NULL;
+}
+
 void free_rom_spec(struct Segment *segments, int segment_count)
 {
     int i;
