@@ -222,7 +222,7 @@ endrcp:
     sdc1    $f26, THREAD_FP26($k0)
     sdc1    $f28, THREAD_FP28($k0)
     sdc1    $f30, THREAD_FP30($k0)
-#if _MIPS_SIM != _ABIO32
+#if defined(_MIPS_SIM) && _MIPS_SIM == _ABIN32
     sdc1    $f1, THREAD_FP1($k0)
     sdc1    $f3, THREAD_FP3($k0)
     sdc1    $f5, THREAD_FP5($k0)
@@ -959,7 +959,7 @@ LEAF(__osDispatchThread)
     ldc1    $f26, THREAD_FP26($k0)
     ldc1    $f28, THREAD_FP28($k0)
     ldc1    $f30, THREAD_FP30($k0)
-#if _MIPS_SIM != _ABIO32
+#if defined(_MIPS_SIM) && _MIPS_SIM == _ABIN32
     ldc1    $f1, THREAD_FP1($k0)
     ldc1    $f3, THREAD_FP3($k0)
     ldc1    $f5, THREAD_FP5($k0)

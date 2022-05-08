@@ -132,11 +132,14 @@ ifeq ($(ORIG_COMPILER),1)
   CC_OLD    = $(QEMU_IRIX) -L tools/ido5.3_compiler tools/ido5.3_compiler/usr/bin/cc
 endif
 
+# Used with IDO O32 only
+MIPS_BUILTIN_DEFS := -D_MIPS_ISA_MIPS2=2 -D_MIPS_ISA=_MIPS_ISA_MIPS2 -D_ABIO32=1 -D_MIPS_SIM=_ABIO32 -D_MIPS_SZINT=32 -D_MIPS_SZLONG=32 -D_MIPS_SZPTR=32
+
 AS_NOCPP := $(MIPS_BINUTILS_PREFIX)as
 ifeq ($(COMPILER),gcc)
-AS        = $(CC) -x assembler-with-cpp $(CPPFLAGS) -c $<
+  AS       = $(CC) -x assembler-with-cpp $(CPPFLAGS) -c $<
 else
-AS        = $(CPP) $(CPPFLAGS) -I include $< | $(AS_NOCPP)
+  AS       = $(CPP) $(CPPFLAGS) $(MIPS_BUILTIN_DEFS) -I include $< | $(AS_NOCPP)
 endif
 LD       := $(MIPS_BINUTILS_PREFIX)ld
 OBJCOPY  := $(MIPS_BINUTILS_PREFIX)objcopy
@@ -168,17 +171,20 @@ ifeq ($(COMPILER),gcc)
   OPTFLAGS := -Os -ffast-math -fno-unsafe-math-optimizations
 endif
 
+# Select ld output format based on toolchain default and any additional ABI-specific flags
 ifeq ($(ABI),n32)
-# Select n32 output format based on toolchain default
   LD_OUTPUT_FORMAT := $(shell $(LD) --print-output-format | sed -E 's/elf(32|64)-(n)?(trad)?(big|little)mips/elf\1-n\3\4mips/')
 else
+  ifeq ($(ABI),eabi)
+    ABI_FLAGS := -mgp32 -mfp32
+  endif
   LD_OUTPUT_FORMAT := $(shell $(LD) --print-output-format | sed -E 's/elf(32|64)-(n)?(trad)?(big|little)mips/elf\1-\3\4mips/')
 endif
 
 ifeq ($(COMPILER),gcc)
-  CFLAGS += -G 0 -nostdinc $(INC) -march=vr4300 -mfix4300 -mabi=$(ABI) -mno-abicalls -mdivide-breaks -fno-PIC -fno-common -ffreestanding -fbuiltin -fno-builtin-sinf -fno-builtin-cosf $(CHECK_WARNINGS) -funsigned-char
-  ASFLAGS := -march=vr4300 -mabi=$(ABI) -mno-abicalls -Wa,-no-pad-sections -I include
-  ASFLAGS_NOCPP := -march=vr4300 -$(ABI) -no-pad-sections -I include
+  CFLAGS += -G 0 -nostdinc $(INC) -march=vr4300 -mfix4300 -mabi=$(ABI) $(ABI_FLAGS) -mno-abicalls -mdivide-breaks -fno-PIC -fno-common -ffreestanding -fbuiltin -fno-builtin-sinf -fno-builtin-cosf $(CHECK_WARNINGS) -funsigned-char
+  ASFLAGS := -march=vr4300 -mabi=$(ABI) $(ABI_FLAGS) -mno-abicalls -Wa,-no-pad-sections -I include
+  ASFLAGS_NOCPP := -march=vr4300 -mabi=$(ABI) $(ABI_FLAGS) -no-pad-sections -I include
   MIPS_VERSION := -mips3
 else
   # Suppress warnings for wrong number of macro arguments (to fake variadic
@@ -192,7 +198,6 @@ endif
 
 ifeq ($(COMPILER),ido)
   # Have CC_CHECK pretend to be a MIPS compiler
-  MIPS_BUILTIN_DEFS := -D_MIPS_ISA_MIPS2=2 -D_MIPS_ISA=_MIPS_ISA_MIPS2 -D_ABIO32=1 -D_MIPS_SIM=_ABIO32 -D_MIPS_SZINT=32 -D_MIPS_SZLONG=32 -D_MIPS_SZPTR=32
   CC_CHECK  = gcc -fno-builtin -fsyntax-only -funsigned-char -std=gnu90 -D_LANGUAGE_C -DNON_MATCHING -DOOT_DEBUG=1 $(MIPS_BUILTIN_DEFS) $(INC) $(CHECK_WARNINGS)
   ifeq ($(shell getconf LONG_BIT), 32)
     # Work around memory allocation bug in QEMU

@@ -56,7 +56,7 @@
 #define ENDDATA(x)              \
     .size x, . - x
 
-#if _MIPS_SIM == _ABIN32
+#if !defined(_MIPS_SIM) || _MIPS_SIM != _ABIO32
 .set $t4, $ta0
 .set $t5, $ta1
 .set $t6, $ta2
@@ -68,11 +68,11 @@
 /**
  *  Stack Alignment
  */
-#if   (_MIPS_SIM == _ABIO32)
+#if defined(_MIPS_SIM) && _MIPS_SIM == _ABIO32
 #define NARGSAVE 4      // space for 4 args must be allocated
 #define ALSZ    (8-1)
 #define ALMASK ~(8-1)
-#elif (_MIPS_SIM == _ABIN32 || _MIPS_SIM == _ABI64)
+#else
 #define NARGSAVE 0      // no caller responsibilities
 #define ALSZ    (16-1)
 #define ALMASK ~(16-1)

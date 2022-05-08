@@ -43,7 +43,7 @@ typedef struct {
     /* 0x0E8 */ u64 lo, hi;
     /* 0x0F8 */ u32 sr, pc, cause, badvaddr, rcp;
     /* 0x10C */ u32 fpcsr;
-#if _MIPS_SIM == _ABIO32
+#if !defined(_MIPS_SIM) || _MIPS_SIM != _ABIN32
     /* 0x110 */ __OSfp  fp0,  fp2,  fp4,  fp6,  fp8, fp10, fp12, fp14;
     /* 0x150 */ __OSfp fp16, fp18, fp20, fp22, fp24, fp26, fp28, fp30;
 #else
@@ -129,7 +129,7 @@ typedef struct {
 #define THREAD_BADVADDR (THREAD_CONTEXT + 0x104)
 #define THREAD_RCP      (THREAD_CONTEXT + 0x108)
 #define THREAD_FPCSR    (THREAD_CONTEXT + 0x10C)
-#if _MIPS_SIM == _ABIO32
+#if !defined(_MIPS_SIM) || _MIPS_SIM != _ABIN32
 #define THREAD_FP0      (THREAD_CONTEXT + 0x110)
 #define THREAD_FP2      (THREAD_CONTEXT + 0x118)
 #define THREAD_FP4      (THREAD_CONTEXT + 0x120)
