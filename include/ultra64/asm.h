@@ -56,6 +56,13 @@
 #define ENDDATA(x)              \
     .size x, . - x
 
+#if _MIPS_SIM == _ABIN32
+.set $t4, $ta0
+.set $t5, $ta1
+.set $t6, $ta2
+.set $t7, $ta3
+#endif
+
 #endif
 
 /**

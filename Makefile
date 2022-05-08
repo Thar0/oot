@@ -14,8 +14,11 @@ NON_MATCHING := 0
 ORIG_COMPILER := 0
 # If COMPILER is "gcc", compile with GCC instead of IDO.
 COMPILER := ido
+# ABI, ignored when building with IDO.
+ABI := 32
 # Target game version. Currently the following versions are supported:
 #   gc-eu-mq       GameCube Europe/PAL Master Quest
+# Target game version. Currently only the following version is supported:
 #   gc-eu-mq-dbg   GameCube Europe/PAL Master Quest Debug (default)
 # The following versions are work-in-progress and not yet matching:
 #   gc-eu          GameCube Europe/PAL
@@ -39,6 +42,8 @@ ifeq ($(COMPILER),gcc)
   CFLAGS += -DCOMPILER_GCC
   CPPFLAGS += -DCOMPILER_GCC
   NON_MATCHING := 1
+else
+  ABI := 32
 endif
 
 # Set prefix to mips binutils binaries (mips-linux-gnu-ld => 'mips-linux-gnu-') - Change at your own risk!
@@ -127,11 +132,16 @@ ifeq ($(ORIG_COMPILER),1)
   CC_OLD    = $(QEMU_IRIX) -L tools/ido5.3_compiler tools/ido5.3_compiler/usr/bin/cc
 endif
 
-AS      := $(MIPS_BINUTILS_PREFIX)as
-LD      := $(MIPS_BINUTILS_PREFIX)ld
-OBJCOPY := $(MIPS_BINUTILS_PREFIX)objcopy
-OBJDUMP := $(MIPS_BINUTILS_PREFIX)objdump
-NM      := $(MIPS_BINUTILS_PREFIX)nm
+AS_NOCPP := $(MIPS_BINUTILS_PREFIX)as
+ifeq ($(COMPILER),gcc)
+AS        = $(CC) -x assembler-with-cpp $(CPPFLAGS) -c $<
+else
+AS        = $(CPP) $(CPPFLAGS) -I include $< | $(AS_NOCPP)
+endif
+LD       := $(MIPS_BINUTILS_PREFIX)ld
+OBJCOPY  := $(MIPS_BINUTILS_PREFIX)objcopy
+OBJDUMP  := $(MIPS_BINUTILS_PREFIX)objdump
+NM       := $(MIPS_BINUTILS_PREFIX)nm
 
 N64_EMULATOR ?=
 
@@ -158,16 +168,25 @@ ifeq ($(COMPILER),gcc)
   OPTFLAGS := -Os -ffast-math -fno-unsafe-math-optimizations
 endif
 
-ASFLAGS := -march=vr4300 -32 -no-pad-sections -Iinclude
+ifeq ($(ABI),n32)
+# Select n32 output format based on toolchain default
+  LD_OUTPUT_FORMAT := $(shell $(LD) --print-output-format | sed -E 's/elf(32|64)-(n)?(trad)?(big|little)mips/elf\1-n\3\4mips/')
+else
+  LD_OUTPUT_FORMAT := $(shell $(LD) --print-output-format | sed -E 's/elf(32|64)-(n)?(trad)?(big|little)mips/elf\1-\3\4mips/')
+endif
 
 ifeq ($(COMPILER),gcc)
-  CFLAGS += -G 0 -nostdinc $(INC) -march=vr4300 -mfix4300 -mabi=32 -mno-abicalls -mdivide-breaks -fno-PIC -fno-common -ffreestanding -fbuiltin -fno-builtin-sinf -fno-builtin-cosf $(CHECK_WARNINGS) -funsigned-char
+  CFLAGS += -G 0 -nostdinc $(INC) -march=vr4300 -mfix4300 -mabi=$(ABI) -mno-abicalls -mdivide-breaks -fno-PIC -fno-common -ffreestanding -fbuiltin -fno-builtin-sinf -fno-builtin-cosf $(CHECK_WARNINGS) -funsigned-char
+  ASFLAGS := -march=vr4300 -mabi=$(ABI) -mno-abicalls -Wa,-no-pad-sections -I include
+  ASFLAGS_NOCPP := -march=vr4300 -$(ABI) -no-pad-sections -I include
   MIPS_VERSION := -mips3
 else
   # Suppress warnings for wrong number of macro arguments (to fake variadic
   # macros) and Microsoft extensions such as anonymous structs (which the
   # compiler does support but warns for their usage).
   CFLAGS += -G 0 -non_shared -fullwarn -verbose -Xcpluscomm $(INC) -Wab,-r4300_mul -woff 516,609,649,838,712
+  ASFLAGS := -march=vr4300 -32 -no-pad-sections -Iinclude
+  ASFLAGS_NOCPP := $(ASFLAGS)
   MIPS_VERSION := -mips2
 endif
 
@@ -401,7 +420,7 @@ $(ROMC): $(ROM) $(ELF) $(BUILD_DIR)/compress_ranges.txt
 	$(PYTHON) -m ipl3checksum sum --cic 6105 --update $@
 
 $(ELF): $(TEXTURE_FILES_OUT) $(ASSET_FILES_OUT) $(O_FILES) $(OVL_RELOC_FILES) $(LDSCRIPT) $(BUILD_DIR)/undefined_syms.txt
-	$(LD) -T $(LDSCRIPT) -T $(BUILD_DIR)/undefined_syms.txt --no-check-sections --accept-unknown-input-arch --emit-relocs -Map $(MAP) -o $@
+	$(LD) --oformat $(LD_OUTPUT_FORMAT) -T $(LDSCRIPT) -T $(BUILD_DIR)/undefined_syms.txt --no-check-sections --accept-unknown-input-arch --emit-relocs -Map $(MAP) -o $@
 
 ## Order-only prerequisites
 # These ensure e.g. the O_FILES are built before the OVL_RELOC_FILES.
@@ -428,7 +447,7 @@ $(BUILD_DIR)/baserom/%.o: $(EXTRACTED_DIR)/baserom/%
 	$(OBJCOPY) -I binary -O elf32-big $< $@
 
 $(BUILD_DIR)/data/%.o: data/%.s
-	$(AS) $(ASFLAGS) $< -o $@
+	$(AS) $(ASFLAGS) -o $@
 
 $(BUILD_DIR)/assets/text/%.enc.h: assets/text/%.h $(EXTRACTED_DIR)/text/%.h assets/text/charmap.txt
 	$(CPP) $(CPPFLAGS) -I$(EXTRACTED_DIR) $< | $(PYTHON) tools/msgenc.py - --output $@ --charmap assets/text/charmap.txt
@@ -446,7 +465,7 @@ $(BUILD_DIR)/assets/%.o: assets/%.c
 	$(OBJCOPY) -O binary $@ $@.bin
 
 $(BUILD_DIR)/src/%.o: src/%.s
-	$(CPP) $(CPPFLAGS) -Iinclude $< | $(AS) $(ASFLAGS) -o $@
+	$(AS) $(ASFLAGS) -o $@
 
 $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)/$(SPEC)
 	$(MKDMADATA) $< $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt
@@ -477,7 +496,9 @@ ifneq ($(RUN_CC_CHECK),0)
 	$(CC_CHECK) $<
 endif
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
+ifeq ($(ABI),32)
 	$(PYTHON) tools/set_o32abi_bit.py $@
+endif
 	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(@:.o=.s)
 
 $(BUILD_DIR)/src/libultra/libc/llcvt.o: src/libultra/libc/llcvt.c
@@ -485,12 +506,14 @@ ifneq ($(RUN_CC_CHECK),0)
 	$(CC_CHECK) $<
 endif
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
+ifeq ($(ABI),32)
 	$(PYTHON) tools/set_o32abi_bit.py $@
+endif
 	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(@:.o=.s)
 
 $(BUILD_DIR)/src/overlays/%_reloc.o: $(BUILD_DIR)/$(SPEC)
 	$(FADO) $$(tools/reloc_prereq $< $(notdir $*)) -n $(notdir $*) -o $(@:.o=.s) -M $(@:.o=.d)
-	$(AS) $(ASFLAGS) $(@:.o=.s) -o $@
+	$(AS_NOCPP) $(ASFLAGS_NOCPP) $(@:.o=.s) -o $@
 
 $(BUILD_DIR)/%.inc.c: %.png
 	$(ZAPD) btex -eh -tt $(subst .,,$(suffix $*)) -i $< -o $@
