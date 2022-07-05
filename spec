@@ -636,8 +636,10 @@ beginseg
     include_no_data "$(BUILD_DIR)/src/code/z_game_over.o"
     include "$(BUILD_DIR)/src/code/z_construct.o"
     include "$(BUILD_DIR)/data/audio_tables.rodata.o"
-    include "$(BUILD_DIR)/data/rsp.text.o"
-    include "$(BUILD_DIR)/data/rsp.rodata.o"
+    include "$(BUILD_DIR)/data/aspMain.o"
+    include "$(BUILD_DIR)/data/gspF3DZEX2_NoN_PosLight_fifo.o"
+    include "$(BUILD_DIR)/data/gspS2DEX2d_fifo.o"
+    include "$(BUILD_DIR)/rsp/njpgdspMain.o"
 endseg
 
 beginseg
