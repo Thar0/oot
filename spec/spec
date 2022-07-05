@@ -816,8 +816,10 @@ beginseg
     include "$(BUILD_DIR)/src/audio/tables/samplebank_table.o"
 
     // RSP microcode
-    include "$(BUILD_DIR)/data/rsp.text.o"
-    include "$(BUILD_DIR)/data/rsp.rodata.o"
+    include "$(BUILD_DIR)/data/aspMain.o"
+    include "$(BUILD_DIR)/data/gspF3DZEX2_NoN_PosLight_fifo.o"
+    include "$(BUILD_DIR)/data/gspS2DEX2d_fifo.o"
+    include "$(BUILD_DIR)/rsp/njpgdspMain.o"
 
     // Extra files for non-matching debug builds
 #if DEBUG_FEATURES
