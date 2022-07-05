@@ -638,7 +638,7 @@ beginseg
     include "$(BUILD_DIR)/data/audio_tables.rodata.o"
     include "$(BUILD_DIR)/rsp/aspMain.o"
     include "$(BUILD_DIR)/data/gspF3DZEX2_NoN_PosLight_fifo.o"
-    include "$(BUILD_DIR)/data/gspS2DEX2d_fifo.o"
+    include "$(BUILD_DIR)/rsp/gspS2DEX2d_fifo.o"
     include "$(BUILD_DIR)/rsp/njpgdspMain.o"
 endseg
 
