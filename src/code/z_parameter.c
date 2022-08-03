@@ -16,108 +16,163 @@ typedef struct {
     /* 0x03 */ u8 flags3;
 } RestrictionFlags;
 
+#define RESTRICTIONS_TABLE_END 0xFF
+
+#define RESTRICTIONS_GET_BITS(flags, s) \
+    (((flags) & (3 << (s))) >> (s))
+
+// does nothing
+#define RESTRICTIONS_GET_HGAUGE(flags)      RESTRICTIONS_GET_BITS((flags)->flags1, 6)
+// 0 = usable, 1 = unusable, 2 or 3 = bugged, alpha & usability don't update
+#define RESTRICTIONS_GET_B_BUTTON(flags)    RESTRICTIONS_GET_BITS((flags)->flags1, 4)
+// does nothing
+#define RESTRICTIONS_GET_A_BUTTON(flags)    RESTRICTIONS_GET_BITS((flags)->flags1, 2)
+// 0 = usable, !0 = unusable
+#define RESTRICTIONS_GET_BOTTLES(flags)     RESTRICTIONS_GET_BITS((flags)->flags1, 0)
+// 0 = usable, !0 = unusable
+#define RESTRICTIONS_GET_TRADE_ITEMS(flags) RESTRICTIONS_GET_BITS((flags)->flags2, 6)
+// 0 = usable, !0 = unusable
+#define RESTRICTIONS_GET_HOOKSHOT(flags)    RESTRICTIONS_GET_BITS((flags)->flags2, 4)
+// 0 = usable, !0 = unusable
+#define RESTRICTIONS_GET_OCARINA(flags)     RESTRICTIONS_GET_BITS((flags)->flags2, 2)
+// 3 = cannot warp, !3 = can warp
+#define RESTRICTIONS_GET_WARPSONGS(flags)   RESTRICTIONS_GET_BITS((flags)->flags2, 0)
+// 3 = no reload area, !3 = reload area
+#define RESTRICTIONS_GET_SUNSSONG(flags)    RESTRICTIONS_GET_BITS((flags)->flags3, 6)
+// 0 = usable, !0 = unusable
+#define RESTRICTIONS_GET_FARORES(flags)     RESTRICTIONS_GET_BITS((flags)->flags3, 4)
+// 0 = usable, !0 = unusable
+#define RESTRICTIONS_GET_DINSNAYRUS(flags)  RESTRICTIONS_GET_BITS((flags)->flags3, 2)
+// 0 = usable, !0 = unusable
+#define RESTRICTIONS_GET_ALL(flags)         RESTRICTIONS_GET_BITS((flags)->flags3, 0)
+
+#define RESTRICTIONS_SET_SINGLE(value, s) \
+    (((value) & 3) << (s))
+
+#define RESTRICTIONS_SET(hGauge, bButton, aButton, bottles,         \
+                         tradeItems, hookshot, ocarina, warpSongs,  \
+                         sunsSong, faroresWind, dinsAndNayrus, all) \
+   (RESTRICTIONS_SET_SINGLE(hGauge,  6) |   \
+    RESTRICTIONS_SET_SINGLE(bButton, 4) |   \
+    RESTRICTIONS_SET_SINGLE(aButton, 2) |   \
+    RESTRICTIONS_SET_SINGLE(bottles, 0)),   \
+   (RESTRICTIONS_SET_SINGLE(tradeItems, 6) |    \
+    RESTRICTIONS_SET_SINGLE(hookshot,   4) |    \
+    RESTRICTIONS_SET_SINGLE(ocarina,    2) |    \
+    RESTRICTIONS_SET_SINGLE(warpSongs,  0)),    \
+   (RESTRICTIONS_SET_SINGLE(sunsSong,      6) |     \
+    RESTRICTIONS_SET_SINGLE(faroresWind,   4) |     \
+    RESTRICTIONS_SET_SINGLE(dinsAndNayrus, 2) |     \
+    RESTRICTIONS_SET_SINGLE(all,           0))
+
+#define RESTRICTIONS_SET_NONE \
+    RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+#define RESTRICTIONS_SET_BOSS_SCENE \
+    RESTRICTIONS_SET(0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 0)
+
 static RestrictionFlags sRestrictionFlags[] = {
-    { SCENE_SPOT00, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT01, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT02, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT03, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT04, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT05, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT06, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT07, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT08, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT09, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT10, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT11, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT12, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT13, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT15, 0x00, 0x00, 0x10 },
-    { SCENE_GANON_TOU, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT16, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT17, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT18, 0x00, 0x00, 0x10 },
-    { SCENE_SPOT20, 0x00, 0x00, 0x10 },
-    { SCENE_TOKINOMA, 0x00, 0x10, 0x15 },
-    { SCENE_KENJYANOMA, 0xA2, 0xAA, 0xAA },
-    { SCENE_SYATEKIJYOU, 0x11, 0x55, 0x55 },
-    { SCENE_HAIRAL_NIWA, 0x11, 0x55, 0x55 },
-    { SCENE_HAIRAL_NIWA_N, 0x11, 0x55, 0x55 },
-    { SCENE_HAKAANA, 0x00, 0x00, 0xD0 },
-    { SCENE_HAKAANA2, 0x00, 0x00, 0xD0 },
-    { SCENE_HAKAANA_OUKE, 0x00, 0x00, 0xD0 },
-    { SCENE_DAIYOUSEI_IZUMI, 0x00, 0x00, 0x10 },
-    { SCENE_YOUSEI_IZUMI_TATE, 0x00, 0x00, 0xD0 },
-    { SCENE_YOUSEI_IZUMI_YOKO, 0x00, 0x00, 0x10 },
-    { SCENE_GANON_FINAL, 0x00, 0x05, 0x50 },
-    { SCENE_NAKANIWA, 0x00, 0x05, 0x54 },
-    { SCENE_TURIBORI, 0x11, 0x55, 0x55 },
-    { SCENE_BOWLING, 0x11, 0x55, 0x55 },
-    { SCENE_SOUKO, 0x00, 0x10, 0x15 },
-    { SCENE_MIHARIGOYA, 0x00, 0x10, 0x14 },
-    { SCENE_MAHOUYA, 0x10, 0x15, 0x55 },
-    { SCENE_TAKARAYA, 0x10, 0x15, 0x55 },
-    { SCENE_KINSUTA, 0x00, 0x10, 0x15 },
-    { SCENE_ENTRA, 0x00, 0x10, 0x15 },
-    { SCENE_ENTRA_N, 0x00, 0x10, 0x15 },
-    { SCENE_ENRUI, 0x00, 0x10, 0xD5 },
-    { SCENE_MARKET_DAY, 0x00, 0x10, 0x15 },
-    { SCENE_MARKET_NIGHT, 0x00, 0x10, 0x15 },
-    { SCENE_MARKET_RUINS, 0x00, 0x10, 0xD5 },
-    { SCENE_MARKET_ALLEY, 0x00, 0x10, 0x15 },
-    { SCENE_MARKET_ALLEY_N, 0x00, 0x10, 0x15 },
-    { SCENE_SHRINE, 0x00, 0x10, 0x15 },
-    { SCENE_SHRINE_N, 0x00, 0x10, 0x15 },
-    { SCENE_SHRINE_R, 0x00, 0x10, 0xD5 },
-    { SCENE_LINK_HOME, 0x10, 0x10, 0x15 },
-    { SCENE_KAKARIKO, 0x10, 0x10, 0x15 },
-    { SCENE_KAKARIKO3, 0x10, 0x10, 0x15 },
-    { SCENE_KOKIRI_HOME, 0x10, 0x10, 0x15 },
-    { SCENE_KOKIRI_HOME3, 0x10, 0x10, 0x15 },
-    { SCENE_KOKIRI_HOME4, 0x10, 0x10, 0x15 },
-    { SCENE_KOKIRI_HOME5, 0x10, 0x10, 0x15 },
-    { SCENE_MALON_STABLE, 0x10, 0x10, 0x15 },
-    { SCENE_HUT, 0x10, 0x10, 0x15 },
-    { SCENE_IMPA, 0x10, 0x10, 0x15 },
-    { SCENE_LABO, 0x10, 0x10, 0x15 },
-    { SCENE_HYLIA_LABO, 0x00, 0x10, 0x15 },
-    { SCENE_TENT, 0x10, 0x10, 0x15 },
-    { SCENE_SHOP1, 0x10, 0x10, 0x15 },
-    { SCENE_KOKIRI_SHOP, 0x10, 0x10, 0x15 },
-    { SCENE_GOLON, 0x10, 0x10, 0x15 },
-    { SCENE_ZOORA, 0x10, 0x10, 0x15 },
-    { SCENE_DRAG, 0x10, 0x10, 0x15 },
-    { SCENE_ALLEY_SHOP, 0x10, 0x10, 0x15 },
-    { SCENE_NIGHT_SHOP, 0x10, 0x10, 0x15 },
-    { SCENE_FACE_SHOP, 0x10, 0x10, 0x15 },
-    { SCENE_MEN, 0x00, 0x03, 0x10 },
-    { SCENE_YDAN, 0x00, 0x00, 0x00 },
-    { SCENE_YDAN_BOSS, 0x00, 0x45, 0x50 },
-    { SCENE_DDAN, 0x00, 0x00, 0x00 },
-    { SCENE_DDAN_BOSS, 0x00, 0x45, 0x50 },
-    { SCENE_BDAN, 0x00, 0x00, 0x00 },
-    { SCENE_BDAN_BOSS, 0x00, 0x45, 0x50 },
-    { SCENE_BMORI1, 0x00, 0x00, 0x00 },
-    { SCENE_MORIBOSSROOM, 0x00, 0x45, 0x50 },
-    { SCENE_HAKADANCH, 0x00, 0x00, 0x00 },
-    { SCENE_HAKADAN, 0x00, 0x00, 0x00 },
-    { SCENE_HAKADAN_BS, 0x00, 0x45, 0x50 },
-    { SCENE_HIDAN, 0x00, 0x00, 0x00 },
-    { SCENE_FIRE_BS, 0x00, 0x45, 0x50 },
-    { SCENE_MIZUSIN, 0x00, 0x00, 0x00 },
-    { SCENE_MIZUSIN_BS, 0x00, 0x45, 0x50 },
-    { SCENE_JYASINZOU, 0x00, 0x00, 0x00 },
-    { SCENE_JYASINBOSS, 0x00, 0x45, 0x50 },
-    { SCENE_GANON, 0x00, 0x00, 0x00 },
-    { SCENE_GANON_BOSS, 0x00, 0x45, 0x50 },
-    { SCENE_ICE_DOUKUTO, 0x00, 0x00, 0xC0 },
-    { SCENE_HAKASITARELAY, 0x00, 0x03, 0x14 },
-    { SCENE_GANONTIKA, 0x00, 0x03, 0x10 },
-    { SCENE_GANON_DEMO, 0x00, 0x45, 0x50 },
-    { SCENE_GANON_SONOGO, 0x00, 0x05, 0x50 },
-    { SCENE_GANONTIKA_SONOGO, 0x00, 0x05, 0x50 },
-    { SCENE_GERUDOWAY, 0x00, 0x00, 0x10 },
-    { SCENE_KAKUSIANA, 0x00, 0x00, 0xD0 },
-    { 0xFF, 0x00, 0x00, 0x00 },
+    { SCENE_SPOT00, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT01, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT02, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT03, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT04, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT05, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT06, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT07, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT08, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT09, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT10, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT11, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT12, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT13, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT15, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_GANON_TOU, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT16, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT17, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT18, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_SPOT20, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_TOKINOMA, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_KENJYANOMA, RESTRICTIONS_SET(2, 2, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2) },
+    { SCENE_SYATEKIJYOU, RESTRICTIONS_SET(0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1) },
+    { SCENE_HAIRAL_NIWA, RESTRICTIONS_SET(0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1) },
+    { SCENE_HAIRAL_NIWA_N, RESTRICTIONS_SET(0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1) },
+    { SCENE_HAKAANA, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0) },
+    { SCENE_HAKAANA2, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0) },
+    { SCENE_HAKAANA_OUKE, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0) },
+    { SCENE_DAIYOUSEI_IZUMI, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_YOUSEI_IZUMI_TATE, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0) },
+    { SCENE_YOUSEI_IZUMI_YOKO, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_GANON_FINAL, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0) },
+    { SCENE_NAKANIWA, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0) },
+    { SCENE_TURIBORI, RESTRICTIONS_SET(0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1) },
+    { SCENE_BOWLING, RESTRICTIONS_SET(0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1) },
+    { SCENE_SOUKO, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_MIHARIGOYA, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0) },
+    { SCENE_MAHOUYA, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1) },
+    { SCENE_TAKARAYA, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1) },
+    { SCENE_KINSUTA, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_ENTRA, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_ENTRA_N, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_ENRUI, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 3, 1, 1, 1) },
+    { SCENE_MARKET_DAY, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_MARKET_NIGHT, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_MARKET_RUINS, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 3, 1, 1, 1) },
+    { SCENE_MARKET_ALLEY, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_MARKET_ALLEY_N, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_SHRINE, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_SHRINE_N, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_SHRINE_R, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 3, 1, 1, 1) },
+    { SCENE_LINK_HOME, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_KAKARIKO, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_KAKARIKO3, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_KOKIRI_HOME, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_KOKIRI_HOME3, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_KOKIRI_HOME4, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_KOKIRI_HOME5, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_MALON_STABLE, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_HUT, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_IMPA, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_LABO, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_HYLIA_LABO, RESTRICTIONS_SET(0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_TENT, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_SHOP1, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_KOKIRI_SHOP, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_GOLON, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_ZOORA, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_DRAG, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_ALLEY_SHOP, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_NIGHT_SHOP, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_FACE_SHOP, RESTRICTIONS_SET(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1) },
+    { SCENE_MEN, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0) },
+    { SCENE_YDAN, RESTRICTIONS_SET_NONE },
+    { SCENE_YDAN_BOSS, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_DDAN, RESTRICTIONS_SET_NONE },
+    { SCENE_DDAN_BOSS, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_BDAN, RESTRICTIONS_SET_NONE },
+    { SCENE_BDAN_BOSS, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_BMORI1, RESTRICTIONS_SET_NONE },
+    { SCENE_MORIBOSSROOM, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_HAKADANCH, RESTRICTIONS_SET_NONE },
+    { SCENE_HAKADAN, RESTRICTIONS_SET_NONE },
+    { SCENE_HAKADAN_BS, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_HIDAN, RESTRICTIONS_SET_NONE },
+    { SCENE_FIRE_BS, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_MIZUSIN, RESTRICTIONS_SET_NONE },
+    { SCENE_MIZUSIN_BS, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_JYASINZOU, RESTRICTIONS_SET_NONE },
+    { SCENE_JYASINBOSS, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_GANON, RESTRICTIONS_SET_NONE },
+    { SCENE_GANON_BOSS, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_ICE_DOUKUTO, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0) },
+    { SCENE_HAKASITARELAY, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 3, 0, 1, 1, 0) },
+    { SCENE_GANONTIKA, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0) },
+    { SCENE_GANON_DEMO, RESTRICTIONS_SET_BOSS_SCENE },
+    { SCENE_GANON_SONOGO, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0) },
+    { SCENE_GANONTIKA_SONOGO, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0) },
+    { SCENE_GERUDOWAY, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0) },
+    { SCENE_KAKUSIANA, RESTRICTIONS_SET(0, 0, 0, 0, 0, 0, 0, 0, 3, 1, 0, 0) },
+    { RESTRICTIONS_TABLE_END, RESTRICTIONS_SET_NONE },
 };
 
 static s16 sHBAScoreTier = 0;
@@ -869,6 +924,9 @@ void func_80083108(PlayState* play) {
                         gSaveContext.buttonStatus[0] = BTN_DISABLED;
                     }
                 }
+                //! @bug the b button restriction value is 2-bit, so can also be 2 or 3, these values are unhandled
+                //! and alpha & usability of the b button will not update properly. Chamber of sages has such a bugged
+                //! restriction value, but it does not matter in regular gameplay as it is a cutscene-only map
 
                 if (interfaceCtx->restrictions.bottles != 0) {
                     for (i = 1; i < 4; i++) {
@@ -1093,18 +1151,18 @@ void Interface_SetSceneRestrictions(PlayState* play) {
     do {
         currentScene = (u8)play->sceneNum;
         if (sRestrictionFlags[i].scene == currentScene) {
-            interfaceCtx->restrictions.hGauge = (sRestrictionFlags[i].flags1 & 0xC0) >> 6;
-            interfaceCtx->restrictions.bButton = (sRestrictionFlags[i].flags1 & 0x30) >> 4;
-            interfaceCtx->restrictions.aButton = (sRestrictionFlags[i].flags1 & 0x0C) >> 2;
-            interfaceCtx->restrictions.bottles = (sRestrictionFlags[i].flags1 & 0x03) >> 0;
-            interfaceCtx->restrictions.tradeItems = (sRestrictionFlags[i].flags2 & 0xC0) >> 6;
-            interfaceCtx->restrictions.hookshot = (sRestrictionFlags[i].flags2 & 0x30) >> 4;
-            interfaceCtx->restrictions.ocarina = (sRestrictionFlags[i].flags2 & 0x0C) >> 2;
-            interfaceCtx->restrictions.warpSongs = (sRestrictionFlags[i].flags2 & 0x03) >> 0;
-            interfaceCtx->restrictions.sunsSong = (sRestrictionFlags[i].flags3 & 0xC0) >> 6;
-            interfaceCtx->restrictions.farores = (sRestrictionFlags[i].flags3 & 0x30) >> 4;
-            interfaceCtx->restrictions.dinsNayrus = (sRestrictionFlags[i].flags3 & 0x0C) >> 2;
-            interfaceCtx->restrictions.all = (sRestrictionFlags[i].flags3 & 0x03) >> 0;
+            interfaceCtx->restrictions.hGauge = RESTRICTIONS_GET_HGAUGE(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.bButton = RESTRICTIONS_GET_B_BUTTON(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.aButton = RESTRICTIONS_GET_A_BUTTON(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.bottles = RESTRICTIONS_GET_BOTTLES(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.tradeItems = RESTRICTIONS_GET_TRADE_ITEMS(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.hookshot = RESTRICTIONS_GET_HOOKSHOT(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.ocarina = RESTRICTIONS_GET_OCARINA(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.warpSongs = RESTRICTIONS_GET_WARPSONGS(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.sunsSong = RESTRICTIONS_GET_SUNSSONG(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.farores = RESTRICTIONS_GET_FARORES(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.dinsNayrus = RESTRICTIONS_GET_DINSNAYRUS(&sRestrictionFlags[i]);
+            interfaceCtx->restrictions.all = RESTRICTIONS_GET_ALL(&sRestrictionFlags[i]);
 
             osSyncPrintf(VT_FGCOL(YELLOW));
             osSyncPrintf("parameter->button_status = %x,%x,%x\n", sRestrictionFlags[i].flags1,
@@ -1122,7 +1180,7 @@ void Interface_SetSceneRestrictions(PlayState* play) {
             return;
         }
         i++;
-    } while (sRestrictionFlags[i].scene != 0xFF);
+    } while (sRestrictionFlags[i].scene != RESTRICTIONS_TABLE_END);
 }
 
 Gfx* Gfx_TextureIA8(Gfx* displayListHead, void* texture, s16 textureWidth, s16 textureHeight, s16 rectLeft, s16 rectTop,
@@ -4185,6 +4243,8 @@ void Interface_Update(PlayState* play) {
         }
     }
 
+    // Update sun's song
+
     if (gSaveContext.sunsSongState != SUNSSONG_INACTIVE) {
         // exit out of ocarina mode after suns song finishes playing
         if ((msgCtx->ocarinaAction != OCARINA_ACTION_CHECK_NOWARP_DONE) &&
@@ -4192,8 +4252,9 @@ void Interface_Update(PlayState* play) {
             play->msgCtx.ocarinaMode = OCARINA_MODE_04;
         }
 
-        // handle suns song in areas where time moves
         if (play->envCtx.sceneTimeSpeed != 0) {
+            // In a scene where time moves
+
             if (gSaveContext.sunsSongState != SUNSSONG_SPEED_TIME) {
                 D_80125B60 = false;
                 if ((gSaveContext.dayTime >= CLOCK_TIME(6, 30)) && (gSaveContext.dayTime <= CLOCK_TIME(18, 0) + 1)) {
@@ -4216,6 +4277,7 @@ void Interface_Update(PlayState* play) {
             }
         } else if ((play->roomCtx.curRoom.behaviorType1 != ROOM_BEHAVIOR_TYPE1_1) &&
                    (interfaceCtx->restrictions.sunsSong != 3)) {
+            // Reload the area
             if ((gSaveContext.dayTime >= CLOCK_TIME(6, 30)) && (gSaveContext.dayTime < CLOCK_TIME(18, 0) + 1)) {
                 gSaveContext.nextDayTime = NEXT_TIME_NIGHT;
                 play->transitionType = TRANS_TYPE_FADE_BLACK_FAST;
@@ -4241,6 +4303,7 @@ void Interface_Update(PlayState* play) {
             gSaveContext.seqId = (u8)NA_BGM_DISABLED;
             gSaveContext.natureAmbienceId = NATURE_ID_DISABLED;
         } else {
+            // Scenes with redeads
             gSaveContext.sunsSongState = SUNSSONG_SPECIAL;
         }
     }
