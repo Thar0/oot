@@ -65,7 +65,7 @@ preprocess_pragmas_SOURCES := preprocess_pragmas.c
 vtxdis_SOURCES             := vtxdis.c
 
 armips: CC := $(CXX)
-armips_CFLAGS := -std=c++11 -fno-exceptions -fno-rtti -pipe -Wno-unused-parameter -Wno-maybe-uninitialized
+armips_CFLAGS := -std=c++17 -s -fno-rtti -pipe -Wno-unused-parameter
 armips_LDFLAGS := -pthread
 
 define COMPILE

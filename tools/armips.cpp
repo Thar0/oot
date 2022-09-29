@@ -28,46 +28,5543 @@ SOFTWARE.
 
 */
 
-// file: stdafx.h
+// file: Util/FileSystem.h
 
+#define GHC_FILESYSTEM_FWD
+#define GHC_FILESYSTEM_IMPLEMENTATION
+//---------------------------------------------------------------------------------------
+//
+// ghc::filesystem - A C++17-like filesystem implementation for C++11/C++14/C++17
+//
+//---------------------------------------------------------------------------------------
+//
+// Copyright (c) 2018, Steffen Schümann <s.schuemann@pobox.com>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+//---------------------------------------------------------------------------------------
+//
+// To dynamically select std::filesystem where available, you could use:
+//
+// #if defined(__cplusplus) && __cplusplus >= 201703L && defined(__has_include) && __has_include(<filesystem>)
+// #include <filesystem>
+// namespace fs = std::filesystem;
+// #else
+// #include <ghc/filesystem.hpp>
+// namespace fs = ghc::filesystem;
+// #endif
+//
+//---------------------------------------------------------------------------------------
+#ifndef GHC_FILESYSTEM_H
+#define GHC_FILESYSTEM_H
 
-#define _CRT_SECURE_NO_WARNINGS
-#undef __STRICT_ANSI__
-
-#if defined(__clang__)
-#if __has_feature(cxx_exceptions)
-#define ARMIPS_EXCEPTIONS 1
-#else
-#define ARMIPS_EXCEPTIONS 0
+// #define BSD manifest constant only in
+// sys/param.h
+#ifndef _WIN32
+#include <sys/param.h>
 #endif
-#elif defined(_MSC_VER) && defined(_CPPUNWIND)
-#define ARMIPS_EXCEPTIONS 1
-#elif defined(__EXCEPTIONS) || defined(__cpp_exceptions)
-#define ARMIPS_EXCEPTIONS 1
+
+#ifndef GHC_OS_DETECTED
+#if defined(__APPLE__) && defined(__MACH__)
+#define GHC_OS_MACOS
+#elif defined(__linux__)
+#define GHC_OS_LINUX
+#if defined(__ANDROID__)
+#define GHC_OS_ANDROID
+#endif
+#elif defined(_WIN64)
+#define GHC_OS_WINDOWS
+#define GHC_OS_WIN64
+#elif defined(_WIN32)
+#define GHC_OS_WINDOWS
+#define GHC_OS_WIN32
+#elif defined(__svr4__)
+#define GHC_OS_SYS5R4
+#elif defined(BSD)
+#define GHC_OS_BSD
 #else
-#define ARMIPS_EXCEPTIONS 0
+#error "Operating system currently not supported!"
+#endif
+#define GHC_OS_DETECTED
 #endif
 
-#include <cstdio>
-#include <vector>
-#include <cstdlib>
-#include <cstdarg>
+#if defined(GHC_FILESYSTEM_IMPLEMENTATION)
+#define GHC_EXPAND_IMPL
+#define GHC_INLINE
+#ifdef GHC_OS_WINDOWS
+#define GHC_FS_API
+#define GHC_FS_API_CLASS
+#else
+#define GHC_FS_API __attribute__((visibility("default")))
+#define GHC_FS_API_CLASS __attribute__((visibility("default")))
+#endif
+#elif defined(GHC_FILESYSTEM_FWD)
+#define GHC_INLINE
+#ifdef GHC_OS_WINDOWS
+#define GHC_FS_API extern
+#define GHC_FS_API_CLASS
+#else
+#define GHC_FS_API extern
+#define GHC_FS_API_CLASS
+#endif
+#else
+#define GHC_EXPAND_IMPL
+#define GHC_INLINE inline
+#define GHC_FS_API
+#define GHC_FS_API_CLASS
+#endif
+
+#ifdef GHC_EXPAND_IMPL
+
+#ifdef GHC_OS_WINDOWS
+#include <windows.h>
+// additional includes
+#include <shellapi.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <wchar.h>
+#include <winioctl.h>
+#else
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <limits.h>
+#ifdef GHC_OS_ANDROID
+#include <android/api-level.h>
+#if __ANDROID_API__ < 12
+#include <sys/syscall.h>
+#endif
+#include <sys/vfs.h>
+#define statvfs statfs
+#else
+#include <sys/statvfs.h>
+#endif
+#if !defined(__ANDROID__) || __ANDROID_API__ >= 26
+#include <langinfo.h>
+#endif
+#endif
+#ifdef GHC_OS_MACOS
+#include <Availability.h>
+#endif
+
+#include <algorithm>
 #include <cctype>
-#include <cstring>
-#include <cmath>
+#include <chrono>
 #include <clocale>
-
-#include <sstream>
-#include <iomanip>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <functional>
 #include <memory>
+#include <stack>
+#include <stdexcept>
+#include <string>
+#include <system_error>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
-#define formatString tfm::format
+#else  // GHC_EXPAND_IMPL
+#include <chrono>
+#include <fstream>
+#include <memory>
+#include <stack>
+#include <stdexcept>
+#include <string>
+#include <system_error>
+#ifdef GHC_OS_WINDOWS
+#include <vector>
+#endif
+#endif  // GHC_EXPAND_IMPL
 
-// Custom make_unique so that C++14 support will not be necessary for compilation
-template<typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args&&... args)
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// Behaviour Switches (see README.md, should match the config in test/filesystem_test.cpp):
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// LWG #2682 disables the since then invalid use of the copy option create_symlinks on directories
+// configure LWG conformance ()
+#define LWG_2682_BEHAVIOUR
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// LWG #2395 makes crate_directory/create_directories not emit an error if there is a regular
+// file with that name, it is superceded by P1164R1, so only activate if really needed
+// #define LWG_2935_BEHAVIOUR
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// LWG #2937 enforces that fs::equivalent emits an error, if !fs::exists(p1)||!exists(p2)
+#define LWG_2937_BEHAVIOUR
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// UTF8-Everywhere is the original behaviour of ghc::filesystem. With this define you can
+// enable the more standard conforming implementation option that uses wstring on Windows
+// as ghc::filesystem::string_type.
+// #define GHC_WIN_WSTRING_STRING_TYPE
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+// Raise errors/exceptions when invalid unicode codepoints or UTF-8 sequences are found,
+// instead of replacing them with the unicode replacement character (U+FFFD).
+// #define GHC_RAISE_UNICODE_ERRORS
+//- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+// ghc::filesystem version in decimal (major * 10000 + minor * 100 + patch)
+#define GHC_FILESYSTEM_VERSION 10303L
+
+#if !defined(GHC_WITH_EXCEPTIONS) && (defined(__EXCEPTIONS) || defined(__cpp_exceptions) || defined(_CPPUNWIND))
+#define GHC_WITH_EXCEPTIONS
+#endif
+#if !defined(GHC_WITH_EXCEPTIONS) && defined(GHC_RAISE_UNICODE_ERRORS)
+#error "Can't raise unicode errors whith exception support disabled"
+#endif
+
+namespace ghc {
+namespace filesystem {
+
+// temporary existing exception type for yet unimplemented parts
+class GHC_FS_API_CLASS not_implemented_exception : public std::logic_error
 {
-    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+public:
+    not_implemented_exception()
+        : std::logic_error("function not implemented yet.")
+    {
+    }
+};
+
+template<typename char_type>
+class path_helper_base
+{
+public:
+    using value_type = char_type;
+#ifdef GHC_OS_WINDOWS
+    static constexpr value_type preferred_separator = '\\';
+#else
+    static constexpr value_type preferred_separator = '/';
+#endif
+};
+
+#if  __cplusplus < 201703L
+template <typename char_type>
+constexpr char_type path_helper_base<char_type>::preferred_separator;
+#endif
+    
+// 30.10.8 class path
+class GHC_FS_API_CLASS path
+#if defined(GHC_OS_WINDOWS) && defined(GHC_WIN_WSTRING_STRING_TYPE)
+#define GHC_USE_WCHAR_T
+    : private path_helper_base<std::wstring::value_type>
+{
+public:
+    using path_helper_base<std::wstring::value_type>::value_type;
+#else
+    : private path_helper_base<std::string::value_type>
+{
+public:
+    using path_helper_base<std::string::value_type>::value_type;
+#endif
+    using string_type = std::basic_string<value_type>;
+    using path_helper_base<value_type>::preferred_separator;
+    
+    // 30.10.10.1 enumeration format
+    /// The path format in wich the constructor argument is given.
+    enum format {
+        generic_format,  ///< The generic format, internally used by
+                         ///< ghc::filesystem::path with slashes
+        native_format,   ///< The format native to the current platform this code
+                         ///< is build for
+        auto_format,     ///< Try to auto-detect the format, fallback to native
+    };
+
+    template <class T>
+    struct _is_basic_string : std::false_type
+    {
+    };
+    template <class CharT, class Traits, class Alloc>
+    struct _is_basic_string<std::basic_string<CharT, Traits, Alloc>> : std::true_type
+    {
+    };
+#ifdef __cpp_lib_string_view
+    template <class CharT>
+    struct _is_basic_string<std::basic_string_view<CharT>> : std::true_type
+    {
+    };
+#endif
+
+    template <typename T1, typename T2 = void>
+    using path_type = typename std::enable_if<!std::is_same<path, T1>::value, path>::type;
+#ifdef GHC_USE_WCHAR_T
+    template <typename T>
+    using path_from_string = typename std::enable_if<_is_basic_string<T>::value || std::is_same<char const*, typename std::decay<T>::type>::value || std::is_same<char*, typename std::decay<T>::type>::value ||
+                                                         std::is_same<wchar_t const*, typename std::decay<T>::type>::value || std::is_same<wchar_t*, typename std::decay<T>::type>::value,
+                                                     path>::type;
+    template <typename T>
+    using path_type_EcharT = typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, char16_t>::value || std::is_same<T, char32_t>::value, path>::type;
+#else
+    template <typename T>
+    using path_from_string = typename std::enable_if<_is_basic_string<T>::value || std::is_same<char const*, typename std::decay<T>::type>::value || std::is_same<char*, typename std::decay<T>::type>::value, path>::type;
+    template <typename T>
+    using path_type_EcharT = typename std::enable_if<std::is_same<T, char>::value || std::is_same<T, char16_t>::value || std::is_same<T, char32_t>::value || std::is_same<T, wchar_t>::value, path>::type;
+#endif
+    // 30.10.8.4.1 constructors and destructor
+    path() noexcept;
+    path(const path& p);
+    path(path&& p) noexcept;
+    path(string_type&& source, format fmt = auto_format);
+    template <class Source, typename = path_from_string<Source>>
+    path(const Source& source, format fmt = auto_format);
+    template <class InputIterator>
+    path(InputIterator first, InputIterator last, format fmt = auto_format);
+#ifdef GHC_WITH_EXCEPTIONS
+    template <class Source, typename = path_from_string<Source>>
+    path(const Source& source, const std::locale& loc, format fmt = auto_format);
+    template <class InputIterator>
+    path(InputIterator first, InputIterator last, const std::locale& loc, format fmt = auto_format);
+#endif
+    ~path();
+
+    // 30.10.8.4.2 assignments
+    path& operator=(const path& p);
+    path& operator=(path&& p) noexcept;
+    path& operator=(string_type&& source);
+    path& assign(string_type&& source);
+    template <class Source>
+    path& operator=(const Source& source);
+    template <class Source>
+    path& assign(const Source& source);
+    template <class InputIterator>
+    path& assign(InputIterator first, InputIterator last);
+
+    // 30.10.8.4.3 appends
+    path& operator/=(const path& p);
+    template <class Source>
+    path& operator/=(const Source& source);
+    template <class Source>
+    path& append(const Source& source);
+    template <class InputIterator>
+    path& append(InputIterator first, InputIterator last);
+
+    // 30.10.8.4.4 concatenation
+    path& operator+=(const path& x);
+    path& operator+=(const string_type& x);
+#ifdef __cpp_lib_string_view
+    path& operator+=(std::basic_string_view<value_type> x);
+#endif
+    path& operator+=(const value_type* x);
+    path& operator+=(value_type x);
+    template <class Source>
+    path_from_string<Source>& operator+=(const Source& x);
+    template <class EcharT>
+    path_type_EcharT<EcharT>& operator+=(EcharT x);
+    template <class Source>
+    path& concat(const Source& x);
+    template <class InputIterator>
+    path& concat(InputIterator first, InputIterator last);
+
+    // 30.10.8.4.5 modifiers
+    void clear() noexcept;
+    path& make_preferred();
+    path& remove_filename();
+    path& replace_filename(const path& replacement);
+    path& replace_extension(const path& replacement = path());
+    void swap(path& rhs) noexcept;
+
+    // 30.10.8.4.6 native format observers
+    const string_type& native() const;  // this implementation doesn't support noexcept for native()
+    const value_type* c_str() const;    // this implementation doesn't support noexcept for c_str()
+    operator string_type() const;
+    template <class EcharT, class traits = std::char_traits<EcharT>, class Allocator = std::allocator<EcharT>>
+    std::basic_string<EcharT, traits, Allocator> string(const Allocator& a = Allocator()) const;
+    std::string string() const;
+    std::wstring wstring() const;
+    std::string u8string() const;
+    std::u16string u16string() const;
+    std::u32string u32string() const;
+
+    // 30.10.8.4.7 generic format observers
+    template <class EcharT, class traits = std::char_traits<EcharT>, class Allocator = std::allocator<EcharT>>
+    std::basic_string<EcharT, traits, Allocator> generic_string(const Allocator& a = Allocator()) const;
+    const std::string& generic_string() const;  // this is different from the standard, that returns by value
+    std::wstring generic_wstring() const;
+    std::string generic_u8string() const;
+    std::u16string generic_u16string() const;
+    std::u32string generic_u32string() const;
+
+    // 30.10.8.4.8 compare
+    int compare(const path& p) const noexcept;
+    int compare(const string_type& s) const;
+#ifdef __cpp_lib_string_view
+    int compare(std::basic_string_view<value_type> s) const;
+#endif
+    int compare(const value_type* s) const;
+
+    // 30.10.8.4.9 decomposition
+    path root_name() const;
+    path root_directory() const;
+    path root_path() const;
+    path relative_path() const;
+    path parent_path() const;
+    path filename() const;
+    path stem() const;
+    path extension() const;
+
+    // 30.10.8.4.10 query
+    bool empty() const noexcept;
+    bool has_root_name() const;
+    bool has_root_directory() const;
+    bool has_root_path() const;
+    bool has_relative_path() const;
+    bool has_parent_path() const;
+    bool has_filename() const;
+    bool has_stem() const;
+    bool has_extension() const;
+    bool is_absolute() const;
+    bool is_relative() const;
+
+    // 30.10.8.4.11 generation
+    path lexically_normal() const;
+    path lexically_relative(const path& base) const;
+    path lexically_proximate(const path& base) const;
+
+    // 30.10.8.5 iterators
+    class iterator;
+    using const_iterator = iterator;
+    iterator begin() const;
+    iterator end() const;
+
+private:
+    using impl_value_type = std::string::value_type;
+    using impl_string_type = std::basic_string<impl_value_type>;
+    friend class directory_iterator;
+    void append_name(const char* name);
+    static constexpr impl_value_type generic_separator = '/';
+    template <typename InputIterator>
+    class input_iterator_range
+    {
+    public:
+        typedef InputIterator iterator;
+        typedef InputIterator const_iterator;
+        typedef typename InputIterator::difference_type difference_type;
+
+        input_iterator_range(const InputIterator& first, const InputIterator& last)
+            : _first(first)
+            , _last(last)
+        {
+        }
+
+        InputIterator begin() const { return _first; }
+        InputIterator end() const { return _last; }
+
+    private:
+        InputIterator _first;
+        InputIterator _last;
+    };
+    friend void swap(path& lhs, path& rhs) noexcept;
+    friend size_t hash_value(const path& p) noexcept;
+    static void postprocess_path_with_format(impl_string_type& p, format fmt);
+    impl_string_type _path;
+#ifdef GHC_OS_WINDOWS
+    impl_string_type native_impl() const;
+    mutable string_type _native_cache;
+#else
+    const impl_string_type& native_impl() const;
+#endif
+};
+
+// 30.10.8.6 path non-member functions
+GHC_FS_API void swap(path& lhs, path& rhs) noexcept;
+GHC_FS_API size_t hash_value(const path& p) noexcept;
+GHC_FS_API bool operator==(const path& lhs, const path& rhs) noexcept;
+GHC_FS_API bool operator!=(const path& lhs, const path& rhs) noexcept;
+GHC_FS_API bool operator<(const path& lhs, const path& rhs) noexcept;
+GHC_FS_API bool operator<=(const path& lhs, const path& rhs) noexcept;
+GHC_FS_API bool operator>(const path& lhs, const path& rhs) noexcept;
+GHC_FS_API bool operator>=(const path& lhs, const path& rhs) noexcept;
+
+GHC_FS_API path operator/(const path& lhs, const path& rhs);
+
+// 30.10.8.6.1 path inserter and extractor
+template <class charT, class traits>
+std::basic_ostream<charT, traits>& operator<<(std::basic_ostream<charT, traits>& os, const path& p);
+template <class charT, class traits>
+std::basic_istream<charT, traits>& operator>>(std::basic_istream<charT, traits>& is, path& p);
+
+// 30.10.8.6.2 path factory functions
+template <class Source, typename = path::path_from_string<Source>>
+path u8path(const Source& source);
+template <class InputIterator>
+path u8path(InputIterator first, InputIterator last);
+
+// 30.10.9 class filesystem_error
+class GHC_FS_API_CLASS filesystem_error : public std::system_error
+{
+public:
+    filesystem_error(const std::string& what_arg, std::error_code ec);
+    filesystem_error(const std::string& what_arg, const path& p1, std::error_code ec);
+    filesystem_error(const std::string& what_arg, const path& p1, const path& p2, std::error_code ec);
+    const path& path1() const noexcept;
+    const path& path2() const noexcept;
+    const char* what() const noexcept override;
+
+private:
+    std::string _what_arg;
+    std::error_code _ec;
+    path _p1, _p2;
+};
+
+class GHC_FS_API_CLASS path::iterator
+{
+public:
+    using value_type = const path;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const path*;
+    using reference = const path&;
+    using iterator_category = std::bidirectional_iterator_tag;
+
+    iterator();
+    iterator(const impl_string_type::const_iterator& first, const impl_string_type::const_iterator& last, const impl_string_type::const_iterator& pos);
+    iterator& operator++();
+    iterator operator++(int);
+    iterator& operator--();
+    iterator operator--(int);
+    bool operator==(const iterator& other) const;
+    bool operator!=(const iterator& other) const;
+    reference operator*() const;
+    pointer operator->() const;
+
+private:
+    impl_string_type::const_iterator increment(const std::string::const_iterator& pos) const;
+    impl_string_type::const_iterator decrement(const std::string::const_iterator& pos) const;
+    void updateCurrent();
+    impl_string_type::const_iterator _first;
+    impl_string_type::const_iterator _last;
+    impl_string_type::const_iterator _root;
+    impl_string_type::const_iterator _iter;
+    path _current;
+};
+
+struct space_info
+{
+    uintmax_t capacity;
+    uintmax_t free;
+    uintmax_t available;
+};
+
+// 30.10.10, enumerations
+enum class file_type {
+    none,
+    not_found,
+    regular,
+    directory,
+    symlink,
+    block,
+    character,
+    fifo,
+    socket,
+    unknown,
+};
+
+enum class perms : uint16_t {
+    none = 0,
+
+    owner_read = 0400,
+    owner_write = 0200,
+    owner_exec = 0100,
+    owner_all = 0700,
+
+    group_read = 040,
+    group_write = 020,
+    group_exec = 010,
+    group_all = 070,
+
+    others_read = 04,
+    others_write = 02,
+    others_exec = 01,
+    others_all = 07,
+
+    all = 0777,
+    set_uid = 04000,
+    set_gid = 02000,
+    sticky_bit = 01000,
+
+    mask = 07777,
+    unknown = 0xffff
+};
+
+enum class perm_options : uint16_t {
+    replace = 3,
+    add = 1,
+    remove = 2,
+    nofollow = 4,
+};
+
+enum class copy_options : uint16_t {
+    none = 0,
+
+    skip_existing = 1,
+    overwrite_existing = 2,
+    update_existing = 4,
+
+    recursive = 8,
+
+    copy_symlinks = 0x10,
+    skip_symlinks = 0x20,
+
+    directories_only = 0x40,
+    create_symlinks = 0x80,
+    create_hard_links = 0x100
+};
+
+enum class directory_options : uint16_t {
+    none = 0,
+    follow_directory_symlink = 1,
+    skip_permission_denied = 2,
+};
+
+// 30.10.11 class file_status
+class GHC_FS_API_CLASS file_status
+{
+public:
+    // 30.10.11.1 constructors and destructor
+    file_status() noexcept;
+    explicit file_status(file_type ft, perms prms = perms::unknown) noexcept;
+    file_status(const file_status&) noexcept;
+    file_status(file_status&&) noexcept;
+    ~file_status();
+    // assignments:
+    file_status& operator=(const file_status&) noexcept;
+    file_status& operator=(file_status&&) noexcept;
+    // 30.10.11.3 modifiers
+    void type(file_type ft) noexcept;
+    void permissions(perms prms) noexcept;
+    // 30.10.11.2 observers
+    file_type type() const noexcept;
+    perms permissions() const noexcept;
+
+private:
+    file_type _type;
+    perms _perms;
+};
+
+using file_time_type = std::chrono::time_point<std::chrono::system_clock>;
+
+// 30.10.12 Class directory_entry
+class GHC_FS_API_CLASS directory_entry
+{
+public:
+    // 30.10.12.1 constructors and destructor
+    directory_entry() noexcept = default;
+    directory_entry(const directory_entry&) = default;
+    directory_entry(directory_entry&&) noexcept = default;
+#ifdef GHC_WITH_EXCEPTIONS
+    explicit directory_entry(const path& p);
+#endif
+    directory_entry(const path& p, std::error_code& ec);
+    ~directory_entry();
+
+    // assignments:
+    directory_entry& operator=(const directory_entry&) = default;
+    directory_entry& operator=(directory_entry&&) noexcept = default;
+
+    // 30.10.12.2 modifiers
+#ifdef GHC_WITH_EXCEPTIONS
+    void assign(const path& p);
+#endif
+    void assign(const path& p, std::error_code& ec);
+#ifdef GHC_WITH_EXCEPTIONS
+    void replace_filename(const path& p);
+#endif
+    void replace_filename(const path& p, std::error_code& ec);
+#ifdef GHC_WITH_EXCEPTIONS
+    void refresh();
+#endif
+    void refresh(std::error_code& ec) noexcept;
+
+    // 30.10.12.3 observers
+    const filesystem::path& path() const noexcept;
+    operator const filesystem::path&() const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool exists() const;
+#endif
+    bool exists(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool is_block_file() const;
+#endif
+    bool is_block_file(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool is_character_file() const;
+#endif
+    bool is_character_file(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool is_directory() const;
+#endif
+    bool is_directory(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool is_fifo() const;
+#endif
+    bool is_fifo(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool is_other() const;
+#endif
+    bool is_other(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool is_regular_file() const;
+#endif
+    bool is_regular_file(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool is_socket() const;
+#endif
+    bool is_socket(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    bool is_symlink() const;
+#endif
+    bool is_symlink(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    uintmax_t file_size() const;
+#endif
+    uintmax_t file_size(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    uintmax_t hard_link_count() const;
+#endif
+    uintmax_t hard_link_count(std::error_code& ec) const noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    file_time_type last_write_time() const;
+#endif
+    file_time_type last_write_time(std::error_code& ec) const noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+    file_status status() const;
+#endif
+    file_status status(std::error_code& ec) const noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+    file_status symlink_status() const;
+#endif
+    file_status symlink_status(std::error_code& ec) const noexcept;
+    bool operator<(const directory_entry& rhs) const noexcept;
+    bool operator==(const directory_entry& rhs) const noexcept;
+    bool operator!=(const directory_entry& rhs) const noexcept;
+    bool operator<=(const directory_entry& rhs) const noexcept;
+    bool operator>(const directory_entry& rhs) const noexcept;
+    bool operator>=(const directory_entry& rhs) const noexcept;
+
+private:
+    friend class directory_iterator;
+    filesystem::path _path;
+    file_status _status;
+    file_status _symlink_status;
+    uintmax_t _file_size = 0;
+#ifndef GHC_OS_WINDOWS
+    uintmax_t _hard_link_count = 0;
+#endif
+    time_t _last_write_time = 0;
+};
+
+// 30.10.13 Class directory_iterator
+class GHC_FS_API_CLASS directory_iterator
+{
+public:
+    class GHC_FS_API_CLASS proxy
+    {
+    public:
+        const directory_entry& operator*() const& noexcept { return _dir_entry; }
+        directory_entry operator*() && noexcept { return std::move(_dir_entry); }
+
+    private:
+        explicit proxy(const directory_entry& dir_entry)
+            : _dir_entry(dir_entry)
+        {
+        }
+        friend class directory_iterator;
+        friend class recursive_directory_iterator;
+        directory_entry _dir_entry;
+    };
+    using iterator_category = std::input_iterator_tag;
+    using value_type = directory_entry;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const directory_entry*;
+    using reference = const directory_entry&;
+
+    // 30.10.13.1 member functions
+    directory_iterator() noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    explicit directory_iterator(const path& p);
+    directory_iterator(const path& p, directory_options options);
+#endif
+    directory_iterator(const path& p, std::error_code& ec) noexcept;
+    directory_iterator(const path& p, directory_options options, std::error_code& ec) noexcept;
+    directory_iterator(const directory_iterator& rhs);
+    directory_iterator(directory_iterator&& rhs) noexcept;
+    ~directory_iterator();
+    directory_iterator& operator=(const directory_iterator& rhs);
+    directory_iterator& operator=(directory_iterator&& rhs) noexcept;
+    const directory_entry& operator*() const;
+    const directory_entry* operator->() const;
+#ifdef GHC_WITH_EXCEPTIONS
+    directory_iterator& operator++();
+#endif
+    directory_iterator& increment(std::error_code& ec) noexcept;
+
+    // other members as required by 27.2.3, input iterators
+#ifdef GHC_WITH_EXCEPTIONS
+    proxy operator++(int)
+    {
+        proxy p{**this};
+        ++*this;
+        return p;
+    }
+#endif
+    bool operator==(const directory_iterator& rhs) const;
+    bool operator!=(const directory_iterator& rhs) const;
+
+private:
+    friend class recursive_directory_iterator;
+    class impl;
+    std::shared_ptr<impl> _impl;
+};
+
+// 30.10.13.2 directory_iterator non-member functions
+GHC_FS_API directory_iterator begin(directory_iterator iter) noexcept;
+GHC_FS_API directory_iterator end(const directory_iterator&) noexcept;
+
+// 30.10.14 class recursive_directory_iterator
+class GHC_FS_API_CLASS recursive_directory_iterator
+{
+public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = directory_entry;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const directory_entry*;
+    using reference = const directory_entry&;
+
+    // 30.10.14.1 constructors and destructor
+    recursive_directory_iterator() noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    explicit recursive_directory_iterator(const path& p);
+    recursive_directory_iterator(const path& p, directory_options options);
+#endif
+    recursive_directory_iterator(const path& p, directory_options options, std::error_code& ec) noexcept;
+    recursive_directory_iterator(const path& p, std::error_code& ec) noexcept;
+    recursive_directory_iterator(const recursive_directory_iterator& rhs);
+    recursive_directory_iterator(recursive_directory_iterator&& rhs) noexcept;
+    ~recursive_directory_iterator();
+
+    // 30.10.14.1 observers
+    directory_options options() const;
+    int depth() const;
+    bool recursion_pending() const;
+
+    const directory_entry& operator*() const;
+    const directory_entry* operator->() const;
+
+    // 30.10.14.1 modifiers recursive_directory_iterator&
+    recursive_directory_iterator& operator=(const recursive_directory_iterator& rhs);
+    recursive_directory_iterator& operator=(recursive_directory_iterator&& rhs) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+    recursive_directory_iterator& operator++();
+#endif
+    recursive_directory_iterator& increment(std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+    void pop();
+#endif
+    void pop(std::error_code& ec);
+    void disable_recursion_pending();
+
+    // other members as required by 27.2.3, input iterators
+#ifdef GHC_WITH_EXCEPTIONS
+    directory_iterator::proxy operator++(int)
+    {
+        directory_iterator::proxy proxy{**this};
+        ++*this;
+        return proxy;
+    }
+#endif
+    bool operator==(const recursive_directory_iterator& rhs) const;
+    bool operator!=(const recursive_directory_iterator& rhs) const;
+
+private:
+    struct recursive_directory_iterator_impl
+    {
+        directory_options _options;
+        bool _recursion_pending;
+        std::stack<directory_iterator> _dir_iter_stack;
+        recursive_directory_iterator_impl(directory_options options, bool recursion_pending)
+            : _options(options)
+            , _recursion_pending(recursion_pending)
+        {
+        }
+    };
+    std::shared_ptr<recursive_directory_iterator_impl> _impl;
+};
+
+// 30.10.14.2 directory_iterator non-member functions
+GHC_FS_API recursive_directory_iterator begin(recursive_directory_iterator iter) noexcept;
+GHC_FS_API recursive_directory_iterator end(const recursive_directory_iterator&) noexcept;
+
+// 30.10.15 filesystem operations
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API path absolute(const path& p);
+#endif
+GHC_FS_API path absolute(const path& p, std::error_code& ec);
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API path canonical(const path& p);
+#endif
+GHC_FS_API path canonical(const path& p, std::error_code& ec);
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void copy(const path& from, const path& to);
+#endif
+GHC_FS_API void copy(const path& from, const path& to, std::error_code& ec) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void copy(const path& from, const path& to, copy_options options);
+#endif
+GHC_FS_API void copy(const path& from, const path& to, copy_options options, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool copy_file(const path& from, const path& to);
+#endif
+GHC_FS_API bool copy_file(const path& from, const path& to, std::error_code& ec) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool copy_file(const path& from, const path& to, copy_options option);
+#endif
+GHC_FS_API bool copy_file(const path& from, const path& to, copy_options option, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void copy_symlink(const path& existing_symlink, const path& new_symlink);
+#endif
+GHC_FS_API void copy_symlink(const path& existing_symlink, const path& new_symlink, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool create_directories(const path& p);
+#endif
+GHC_FS_API bool create_directories(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool create_directory(const path& p);
+#endif
+GHC_FS_API bool create_directory(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool create_directory(const path& p, const path& attributes);
+#endif
+GHC_FS_API bool create_directory(const path& p, const path& attributes, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void create_directory_symlink(const path& to, const path& new_symlink);
+#endif
+GHC_FS_API void create_directory_symlink(const path& to, const path& new_symlink, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void create_hard_link(const path& to, const path& new_hard_link);
+#endif
+GHC_FS_API void create_hard_link(const path& to, const path& new_hard_link, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void create_symlink(const path& to, const path& new_symlink);
+#endif
+GHC_FS_API void create_symlink(const path& to, const path& new_symlink, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API path current_path();
+#endif
+GHC_FS_API path current_path(std::error_code& ec);
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void current_path(const path& p);
+#endif
+GHC_FS_API void current_path(const path& p, std::error_code& ec) noexcept;
+
+GHC_FS_API bool exists(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool exists(const path& p);
+#endif
+GHC_FS_API bool exists(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool equivalent(const path& p1, const path& p2);
+#endif
+GHC_FS_API bool equivalent(const path& p1, const path& p2, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API uintmax_t file_size(const path& p);
+#endif
+GHC_FS_API uintmax_t file_size(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API uintmax_t hard_link_count(const path& p);
+#endif
+GHC_FS_API uintmax_t hard_link_count(const path& p, std::error_code& ec) noexcept;
+
+GHC_FS_API bool is_block_file(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_block_file(const path& p);
+#endif
+GHC_FS_API bool is_block_file(const path& p, std::error_code& ec) noexcept;
+GHC_FS_API bool is_character_file(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_character_file(const path& p);
+#endif
+GHC_FS_API bool is_character_file(const path& p, std::error_code& ec) noexcept;
+GHC_FS_API bool is_directory(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_directory(const path& p);
+#endif
+GHC_FS_API bool is_directory(const path& p, std::error_code& ec) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_empty(const path& p);
+#endif
+GHC_FS_API bool is_empty(const path& p, std::error_code& ec) noexcept;
+GHC_FS_API bool is_fifo(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_fifo(const path& p);
+#endif
+GHC_FS_API bool is_fifo(const path& p, std::error_code& ec) noexcept;
+GHC_FS_API bool is_other(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_other(const path& p);
+#endif
+GHC_FS_API bool is_other(const path& p, std::error_code& ec) noexcept;
+GHC_FS_API bool is_regular_file(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_regular_file(const path& p);
+#endif
+GHC_FS_API bool is_regular_file(const path& p, std::error_code& ec) noexcept;
+GHC_FS_API bool is_socket(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_socket(const path& p);
+#endif
+GHC_FS_API bool is_socket(const path& p, std::error_code& ec) noexcept;
+GHC_FS_API bool is_symlink(file_status s) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool is_symlink(const path& p);
+#endif
+GHC_FS_API bool is_symlink(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API file_time_type last_write_time(const path& p);
+#endif
+GHC_FS_API file_time_type last_write_time(const path& p, std::error_code& ec) noexcept;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void last_write_time(const path& p, file_time_type new_time);
+#endif
+GHC_FS_API void last_write_time(const path& p, file_time_type new_time, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void permissions(const path& p, perms prms, perm_options opts = perm_options::replace);
+#endif
+GHC_FS_API void permissions(const path& p, perms prms, std::error_code& ec) noexcept;
+GHC_FS_API void permissions(const path& p, perms prms, perm_options opts, std::error_code& ec);
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API path proximate(const path& p, std::error_code& ec);
+GHC_FS_API path proximate(const path& p, const path& base = current_path());
+#endif
+GHC_FS_API path proximate(const path& p, const path& base, std::error_code& ec);
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API path read_symlink(const path& p);
+#endif
+GHC_FS_API path read_symlink(const path& p, std::error_code& ec);
+
+GHC_FS_API path relative(const path& p, std::error_code& ec);
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API path relative(const path& p, const path& base = current_path());
+#endif
+GHC_FS_API path relative(const path& p, const path& base, std::error_code& ec);
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API bool remove(const path& p);
+#endif
+GHC_FS_API bool remove(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API uintmax_t remove_all(const path& p);
+#endif
+GHC_FS_API uintmax_t remove_all(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void rename(const path& from, const path& to);
+#endif
+GHC_FS_API void rename(const path& from, const path& to, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API void resize_file(const path& p, uintmax_t size);
+#endif
+GHC_FS_API void resize_file(const path& p, uintmax_t size, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API space_info space(const path& p);
+#endif
+GHC_FS_API space_info space(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API file_status status(const path& p);
+#endif
+GHC_FS_API file_status status(const path& p, std::error_code& ec) noexcept;
+
+GHC_FS_API bool status_known(file_status s) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API file_status symlink_status(const path& p);
+#endif
+GHC_FS_API file_status symlink_status(const path& p, std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API path temp_directory_path();
+#endif
+GHC_FS_API path temp_directory_path(std::error_code& ec) noexcept;
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_FS_API path weakly_canonical(const path& p);
+#endif
+GHC_FS_API path weakly_canonical(const path& p, std::error_code& ec) noexcept;
+
+// Non-C++17 add-on std::fstream wrappers with path
+template <class charT, class traits = std::char_traits<charT>>
+class basic_filebuf : public std::basic_filebuf<charT, traits>
+{
+public:
+    basic_filebuf() {}
+    ~basic_filebuf() override {}
+    basic_filebuf(const basic_filebuf&) = delete;
+    const basic_filebuf& operator=(const basic_filebuf&) = delete;
+    basic_filebuf<charT, traits>* open(const path& p, std::ios_base::openmode mode)
+    {
+#if defined(GHC_OS_WINDOWS) && !defined(__GNUC__)
+        return std::basic_filebuf<charT, traits>::open(p.wstring().c_str(), mode) ? this : 0;
+#else
+        return std::basic_filebuf<charT, traits>::open(p.string().c_str(), mode) ? this : 0;
+#endif
+    }
+};
+
+template <class charT, class traits = std::char_traits<charT>>
+class basic_ifstream : public std::basic_ifstream<charT, traits>
+{
+public:
+    basic_ifstream() {}
+#if defined(GHC_OS_WINDOWS) && !defined(__GNUC__)
+    explicit basic_ifstream(const path& p, std::ios_base::openmode mode = std::ios_base::in)
+        : std::basic_ifstream<charT, traits>(p.wstring().c_str(), mode)
+    {
+    }
+    void open(const path& p, std::ios_base::openmode mode = std::ios_base::in) { std::basic_ifstream<charT, traits>::open(p.wstring().c_str(), mode); }
+#else
+    explicit basic_ifstream(const path& p, std::ios_base::openmode mode = std::ios_base::in)
+        : std::basic_ifstream<charT, traits>(p.string().c_str(), mode)
+    {
+    }
+    void open(const path& p, std::ios_base::openmode mode = std::ios_base::in) { std::basic_ifstream<charT, traits>::open(p.string().c_str(), mode); }
+#endif
+    basic_ifstream(const basic_ifstream&) = delete;
+    const basic_ifstream& operator=(const basic_ifstream&) = delete;
+    ~basic_ifstream() override {}
+};
+
+template <class charT, class traits = std::char_traits<charT>>
+class basic_ofstream : public std::basic_ofstream<charT, traits>
+{
+public:
+    basic_ofstream() {}
+#if defined(GHC_OS_WINDOWS) && !defined(__GNUC__)
+    explicit basic_ofstream(const path& p, std::ios_base::openmode mode = std::ios_base::out)
+        : std::basic_ofstream<charT, traits>(p.wstring().c_str(), mode)
+    {
+    }
+    void open(const path& p, std::ios_base::openmode mode = std::ios_base::out) { std::basic_ofstream<charT, traits>::open(p.wstring().c_str(), mode); }
+#else
+    explicit basic_ofstream(const path& p, std::ios_base::openmode mode = std::ios_base::out)
+        : std::basic_ofstream<charT, traits>(p.string().c_str(), mode)
+    {
+    }
+    void open(const path& p, std::ios_base::openmode mode = std::ios_base::out) { std::basic_ofstream<charT, traits>::open(p.string().c_str(), mode); }
+#endif
+    basic_ofstream(const basic_ofstream&) = delete;
+    const basic_ofstream& operator=(const basic_ofstream&) = delete;
+    ~basic_ofstream() override {}
+};
+
+template <class charT, class traits = std::char_traits<charT>>
+class basic_fstream : public std::basic_fstream<charT, traits>
+{
+public:
+    basic_fstream() {}
+#if defined(GHC_OS_WINDOWS) && !defined(__GNUC__)
+    explicit basic_fstream(const path& p, std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out)
+        : std::basic_fstream<charT, traits>(p.wstring().c_str(), mode)
+    {
+    }
+    void open(const path& p, std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out) { std::basic_fstream<charT, traits>::open(p.wstring().c_str(), mode); }
+#else
+    explicit basic_fstream(const path& p, std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out)
+        : std::basic_fstream<charT, traits>(p.string().c_str(), mode)
+    {
+    }
+    void open(const path& p, std::ios_base::openmode mode = std::ios_base::in | std::ios_base::out) { std::basic_fstream<charT, traits>::open(p.string().c_str(), mode); }
+#endif
+    basic_fstream(const basic_fstream&) = delete;
+    const basic_fstream& operator=(const basic_fstream&) = delete;
+    ~basic_fstream() override {}
+};
+
+typedef basic_filebuf<char> filebuf;
+typedef basic_filebuf<wchar_t> wfilebuf;
+typedef basic_ifstream<char> ifstream;
+typedef basic_ifstream<wchar_t> wifstream;
+typedef basic_ofstream<char> ofstream;
+typedef basic_ofstream<wchar_t> wofstream;
+typedef basic_fstream<char> fstream;
+typedef basic_fstream<wchar_t> wfstream;
+
+class GHC_FS_API_CLASS u8arguments
+{
+public:
+    u8arguments(int& argc, char**& argv);
+    ~u8arguments()
+    {
+        _refargc = _argc;
+        _refargv = _argv;
+    }
+
+    bool valid() const { return _isvalid; }
+
+private:
+    int _argc;
+    char** _argv;
+    int& _refargc;
+    char**& _refargv;
+    bool _isvalid;
+#ifdef GHC_OS_WINDOWS
+    std::vector<std::string> _args;
+    std::vector<char*> _argp;
+#endif
+};
+
+//-------------------------------------------------------------------------------------------------
+//  Implementation
+//-------------------------------------------------------------------------------------------------
+
+namespace detail {
+// GHC_FS_API void postprocess_path_with_format(path::impl_string_type& p, path::format fmt);
+enum utf8_states_t { S_STRT = 0, S_RJCT = 8 };
+GHC_FS_API void appendUTF8(std::string& str, uint32_t unicode);
+GHC_FS_API bool is_surrogate(uint32_t c);
+GHC_FS_API bool is_high_surrogate(uint32_t c);
+GHC_FS_API bool is_low_surrogate(uint32_t c);
+GHC_FS_API unsigned consumeUtf8Fragment(const unsigned state, const uint8_t fragment, uint32_t& codepoint);
+enum class portable_error {
+    none = 0,
+    exists,
+    not_found,
+    not_supported,
+    not_implemented,
+    invalid_argument,
+    is_a_directory,
+};
+GHC_FS_API std::error_code make_error_code(portable_error err);
+#ifdef GHC_OS_WINDOWS
+GHC_FS_API std::error_code make_system_error(uint32_t err = 0);
+#else
+GHC_FS_API std::error_code make_system_error(int err = 0);
+#endif
+}  // namespace detail
+
+namespace detail {
+
+#ifdef GHC_EXPAND_IMPL
+
+GHC_INLINE std::error_code make_error_code(portable_error err)
+{
+#ifdef GHC_OS_WINDOWS
+    switch (err) {
+        case portable_error::none:
+            return std::error_code();
+        case portable_error::exists:
+            return std::error_code(ERROR_ALREADY_EXISTS, std::system_category());
+        case portable_error::not_found:
+            return std::error_code(ERROR_PATH_NOT_FOUND, std::system_category());
+        case portable_error::not_supported:
+            return std::error_code(ERROR_NOT_SUPPORTED, std::system_category());
+        case portable_error::not_implemented:
+            return std::error_code(ERROR_CALL_NOT_IMPLEMENTED, std::system_category());
+        case portable_error::invalid_argument:
+            return std::error_code(ERROR_INVALID_PARAMETER, std::system_category());
+        case portable_error::is_a_directory:
+#ifdef ERROR_DIRECTORY_NOT_SUPPORTED
+            return std::error_code(ERROR_DIRECTORY_NOT_SUPPORTED, std::system_category());
+#else
+            return std::error_code(ERROR_NOT_SUPPORTED, std::system_category());
+#endif
+    }
+#else
+    switch (err) {
+        case portable_error::none:
+            return std::error_code();
+        case portable_error::exists:
+            return std::error_code(EEXIST, std::system_category());
+        case portable_error::not_found:
+            return std::error_code(ENOENT, std::system_category());
+        case portable_error::not_supported:
+            return std::error_code(ENOTSUP, std::system_category());
+        case portable_error::not_implemented:
+            return std::error_code(ENOSYS, std::system_category());
+        case portable_error::invalid_argument:
+            return std::error_code(EINVAL, std::system_category());
+        case portable_error::is_a_directory:
+            return std::error_code(EISDIR, std::system_category());
+    }
+#endif
+    return std::error_code();
+}
+
+#ifdef GHC_OS_WINDOWS
+GHC_INLINE std::error_code make_system_error(uint32_t err)
+{
+    return std::error_code(err ? static_cast<int>(err) : static_cast<int>(::GetLastError()), std::system_category());
+}
+#else
+GHC_INLINE std::error_code make_system_error(int err)
+{
+    return std::error_code(err ? err : errno, std::system_category());
+}
+#endif
+    
+#endif  // GHC_EXPAND_IMPL
+
+template <typename Enum>
+using EnableBitmask = typename std::enable_if<std::is_same<Enum, perms>::value || std::is_same<Enum, perm_options>::value || std::is_same<Enum, copy_options>::value || std::is_same<Enum, directory_options>::value, Enum>::type;
+}  // namespace detail
+
+template <typename Enum>
+detail::EnableBitmask<Enum> operator&(Enum X, Enum Y)
+{
+    using underlying = typename std::underlying_type<Enum>::type;
+    return static_cast<Enum>(static_cast<underlying>(X) & static_cast<underlying>(Y));
+}
+
+template <typename Enum>
+detail::EnableBitmask<Enum> operator|(Enum X, Enum Y)
+{
+    using underlying = typename std::underlying_type<Enum>::type;
+    return static_cast<Enum>(static_cast<underlying>(X) | static_cast<underlying>(Y));
+}
+
+template <typename Enum>
+detail::EnableBitmask<Enum> operator^(Enum X, Enum Y)
+{
+    using underlying = typename std::underlying_type<Enum>::type;
+    return static_cast<Enum>(static_cast<underlying>(X) ^ static_cast<underlying>(Y));
+}
+
+template <typename Enum>
+detail::EnableBitmask<Enum> operator~(Enum X)
+{
+    using underlying = typename std::underlying_type<Enum>::type;
+    return static_cast<Enum>(~static_cast<underlying>(X));
+}
+
+template <typename Enum>
+detail::EnableBitmask<Enum>& operator&=(Enum& X, Enum Y)
+{
+    X = X & Y;
+    return X;
+}
+
+template <typename Enum>
+detail::EnableBitmask<Enum>& operator|=(Enum& X, Enum Y)
+{
+    X = X | Y;
+    return X;
+}
+
+template <typename Enum>
+detail::EnableBitmask<Enum>& operator^=(Enum& X, Enum Y)
+{
+    X = X ^ Y;
+    return X;
+}
+
+#ifdef GHC_EXPAND_IMPL
+
+namespace detail {
+
+GHC_INLINE bool in_range(uint32_t c, uint32_t lo, uint32_t hi)
+{
+    return (static_cast<uint32_t>(c - lo) < (hi - lo + 1));
+}
+
+GHC_INLINE bool is_surrogate(uint32_t c)
+{
+    return in_range(c, 0xd800, 0xdfff);
+}
+
+GHC_INLINE bool is_high_surrogate(uint32_t c)
+{
+    return (c & 0xfffffc00) == 0xd800;
+}
+
+GHC_INLINE bool is_low_surrogate(uint32_t c)
+{
+    return (c & 0xfffffc00) == 0xdc00;
+}
+
+GHC_INLINE void appendUTF8(std::string& str, uint32_t unicode)
+{
+    if (unicode <= 0x7f) {
+        str.push_back(static_cast<char>(unicode));
+    }
+    else if (unicode >= 0x80 && unicode <= 0x7ff) {
+        str.push_back(static_cast<char>((unicode >> 6) + 192));
+        str.push_back(static_cast<char>((unicode & 0x3f) + 128));
+    }
+    else if ((unicode >= 0x800 && unicode <= 0xd7ff) || (unicode >= 0xe000 && unicode <= 0xffff)) {
+        str.push_back(static_cast<char>((unicode >> 12) + 224));
+        str.push_back(static_cast<char>(((unicode & 0xfff) >> 6) + 128));
+        str.push_back(static_cast<char>((unicode & 0x3f) + 128));
+    }
+    else if (unicode >= 0x10000 && unicode <= 0x10ffff) {
+        str.push_back(static_cast<char>((unicode >> 18) + 240));
+        str.push_back(static_cast<char>(((unicode & 0x3ffff) >> 12) + 128));
+        str.push_back(static_cast<char>(((unicode & 0xfff) >> 6) + 128));
+        str.push_back(static_cast<char>((unicode & 0x3f) + 128));
+    }
+    else {
+#ifdef GHC_RAISE_UNICODE_ERRORS
+        throw filesystem_error("Illegal code point for unicode character.", str, std::make_error_code(std::errc::illegal_byte_sequence));
+#else
+        appendUTF8(str, 0xfffd);
+#endif
+    }
+}
+
+// Thanks to Bjoern Hoehrmann (https://bjoern.hoehrmann.de/utf-8/decoder/dfa/)
+// and Taylor R Campbell for the ideas to this DFA approach of UTF-8 decoding;
+// Generating debugging and shrinking my own DFA from scratch was a day of fun!
+GHC_INLINE unsigned consumeUtf8Fragment(const unsigned state, const uint8_t fragment, uint32_t& codepoint)
+{
+    static const uint32_t utf8_state_info[] = {
+        // encoded states
+        0x11111111u, 0x11111111u, 0x77777777u, 0x77777777u, 0x88888888u, 0x88888888u, 0x88888888u, 0x88888888u, 0x22222299u, 0x22222222u, 0x22222222u, 0x22222222u, 0x3333333au, 0x33433333u, 0x9995666bu, 0x99999999u,
+        0x88888880u, 0x22818108u, 0x88888881u, 0x88888882u, 0x88888884u, 0x88888887u, 0x88888886u, 0x82218108u, 0x82281108u, 0x88888888u, 0x88888883u, 0x88888885u, 0u,          0u,          0u,          0u,
+    };
+    uint8_t category = fragment < 128 ? 0 : (utf8_state_info[(fragment >> 3) & 0xf] >> ((fragment & 7) << 2)) & 0xf;
+    codepoint = (state ? (codepoint << 6) | (fragment & 0x3fu) : (0xffu >> category) & fragment);
+    return state == S_RJCT ? static_cast<unsigned>(S_RJCT) : static_cast<unsigned>((utf8_state_info[category + 16] >> (state << 2)) & 0xf);
+}
+    
+GHC_INLINE bool validUtf8(const std::string& utf8String)
+{
+    std::string::const_iterator iter = utf8String.begin();
+    unsigned utf8_state = S_STRT;
+    std::uint32_t codepoint = 0;
+    while (iter < utf8String.end()) {
+        if ((utf8_state = consumeUtf8Fragment(utf8_state, static_cast<uint8_t>(*iter++), codepoint)) == S_RJCT) {
+            return false;
+        }
+    }
+    if (utf8_state) {
+        return false;
+    }
+    return true;
+}
+
+}  // namespace detail
+    
+#endif
+    
+namespace detail {
+
+template <class StringType, typename std::enable_if<(sizeof(typename StringType::value_type) == 1)>::type* = nullptr>
+inline StringType fromUtf8(const std::string& utf8String, const typename StringType::allocator_type& alloc = typename StringType::allocator_type())
+{
+    return StringType(utf8String.begin(), utf8String.end(), alloc);
+}
+
+template <class StringType, typename std::enable_if<(sizeof(typename StringType::value_type) == 2)>::type* = nullptr>
+inline StringType fromUtf8(const std::string& utf8String, const typename StringType::allocator_type& alloc = typename StringType::allocator_type())
+{
+    StringType result(alloc);
+    result.reserve(utf8String.length());
+    std::string::const_iterator iter = utf8String.begin();
+    unsigned utf8_state = S_STRT;
+    std::uint32_t codepoint = 0;
+    while (iter < utf8String.end()) {
+        if ((utf8_state = consumeUtf8Fragment(utf8_state, static_cast<uint8_t>(*iter++), codepoint)) == S_STRT) {
+            if (codepoint <= 0xffff) {
+                result += static_cast<typename StringType::value_type>(codepoint);
+            }
+            else {
+                codepoint -= 0x10000;
+                result += static_cast<typename StringType::value_type>((codepoint >> 10) + 0xd800);
+                result += static_cast<typename StringType::value_type>((codepoint & 0x3ff) + 0xdc00);
+            }
+            codepoint = 0;
+        }
+        else if (utf8_state == S_RJCT) {
+#ifdef GHC_RAISE_UNICODE_ERRORS
+            throw filesystem_error("Illegal byte sequence for unicode character.", utf8String, std::make_error_code(std::errc::illegal_byte_sequence));
+#else
+            result += static_cast<typename StringType::value_type>(0xfffd);
+            utf8_state = S_STRT;
+            codepoint = 0;
+#endif
+        }
+    }
+    if (utf8_state) {
+#ifdef GHC_RAISE_UNICODE_ERRORS
+        throw filesystem_error("Illegal byte sequence for unicode character.", utf8String, std::make_error_code(std::errc::illegal_byte_sequence));
+#else
+        result += static_cast<typename StringType::value_type>(0xfffd);
+#endif
+    }
+    return result;
+}
+
+template <class StringType, typename std::enable_if<(sizeof(typename StringType::value_type) == 4)>::type* = nullptr>
+inline StringType fromUtf8(const std::string& utf8String, const typename StringType::allocator_type& alloc = typename StringType::allocator_type())
+{
+    StringType result(alloc);
+    result.reserve(utf8String.length());
+    std::string::const_iterator iter = utf8String.begin();
+    unsigned utf8_state = S_STRT;
+    std::uint32_t codepoint = 0;
+    while (iter < utf8String.end()) {
+        if ((utf8_state = consumeUtf8Fragment(utf8_state, static_cast<uint8_t>(*iter++), codepoint)) == S_STRT) {
+            result += static_cast<typename StringType::value_type>(codepoint);
+            codepoint = 0;
+        }
+        else if (utf8_state == S_RJCT) {
+#ifdef GHC_RAISE_UNICODE_ERRORS
+            throw filesystem_error("Illegal byte sequence for unicode character.", utf8String, std::make_error_code(std::errc::illegal_byte_sequence));
+#else
+            result += static_cast<typename StringType::value_type>(0xfffd);
+            utf8_state = S_STRT;
+            codepoint = 0;
+#endif
+        }
+    }
+    if (utf8_state) {
+#ifdef GHC_RAISE_UNICODE_ERRORS
+        throw filesystem_error("Illegal byte sequence for unicode character.", utf8String, std::make_error_code(std::errc::illegal_byte_sequence));
+#else
+        result += static_cast<typename StringType::value_type>(0xfffd);
+#endif
+    }
+    return result;
+}
+
+template <typename charT, typename traits, typename Alloc, typename std::enable_if<(sizeof(charT) == 1), int>::type size = 1>
+inline std::string toUtf8(const std::basic_string<charT, traits, Alloc>& unicodeString)
+{
+    return std::string(unicodeString.begin(), unicodeString.end());
+}
+
+template <typename charT, typename traits, typename Alloc, typename std::enable_if<(sizeof(charT) == 2), int>::type size = 2>
+inline std::string toUtf8(const std::basic_string<charT, traits, Alloc>& unicodeString)
+{
+    std::string result;
+    for (auto iter = unicodeString.begin(); iter != unicodeString.end(); ++iter) {
+        char32_t c = *iter;
+        if (is_surrogate(c)) {
+            ++iter;
+            if (iter != unicodeString.end() && is_high_surrogate(c) && is_low_surrogate(*iter)) {
+                appendUTF8(result, (char32_t(c) << 10) + *iter - 0x35fdc00);
+            }
+            else {
+#ifdef GHC_RAISE_UNICODE_ERRORS
+                throw filesystem_error("Illegal code point for unicode character.", result, std::make_error_code(std::errc::illegal_byte_sequence));
+#else
+                appendUTF8(result, 0xfffd);
+                if(iter == unicodeString.end()) {
+                    break;
+                }
+#endif
+            }
+        }
+        else {
+            appendUTF8(result, c);
+        }
+    }
+    return result;
+}
+
+template <typename charT, typename traits, typename Alloc, typename std::enable_if<(sizeof(charT) == 4), int>::type size = 4>
+inline std::string toUtf8(const std::basic_string<charT, traits, Alloc>& unicodeString)
+{
+    std::string result;
+    for (auto c : unicodeString) {
+        appendUTF8(result, static_cast<uint32_t>(c));
+    }
+    return result;
+}
+
+template <typename charT>
+inline std::string toUtf8(const charT* unicodeString)
+{
+    return toUtf8(std::basic_string<charT, std::char_traits<charT>>(unicodeString));
+}
+
+}  // namespace detail
+
+#ifdef GHC_EXPAND_IMPL
+
+namespace detail {
+
+GHC_INLINE bool startsWith(const std::string& what, const std::string& with)
+{
+    return with.length() <= what.length() && equal(with.begin(), with.end(), what.begin());
+}
+
+}  // namespace detail
+
+GHC_INLINE void path::postprocess_path_with_format(path::impl_string_type& p, path::format fmt)
+{
+#ifdef GHC_RAISE_UNICODE_ERRORS
+    if(!detail::validUtf8(p)) {
+        path t;
+        t._path = p;
+        throw filesystem_error("Illegal byte sequence for unicode character.", t, std::make_error_code(std::errc::illegal_byte_sequence));
+    }
+#endif
+    switch (fmt) {
+#ifndef GHC_OS_WINDOWS
+        case path::auto_format:
+        case path::native_format:
+#endif
+        case path::generic_format:
+            // nothing to do
+            break;
+#ifdef GHC_OS_WINDOWS
+        case path::auto_format:
+        case path::native_format:
+            if (detail::startsWith(p, std::string("\\\\?\\"))) {
+                // remove Windows long filename marker
+                p.erase(0, 4);
+                if (detail::startsWith(p, std::string("UNC\\"))) {
+                    p.erase(0, 2);
+                    p[0] = '\\';
+                }
+            }
+            for (auto& c : p) {
+                if (c == '\\') {
+                    c = '/';
+                }
+            }
+            break;
+#endif
+    }
+    if (p.length() > 2 && p[0] == '/' && p[1] == '/' && p[2] != '/') {
+        std::string::iterator new_end = std::unique(p.begin() + 2, p.end(), [](path::value_type lhs, path::value_type rhs) { return lhs == rhs && lhs == '/'; });
+        p.erase(new_end, p.end());
+    }
+    else {
+        std::string::iterator new_end = std::unique(p.begin(), p.end(), [](path::value_type lhs, path::value_type rhs) { return lhs == rhs && lhs == '/'; });
+        p.erase(new_end, p.end());
+    }
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+template <class Source, typename>
+inline path::path(const Source& source, format fmt)
+    : _path(detail::toUtf8(source))
+{
+    postprocess_path_with_format(_path, fmt);
+}
+template <>
+inline path::path(const std::wstring& source, format fmt)
+{
+    _path = detail::toUtf8(source);
+    postprocess_path_with_format(_path, fmt);
+}
+template <>
+inline path::path(const std::u16string& source, format fmt)
+{
+    _path = detail::toUtf8(source);
+    postprocess_path_with_format(_path, fmt);
+}
+template <>
+inline path::path(const std::u32string& source, format fmt)
+{
+    _path = detail::toUtf8(source);
+    postprocess_path_with_format(_path, fmt);
+}
+
+#ifdef __cpp_lib_string_view
+template <>
+inline path::path(const std::string_view& source, format fmt)
+{
+    _path = detail::toUtf8(std::string(source));
+    postprocess_path_with_format(_path, fmt);
+}
+#ifdef GHC_USE_WCHAR_T
+template <>
+inline path::path(const std::wstring_view& source, format fmt)
+{
+    _path = detail::toUtf8(std::wstring(source).c_str());
+    postprocess_path_with_format(_path, fmt);
+}
+#endif
+#endif
+
+template <class Source, typename>
+inline path u8path(const Source& source)
+{
+    return path(source);
+}
+template <class InputIterator>
+inline path u8path(InputIterator first, InputIterator last)
+{
+    return path(first, last);
+}
+
+template <class InputIterator>
+inline path::path(InputIterator first, InputIterator last, format fmt)
+    : path(std::basic_string<typename std::iterator_traits<InputIterator>::value_type>(first, last), fmt)
+{
+    // delegated
+}
+
+#ifdef GHC_EXPAND_IMPL
+
+namespace detail {
+
+GHC_INLINE bool equals_simple_insensitive(const char* str1, const char* str2)
+{
+#ifdef GHC_OS_WINDOWS
+#ifdef __GNUC__
+    while (::tolower((unsigned char)*str1) == ::tolower((unsigned char)*str2++)) {
+        if (*str1++ == 0)
+            return true;
+    }
+    return false;
+#else
+    return 0 == ::_stricmp(str1, str2);
+#endif
+#else
+    return 0 == ::strcasecmp(str1, str2);
+#endif
+}
+
+GHC_INLINE const char* strerror_adapter(char* gnu, char*)
+{
+    return gnu;
+}
+
+GHC_INLINE const char* strerror_adapter(int posix, char* buffer)
+{
+    if(posix) {
+        return "Error in strerror_r!";
+    }
+    return buffer;
+}
+
+template <typename ErrorNumber>
+GHC_INLINE std::string systemErrorText(ErrorNumber code = 0)
+{
+#if defined(GHC_OS_WINDOWS)
+    LPVOID msgBuf;
+    DWORD dw = code ? static_cast<DWORD>(code) : ::GetLastError();
+    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, dw, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPWSTR)&msgBuf, 0, NULL);
+    std::string msg = toUtf8(std::wstring((LPWSTR)msgBuf));
+    LocalFree(msgBuf);
+    return msg;
+#else
+    char buffer[512];
+    return strerror_adapter(strerror_r(code ? code : errno, buffer, sizeof(buffer)), buffer);
+#endif
+}
+
+#ifdef GHC_OS_WINDOWS
+using CreateSymbolicLinkW_fp = BOOLEAN(WINAPI*)(LPCWSTR, LPCWSTR, DWORD);
+using CreateHardLinkW_fp = BOOLEAN(WINAPI*)(LPCWSTR, LPCWSTR, LPSECURITY_ATTRIBUTES);
+
+GHC_INLINE void create_symlink(const path& target_name, const path& new_symlink, bool to_directory, std::error_code& ec)
+{
+    std::error_code tec;
+    auto fs = status(target_name, tec);
+    if ((fs.type() == file_type::directory && !to_directory) || (fs.type() == file_type::regular && to_directory)) {
+        ec = detail::make_error_code(detail::portable_error::not_supported);
+        return;
+    }
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+#endif
+    static CreateSymbolicLinkW_fp api_call = reinterpret_cast<CreateSymbolicLinkW_fp>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CreateSymbolicLinkW"));
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic pop
+#endif
+    if (api_call) {
+        if (api_call(detail::fromUtf8<std::wstring>(new_symlink.u8string()).c_str(), detail::fromUtf8<std::wstring>(target_name.u8string()).c_str(), to_directory ? 1 : 0) == 0) {
+            auto result = ::GetLastError();
+            if (result == ERROR_PRIVILEGE_NOT_HELD && api_call(detail::fromUtf8<std::wstring>(new_symlink.u8string()).c_str(), detail::fromUtf8<std::wstring>(target_name.u8string()).c_str(), to_directory ? 3 : 2) != 0) {
+                return;
+            }
+            ec = detail::make_system_error(result);
+        }
+    }
+    else {
+        ec = detail::make_system_error(ERROR_NOT_SUPPORTED);
+    }
+}
+
+GHC_INLINE void create_hardlink(const path& target_name, const path& new_hardlink, std::error_code& ec)
+{
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-function-type"
+#endif
+    static CreateHardLinkW_fp api_call = reinterpret_cast<CreateHardLinkW_fp>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CreateHardLinkW"));
+#if defined(__GNUC__) && __GNUC__ >= 8
+#pragma GCC diagnostic pop
+#endif
+    if (api_call) {
+        if (api_call(detail::fromUtf8<std::wstring>(new_hardlink.u8string()).c_str(), detail::fromUtf8<std::wstring>(target_name.u8string()).c_str(), NULL) == 0) {
+            ec = detail::make_system_error();
+        }
+    }
+    else {
+        ec = detail::make_system_error(ERROR_NOT_SUPPORTED);
+    }
+}
+#else
+GHC_INLINE void create_symlink(const path& target_name, const path& new_symlink, bool, std::error_code& ec)
+{
+    if (::symlink(target_name.c_str(), new_symlink.c_str()) != 0) {
+        ec = detail::make_system_error();
+    }
+}
+
+GHC_INLINE void create_hardlink(const path& target_name, const path& new_hardlink, std::error_code& ec)
+{
+    if (::link(target_name.c_str(), new_hardlink.c_str()) != 0) {
+        ec = detail::make_system_error();
+    }
+}
+#endif
+
+template <typename T>
+GHC_INLINE file_status file_status_from_st_mode(T mode)
+{
+#ifdef GHC_OS_WINDOWS
+    file_type ft = file_type::unknown;
+    if ((mode & _S_IFDIR) == _S_IFDIR) {
+        ft = file_type::directory;
+    }
+    else if ((mode & _S_IFREG) == _S_IFREG) {
+        ft = file_type::regular;
+    }
+    else if ((mode & _S_IFCHR) == _S_IFCHR) {
+        ft = file_type::character;
+    }
+    perms prms = static_cast<perms>(mode & 0xfff);
+    return file_status(ft, prms);
+#else
+    file_type ft = file_type::unknown;
+    if (S_ISDIR(mode)) {
+        ft = file_type::directory;
+    }
+    else if (S_ISREG(mode)) {
+        ft = file_type::regular;
+    }
+    else if (S_ISCHR(mode)) {
+        ft = file_type::character;
+    }
+    else if (S_ISBLK(mode)) {
+        ft = file_type::block;
+    }
+    else if (S_ISFIFO(mode)) {
+        ft = file_type::fifo;
+    }
+    else if (S_ISLNK(mode)) {
+        ft = file_type::symlink;
+    }
+    else if (S_ISSOCK(mode)) {
+        ft = file_type::socket;
+    }
+    perms prms = static_cast<perms>(mode & 0xfff);
+    return file_status(ft, prms);
+#endif
+}
+
+GHC_INLINE path resolveSymlink(const path& p, std::error_code& ec)
+{
+#ifdef GHC_OS_WINDOWS
+#ifndef REPARSE_DATA_BUFFER_HEADER_SIZE
+    typedef struct _REPARSE_DATA_BUFFER
+    {
+        ULONG ReparseTag;
+        USHORT ReparseDataLength;
+        USHORT Reserved;
+        union
+        {
+            struct
+            {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                ULONG Flags;
+                WCHAR PathBuffer[1];
+            } SymbolicLinkReparseBuffer;
+            struct
+            {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                WCHAR PathBuffer[1];
+            } MountPointReparseBuffer;
+            struct
+            {
+                UCHAR DataBuffer[1];
+            } GenericReparseBuffer;
+        } DUMMYUNIONNAME;
+    } REPARSE_DATA_BUFFER;
+#ifndef MAXIMUM_REPARSE_DATA_BUFFER_SIZE
+#define MAXIMUM_REPARSE_DATA_BUFFER_SIZE (16 * 1024)
+#endif
+#endif
+
+    std::shared_ptr<void> file(CreateFileW(p.wstring().c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, 0), CloseHandle);
+    if (file.get() == INVALID_HANDLE_VALUE) {
+        ec = detail::make_system_error();
+        return path();
+    }
+
+    std::shared_ptr<REPARSE_DATA_BUFFER> reparseData((REPARSE_DATA_BUFFER*)std::calloc(1, MAXIMUM_REPARSE_DATA_BUFFER_SIZE), std::free);
+    ULONG bufferUsed;
+    path result;
+    if (DeviceIoControl(file.get(), FSCTL_GET_REPARSE_POINT, 0, 0, reparseData.get(), MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &bufferUsed, 0)) {
+        if (IsReparseTagMicrosoft(reparseData->ReparseTag)) {
+            switch (reparseData->ReparseTag) {
+                case IO_REPARSE_TAG_SYMLINK:
+                    result = std::wstring(&reparseData->SymbolicLinkReparseBuffer.PathBuffer[reparseData->SymbolicLinkReparseBuffer.PrintNameOffset / sizeof(WCHAR)], reparseData->SymbolicLinkReparseBuffer.PrintNameLength / sizeof(WCHAR));
+                    break;
+                case IO_REPARSE_TAG_MOUNT_POINT:
+                    result = std::wstring(&reparseData->MountPointReparseBuffer.PathBuffer[reparseData->MountPointReparseBuffer.PrintNameOffset / sizeof(WCHAR)], reparseData->MountPointReparseBuffer.PrintNameLength / sizeof(WCHAR));
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+    else {
+        ec = detail::make_system_error();
+    }
+    return result;
+#else
+    size_t bufferSize = 256;
+    while (true) {
+        std::vector<char> buffer(bufferSize, static_cast<char>(0));
+        auto rc = ::readlink(p.c_str(), buffer.data(), buffer.size());
+        if (rc < 0) {
+            ec = detail::make_system_error();
+            return path();
+        }
+        else if (rc < static_cast<int>(bufferSize)) {
+            return path(std::string(buffer.data(), static_cast<std::string::size_type>(rc)));
+        }
+        bufferSize *= 2;
+    }
+    return path();
+#endif
+}
+
+#ifdef GHC_OS_WINDOWS
+GHC_INLINE time_t timeFromFILETIME(const FILETIME& ft)
+{
+    ULARGE_INTEGER ull;
+    ull.LowPart = ft.dwLowDateTime;
+    ull.HighPart = ft.dwHighDateTime;
+    return static_cast<time_t>(ull.QuadPart / 10000000ULL - 11644473600ULL);
+}
+
+GHC_INLINE void timeToFILETIME(time_t t, FILETIME& ft)
+{
+    LONGLONG ll;
+    ll = Int32x32To64(t, 10000000) + 116444736000000000;
+    ft.dwLowDateTime = static_cast<DWORD>(ll);
+    ft.dwHighDateTime = static_cast<DWORD>(ll >> 32);
+}
+
+template <typename INFO>
+GHC_INLINE uintmax_t hard_links_from_INFO(const INFO* info)
+{
+    return static_cast<uintmax_t>(-1);
+}
+
+template <>
+GHC_INLINE uintmax_t hard_links_from_INFO<BY_HANDLE_FILE_INFORMATION>(const BY_HANDLE_FILE_INFORMATION* info)
+{
+    return info->nNumberOfLinks;
+}
+
+template <typename INFO>
+GHC_INLINE file_status status_from_INFO(const path& p, const INFO* info, std::error_code&, uintmax_t* sz = nullptr, time_t* lwt = nullptr) noexcept
+{
+    file_type ft = file_type::unknown;
+    if ((info->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+        ft = file_type::symlink;
+    }
+    else {
+        if ((info->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+            ft = file_type::directory;
+        }
+        else {
+            ft = file_type::regular;
+        }
+    }
+    perms prms = perms::owner_read | perms::group_read | perms::others_read;
+    if (!(info->dwFileAttributes & FILE_ATTRIBUTE_READONLY)) {
+        prms = prms | perms::owner_write | perms::group_write | perms::others_write;
+    }
+    std::string ext = p.extension().generic_string();
+    if (equals_simple_insensitive(ext.c_str(), ".exe") || equals_simple_insensitive(ext.c_str(), ".cmd") || equals_simple_insensitive(ext.c_str(), ".bat") || equals_simple_insensitive(ext.c_str(), ".com")) {
+        prms = prms | perms::owner_exec | perms::group_exec | perms::others_exec;
+    }
+    if (sz) {
+        *sz = static_cast<uintmax_t>(info->nFileSizeHigh) << (sizeof(info->nFileSizeHigh) * 8) | info->nFileSizeLow;
+    }
+    if (lwt) {
+        *lwt = detail::timeFromFILETIME(info->ftLastWriteTime);
+    }
+    return file_status(ft, prms);
+}
+
+#endif
+
+GHC_INLINE bool is_not_found_error(std::error_code& ec)
+{
+#ifdef GHC_OS_WINDOWS
+    return ec.value() == ERROR_FILE_NOT_FOUND || ec.value() == ERROR_PATH_NOT_FOUND || ec.value() == ERROR_INVALID_NAME;
+#else
+    return ec.value() == ENOENT || ec.value() == ENOTDIR;
+#endif
+}
+
+GHC_INLINE file_status symlink_status_ex(const path& p, std::error_code& ec, uintmax_t* sz = nullptr, uintmax_t* nhl = nullptr, time_t* lwt = nullptr) noexcept
+{
+#ifdef GHC_OS_WINDOWS
+    file_status fs;
+    WIN32_FILE_ATTRIBUTE_DATA attr;
+    if (!GetFileAttributesExW(detail::fromUtf8<std::wstring>(p.u8string()).c_str(), GetFileExInfoStandard, &attr)) {
+        ec = detail::make_system_error();
+    }
+    else {
+        ec.clear();
+        fs = detail::status_from_INFO(p, &attr, ec, sz, lwt);
+        if (nhl) {
+            *nhl = 0;
+        }
+        if (attr.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+            fs.type(file_type::symlink);
+        }
+    }
+    if (detail::is_not_found_error(ec)) {
+        return file_status(file_type::not_found);
+    }
+    return ec ? file_status(file_type::none) : fs;
+#else
+    (void)sz;
+    (void)nhl;
+    (void)lwt;
+    struct ::stat fs;
+    auto result = ::lstat(p.c_str(), &fs);
+    if (result == 0) {
+        ec.clear();
+        file_status f_s = detail::file_status_from_st_mode(fs.st_mode);
+        return f_s;
+    }
+    ec = detail::make_system_error();
+    if (detail::is_not_found_error(ec)) {
+        return file_status(file_type::not_found, perms::unknown);
+    }
+    return file_status(file_type::none);
+#endif
+}
+
+GHC_INLINE file_status status_ex(const path& p, std::error_code& ec, file_status* sls = nullptr, uintmax_t* sz = nullptr, uintmax_t* nhl = nullptr, time_t* lwt = nullptr, int recurse_count = 0) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    if (recurse_count > 16) {
+        ec = detail::make_system_error(0x2A9 /*ERROR_STOPPED_ON_SYMLINK*/);
+        return file_status(file_type::unknown);
+    }
+    WIN32_FILE_ATTRIBUTE_DATA attr;
+    if (!::GetFileAttributesExW(p.wstring().c_str(), GetFileExInfoStandard, &attr)) {
+        ec = detail::make_system_error();
+    }
+    else if (attr.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+        path target = resolveSymlink(p, ec);
+        file_status result;
+        if (!ec && !target.empty()) {
+            if (sls) {
+                *sls = status_from_INFO(p, &attr, ec);
+            }
+            return detail::status_ex(target, ec, nullptr, sz, nhl, lwt, recurse_count + 1);
+        }
+        return file_status(file_type::unknown);
+    }
+    if (ec) {
+        if (detail::is_not_found_error(ec)) {
+            return file_status(file_type::not_found);
+        }
+        return file_status(file_type::none);
+    }
+    if (nhl) {
+        *nhl = 0;
+    }
+    return detail::status_from_INFO(p, &attr, ec, sz, lwt);
+#else
+    (void)recurse_count;
+    struct ::stat st;
+    auto result = ::lstat(p.c_str(), &st);
+    if (result == 0) {
+        ec.clear();
+        file_status fs = detail::file_status_from_st_mode(st.st_mode);
+        if (fs.type() == file_type::symlink) {
+            result = ::stat(p.c_str(), &st);
+            if (result == 0) {
+                if (sls) {
+                    *sls = fs;
+                }
+                fs = detail::file_status_from_st_mode(st.st_mode);
+            }
+        }
+        if (sz) {
+            *sz = static_cast<uintmax_t>(st.st_size);
+        }
+        if (nhl) {
+            *nhl = st.st_nlink;
+        }
+        if (lwt) {
+            *lwt = st.st_mtime;
+        }
+        return fs;
+    }
+    else {
+        ec = detail::make_system_error();
+        if (detail::is_not_found_error(ec)) {
+            return file_status(file_type::not_found, perms::unknown);
+        }
+        return file_status(file_type::none);
+    }
+#endif
+}
+
+}  // namespace detail
+
+GHC_INLINE u8arguments::u8arguments(int& argc, char**& argv)
+    : _argc(argc)
+    , _argv(argv)
+    , _refargc(argc)
+    , _refargv(argv)
+    , _isvalid(false)
+{
+#ifdef GHC_OS_WINDOWS
+    LPWSTR* p;
+    p = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+    _args.reserve(static_cast<size_t>(argc));
+    _argp.reserve(static_cast<size_t>(argc));
+    for (size_t i = 0; i < static_cast<size_t>(argc); ++i) {
+        _args.push_back(detail::toUtf8(std::wstring(p[i])));
+        _argp.push_back((char*)_args[i].data());
+    }
+    argv = _argp.data();
+    ::LocalFree(p);
+    _isvalid = true;
+#else
+    std::setlocale(LC_ALL, "");
+#if defined(__ANDROID__) && __ANDROID_API__ < 26
+    _isvalid = true;
+#else
+    if (detail::equals_simple_insensitive(::nl_langinfo(CODESET), "UTF-8")) {
+        _isvalid = true;
+    }
+#endif
+#endif
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.1 constructors and destructor
+
+GHC_INLINE path::path() noexcept {}
+
+GHC_INLINE path::path(const path& p)
+    : _path(p._path)
+{
+}
+
+GHC_INLINE path::path(path&& p) noexcept
+    : _path(std::move(p._path))
+{
+}
+
+GHC_INLINE path::path(string_type&& source, format fmt)
+#ifdef GHC_USE_WCHAR_T
+    : _path(detail::toUtf8(source))
+#else
+    : _path(std::move(source))
+#endif
+{
+    postprocess_path_with_format(_path, fmt);
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+#ifdef GHC_WITH_EXCEPTIONS
+template <class Source, typename>
+inline path::path(const Source& source, const std::locale& loc, format fmt)
+    : path(source, fmt)
+{
+    std::string locName = loc.name();
+    if (!(locName.length() >= 5 && (locName.substr(locName.length() - 5) == "UTF-8" || locName.substr(locName.length() - 5) == "utf-8"))) {
+        throw filesystem_error("This implementation only supports UTF-8 locales!", path(_path), detail::make_error_code(detail::portable_error::not_supported));
+    }
+}
+
+template <class InputIterator>
+inline path::path(InputIterator first, InputIterator last, const std::locale& loc, format fmt)
+    : path(std::basic_string<typename std::iterator_traits<InputIterator>::value_type>(first, last), fmt)
+{
+    std::string locName = loc.name();
+    if (!(locName.length() >= 5 && (locName.substr(locName.length() - 5) == "UTF-8" || locName.substr(locName.length() - 5) == "utf-8"))) {
+        throw filesystem_error("This implementation only supports UTF-8 locales!", path(_path), detail::make_error_code(detail::portable_error::not_supported));
+    }
+}
+#endif
+
+#ifdef GHC_EXPAND_IMPL
+
+GHC_INLINE path::~path() {}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.2 assignments
+
+GHC_INLINE path& path::operator=(const path& p)
+{
+    _path = p._path;
+    return *this;
+}
+
+GHC_INLINE path& path::operator=(path&& p) noexcept
+{
+    _path = std::move(p._path);
+    return *this;
+}
+
+GHC_INLINE path& path::operator=(path::string_type&& source)
+{
+    return assign(source);
+}
+
+GHC_INLINE path& path::assign(path::string_type&& source)
+{
+#ifdef GHC_USE_WCHAR_T
+    _path = detail::toUtf8(source);
+#else
+    _path = std::move(source);
+#endif
+    postprocess_path_with_format(_path, native_format);
+    return *this;
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+template <class Source>
+inline path& path::operator=(const Source& source)
+{
+    return assign(source);
+}
+
+template <class Source>
+inline path& path::assign(const Source& source)
+{
+    _path.assign(detail::toUtf8(source));
+    postprocess_path_with_format(_path, native_format);
+    return *this;
+}
+
+template <>
+inline path& path::assign<path>(const path& source)
+{
+    _path = source._path;
+    return *this;
+}
+
+template <class InputIterator>
+inline path& path::assign(InputIterator first, InputIterator last)
+{
+    _path.assign(first, last);
+    postprocess_path_with_format(_path, native_format);
+    return *this;
+}
+
+#ifdef GHC_EXPAND_IMPL
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.3 appends
+
+GHC_INLINE path& path::operator/=(const path& p)
+{
+    if (p.empty()) {
+        // was: if ((!has_root_directory() && is_absolute()) || has_filename())
+        if (!_path.empty() && _path[_path.length() - 1] != '/' && _path[_path.length() - 1] != ':') {
+            _path += '/';
+        }
+        return *this;
+    }
+    if ((p.is_absolute() && (_path != root_name() || p._path != "/")) || (p.has_root_name() && p.root_name() != root_name())) {
+        assign(p);
+        return *this;
+    }
+    if (p.has_root_directory()) {
+        assign(root_name());
+    }
+    else if ((!has_root_directory() && is_absolute()) || has_filename()) {
+        _path += '/';
+    }
+    auto iter = p.begin();
+    bool first = true;
+    if (p.has_root_name()) {
+        ++iter;
+    }
+    while (iter != p.end()) {
+        if (!first && !(!_path.empty() && _path[_path.length() - 1] == '/')) {
+            _path += '/';
+        }
+        first = false;
+        _path += (*iter++).generic_string();
+    }
+    return *this;
+}
+
+GHC_INLINE void path::append_name(const char* name)
+{
+    if (_path.empty()) {
+        this->operator/=(path(name));
+    }
+    else {
+        if (_path.back() != path::generic_separator) {
+            _path.push_back(path::generic_separator);
+        }
+        _path += name;
+    }
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+template <class Source>
+inline path& path::operator/=(const Source& source)
+{
+    return append(source);
+}
+
+template <class Source>
+inline path& path::append(const Source& source)
+{
+    return this->operator/=(path(detail::toUtf8(source)));
+}
+
+template <>
+inline path& path::append<path>(const path& p)
+{
+    return this->operator/=(p);
+}
+
+template <class InputIterator>
+inline path& path::append(InputIterator first, InputIterator last)
+{
+    std::basic_string<typename std::iterator_traits<InputIterator>::value_type> part(first, last);
+    return append(part);
+}
+
+#ifdef GHC_EXPAND_IMPL
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.4 concatenation
+
+GHC_INLINE path& path::operator+=(const path& x)
+{
+    return concat(x._path);
+}
+
+GHC_INLINE path& path::operator+=(const string_type& x)
+{
+    return concat(x);
+}
+
+#ifdef __cpp_lib_string_view
+GHC_INLINE path& path::operator+=(std::basic_string_view<value_type> x)
+{
+    return concat(x);
+}
+#endif
+
+GHC_INLINE path& path::operator+=(const value_type* x)
+{
+    return concat(string_type(x));
+}
+
+GHC_INLINE path& path::operator+=(value_type x)
+{
+#ifdef GHC_OS_WINDOWS
+    if (x == '\\') {
+        x = generic_separator;
+    }
+#endif
+    if (_path.empty() || _path.back() != generic_separator) {
+#ifdef GHC_USE_WCHAR_T
+        _path += detail::toUtf8(string_type(1, x));
+#else
+        _path += x;
+#endif
+    }
+    return *this;
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+template <class Source>
+inline path::path_from_string<Source>& path::operator+=(const Source& x)
+{
+    return concat(x);
+}
+
+template <class EcharT>
+inline path::path_type_EcharT<EcharT>& path::operator+=(EcharT x)
+{
+    std::basic_string<EcharT> part(1, x);
+    concat(detail::toUtf8(part));
+    return *this;
+}
+
+template <class Source>
+inline path& path::concat(const Source& x)
+{
+    path p(x);
+    postprocess_path_with_format(p._path, native_format);
+    _path += p._path;
+    return *this;
+}
+template <class InputIterator>
+inline path& path::concat(InputIterator first, InputIterator last)
+{
+    _path.append(first, last);
+    postprocess_path_with_format(_path, native_format);
+    return *this;
+}
+
+#ifdef GHC_EXPAND_IMPL
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.5 modifiers
+GHC_INLINE void path::clear() noexcept
+{
+    _path.clear();
+}
+
+GHC_INLINE path& path::make_preferred()
+{
+    // as this filesystem implementation only uses generic_format
+    // internally, this must be a no-op
+    return *this;
+}
+
+GHC_INLINE path& path::remove_filename()
+{
+    if (has_filename()) {
+        _path.erase(_path.size() - filename()._path.size());
+    }
+    return *this;
+}
+
+GHC_INLINE path& path::replace_filename(const path& replacement)
+{
+    remove_filename();
+    return append(replacement);
+}
+
+GHC_INLINE path& path::replace_extension(const path& replacement)
+{
+    if (has_extension()) {
+        _path.erase(_path.size() - extension()._path.size());
+    }
+    if (!replacement.empty() && replacement._path[0] != '.') {
+        _path += '.';
+    }
+    return concat(replacement);
+}
+
+GHC_INLINE void path::swap(path& rhs) noexcept
+{
+    _path.swap(rhs._path);
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.6, native format observers
+#ifdef GHC_OS_WINDOWS
+GHC_INLINE path::impl_string_type path::native_impl() const
+{
+    impl_string_type result;
+    if (is_absolute() && _path.length() > MAX_PATH - 10) {
+        // expand long Windows filenames with marker
+        if (has_root_name() && _path[0] == '/') {
+            result = "\\\\?\\UNC" + _path.substr(1);
+        }
+        else {
+            result = "\\\\?\\" + _path;
+        }
+    }
+    else {
+        result = _path;
+    }
+    /*if (has_root_name() && root_name()._path[0] == '/') {
+        return _path;
+    }*/
+    for (auto& c : result) {
+        if (c == '/') {
+            c = '\\';
+        }
+    }
+    return result;
+}
+#else
+GHC_INLINE const path::impl_string_type& path::native_impl() const
+{
+    return _path;
+}
+#endif
+
+GHC_INLINE const path::string_type& path::native() const
+{
+#ifdef GHC_OS_WINDOWS
+#ifdef GHC_USE_WCHAR_T
+    _native_cache = detail::fromUtf8<string_type>(native_impl());
+#else
+    _native_cache = native_impl();
+#endif
+    return _native_cache;
+#else
+    return _path;
+#endif
+}
+
+GHC_INLINE const path::value_type* path::c_str() const
+{
+    return native().c_str();
+}
+
+GHC_INLINE path::operator path::string_type() const
+{
+    return native();
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+template <class EcharT, class traits, class Allocator>
+inline std::basic_string<EcharT, traits, Allocator> path::string(const Allocator& a) const
+{
+    return detail::fromUtf8<std::basic_string<EcharT, traits, Allocator>>(native_impl(), a);
+}
+
+#ifdef GHC_EXPAND_IMPL
+
+GHC_INLINE std::string path::string() const
+{
+    return native_impl();
+}
+
+GHC_INLINE std::wstring path::wstring() const
+{
+#ifdef GHC_USE_WCHAR_T
+    return native();
+#else
+    return detail::fromUtf8<std::wstring>(native());
+#endif
+}
+
+GHC_INLINE std::string path::u8string() const
+{
+    return native_impl();
+}
+
+GHC_INLINE std::u16string path::u16string() const
+{
+    return detail::fromUtf8<std::u16string>(native_impl());
+}
+
+GHC_INLINE std::u32string path::u32string() const
+{
+    return detail::fromUtf8<std::u32string>(native_impl());
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.7, generic format observers
+template <class EcharT, class traits, class Allocator>
+inline std::basic_string<EcharT, traits, Allocator> path::generic_string(const Allocator& a) const
+{
+    return detail::fromUtf8<std::basic_string<EcharT, traits, Allocator>>(_path, a);
+}
+
+#ifdef GHC_EXPAND_IMPL
+
+GHC_INLINE const std::string& path::generic_string() const
+{
+    return _path;
+}
+
+GHC_INLINE std::wstring path::generic_wstring() const
+{
+    return detail::fromUtf8<std::wstring>(_path);
+}
+
+GHC_INLINE std::string path::generic_u8string() const
+{
+    return _path;
+}
+
+GHC_INLINE std::u16string path::generic_u16string() const
+{
+    return detail::fromUtf8<std::u16string>(_path);
+}
+
+GHC_INLINE std::u32string path::generic_u32string() const
+{
+    return detail::fromUtf8<std::u32string>(_path);
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.8, compare
+GHC_INLINE int path::compare(const path& p) const noexcept
+{
+    return native().compare(p.native());
+}
+
+GHC_INLINE int path::compare(const string_type& s) const
+{
+    return native().compare(path(s).native());
+}
+
+#ifdef __cpp_lib_string_view
+GHC_INLINE int path::compare(std::basic_string_view<value_type> s) const
+{
+    return native().compare(path(s).native());
+}
+#endif
+
+GHC_INLINE int path::compare(const value_type* s) const
+{
+    return native().compare(path(s).native());
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.9, decomposition
+GHC_INLINE path path::root_name() const
+{
+#ifdef GHC_OS_WINDOWS
+    if (_path.length() >= 2 && std::toupper(static_cast<unsigned char>(_path[0])) >= 'A' && std::toupper(static_cast<unsigned char>(_path[0])) <= 'Z' && _path[1] == ':') {
+        return path(_path.substr(0, 2));
+    }
+#endif
+    if (_path.length() > 2 && _path[0] == '/' && _path[1] == '/' && _path[2] != '/' && std::isprint(_path[2])) {
+        impl_string_type::size_type pos = _path.find_first_of("/\\", 3);
+        if (pos == impl_string_type::npos) {
+            return path(_path);
+        }
+        else {
+            return path(_path.substr(0, pos));
+        }
+    }
+    return path();
+}
+
+GHC_INLINE path path::root_directory() const
+{
+    path root = root_name();
+    if (_path.length() > root._path.length() && _path[root._path.length()] == '/') {
+        return path("/");
+    }
+    return path();
+}
+
+GHC_INLINE path path::root_path() const
+{
+    return root_name().generic_string() + root_directory().generic_string();
+}
+
+GHC_INLINE path path::relative_path() const
+{
+    std::string root = root_path()._path;
+    return path(_path.substr((std::min)(root.length(), _path.length())), generic_format);
+}
+
+GHC_INLINE path path::parent_path() const
+{
+    if (has_relative_path()) {
+        if (empty() || begin() == --end()) {
+            return path();
+        }
+        else {
+            path pp;
+            for (string_type s : input_iterator_range<iterator>(begin(), --end())) {
+                if (s == "/") {
+                    // don't use append to join a path-
+                    pp += s;
+                }
+                else {
+                    pp /= s;
+                }
+            }
+            return pp;
+        }
+    }
+    else {
+        return *this;
+    }
+}
+
+GHC_INLINE path path::filename() const
+{
+    return relative_path().empty() ? path() : path(*--end());
+}
+
+GHC_INLINE path path::stem() const
+{
+    impl_string_type fn = filename().string();
+    if (fn != "." && fn != "..") {
+        impl_string_type::size_type n = fn.rfind('.');
+        if (n != impl_string_type::npos && n != 0) {
+            return path{fn.substr(0, n)};
+        }
+    }
+    return path{fn};
+}
+
+GHC_INLINE path path::extension() const
+{
+    impl_string_type fn = filename().string();
+    impl_string_type::size_type pos = fn.find_last_of('.');
+    if (pos == std::string::npos || pos == 0) {
+        return "";
+    }
+    return fn.substr(pos);
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.10, query
+GHC_INLINE bool path::empty() const noexcept
+{
+    return _path.empty();
+}
+
+GHC_INLINE bool path::has_root_name() const
+{
+    return !root_name().empty();
+}
+
+GHC_INLINE bool path::has_root_directory() const
+{
+    return !root_directory().empty();
+}
+
+GHC_INLINE bool path::has_root_path() const
+{
+    return !root_path().empty();
+}
+
+GHC_INLINE bool path::has_relative_path() const
+{
+    return !relative_path().empty();
+}
+
+GHC_INLINE bool path::has_parent_path() const
+{
+    return !parent_path().empty();
+}
+
+GHC_INLINE bool path::has_filename() const
+{
+    return !filename().empty();
+}
+
+GHC_INLINE bool path::has_stem() const
+{
+    return !stem().empty();
+}
+
+GHC_INLINE bool path::has_extension() const
+{
+    return !extension().empty();
+}
+
+GHC_INLINE bool path::is_absolute() const
+{
+#ifdef GHC_OS_WINDOWS
+    return has_root_name() && has_root_directory();
+#else
+    return has_root_directory();
+#endif
+}
+
+GHC_INLINE bool path::is_relative() const
+{
+    return !is_absolute();
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.4.11, generation
+GHC_INLINE path path::lexically_normal() const
+{
+    path dest;
+    bool lastDotDot = false;
+    for (string_type s : *this) {
+        if (s == ".") {
+            dest /= "";
+            continue;
+        }
+        else if (s == ".." && !dest.empty()) {
+            auto root = root_path();
+            if (dest == root) {
+                continue;
+            }
+            else if (*(--dest.end()) != "..") {
+                if (dest._path.back() == generic_separator) {
+                    dest._path.pop_back();
+                }
+                dest.remove_filename();
+                continue;
+            }
+        }
+        if (!(s.empty() && lastDotDot)) {
+            dest /= s;
+        }
+        lastDotDot = s == "..";
+    }
+    if (dest.empty()) {
+        dest = ".";
+    }
+    return dest;
+}
+
+GHC_INLINE path path::lexically_relative(const path& base) const
+{
+    if (root_name() != base.root_name() || is_absolute() != base.is_absolute() || (!has_root_directory() && base.has_root_directory())) {
+        return path();
+    }
+    const_iterator a = begin(), b = base.begin();
+    while (a != end() && b != base.end() && *a == *b) {
+        ++a;
+        ++b;
+    }
+    if (a == end() && b == base.end()) {
+        return path(".");
+    }
+    int count = 0;
+    for (const auto& element : input_iterator_range<const_iterator>(b, base.end())) {
+        if (element != "." && element != "" && element != "..") {
+            ++count;
+        }
+        else if (element == "..") {
+            --count;
+        }
+    }
+    if (count < 0) {
+        return path();
+    }
+    path result;
+    for (int i = 0; i < count; ++i) {
+        result /= "..";
+    }
+    for (const auto& element : input_iterator_range<const_iterator>(a, end())) {
+        result /= element;
+    }
+    return result;
+}
+
+GHC_INLINE path path::lexically_proximate(const path& base) const
+{
+    path result = lexically_relative(base);
+    return result.empty() ? *this : result;
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.5, iterators
+GHC_INLINE path::iterator::iterator() {}
+
+GHC_INLINE path::iterator::iterator(const path::impl_string_type::const_iterator& first, const path::impl_string_type::const_iterator& last, const path::impl_string_type::const_iterator& pos)
+    : _first(first)
+    , _last(last)
+    , _iter(pos)
+{
+    updateCurrent();
+    // find the position of a potential root directory slash
+#ifdef GHC_OS_WINDOWS
+    if (_last - _first >= 3 && std::toupper(static_cast<unsigned char>(*first)) >= 'A' && std::toupper(static_cast<unsigned char>(*first)) <= 'Z' && *(first + 1) == ':' && *(first + 2) == '/') {
+        _root = _first + 2;
+    }
+    else
+#endif
+    {
+        if (_first != _last && *_first == '/') {
+            if (_last - _first >= 2 && *(_first + 1) == '/' && !(_last - _first >= 3 && *(_first + 2) == '/')) {
+                _root = increment(_first);
+            }
+            else {
+                _root = _first;
+            }
+        }
+        else {
+            _root = _last;
+        }
+    }
+}
+
+GHC_INLINE path::impl_string_type::const_iterator path::iterator::increment(const path::impl_string_type::const_iterator& pos) const
+{
+    path::impl_string_type::const_iterator i = pos;
+    bool fromStart = i == _first;
+    if (i != _last) {
+        // we can only sit on a slash if it is a network name or a root
+        if (*i++ == '/') {
+            if (i != _last && *i == '/') {
+                if (fromStart && !(i + 1 != _last && *(i + 1) == '/')) {
+                    // leadind double slashes detected, treat this and the
+                    // following until a slash as one unit
+                    i = std::find(++i, _last, '/');
+                }
+                else {
+                    // skip redundant slashes
+                    while (i != _last && *i == '/') {
+                        ++i;
+                    }
+                }
+            }
+        }
+        else {
+            if (fromStart && i != _last && *i == ':') {
+                ++i;
+            }
+            else {
+                i = std::find(i, _last, '/');
+            }
+        }
+    }
+    return i;
+}
+
+GHC_INLINE path::impl_string_type::const_iterator path::iterator::decrement(const path::impl_string_type::const_iterator& pos) const
+{
+    path::impl_string_type::const_iterator i = pos;
+    if (i != _first) {
+        --i;
+        // if this is now the root slash or the trailing slash, we are done,
+        // else check for network name
+        if (i != _root && (pos != _last || *i != '/')) {
+#ifdef GHC_OS_WINDOWS
+            static const std::string seps = "/:";
+            i = std::find_first_of(std::reverse_iterator<path::impl_string_type::const_iterator>(i), std::reverse_iterator<path::impl_string_type::const_iterator>(_first), seps.begin(), seps.end()).base();
+            if (i > _first && *i == ':') {
+                i++;
+            }
+#else
+            i = std::find(std::reverse_iterator<path::impl_string_type::const_iterator>(i), std::reverse_iterator<path::impl_string_type::const_iterator>(_first), '/').base();
+#endif
+            // Now we have to check if this is a network name
+            if (i - _first == 2 && *_first == '/' && *(_first + 1) == '/') {
+                i -= 2;
+            }
+        }
+    }
+    return i;
+}
+
+GHC_INLINE void path::iterator::updateCurrent()
+{
+    if (_iter != _first && _iter != _last && (*_iter == '/' && _iter != _root) && (_iter + 1 == _last)) {
+        _current = "";
+    }
+    else {
+        _current.assign(_iter, increment(_iter));
+        if (_current.generic_string().size() > 1 && _current.generic_string()[0] == '/' && _current.generic_string()[_current.generic_string().size() - 1] == '/') {
+            // shrink successive slashes to one
+            _current = "/";
+        }
+    }
+}
+
+GHC_INLINE path::iterator& path::iterator::operator++()
+{
+    _iter = increment(_iter);
+    while (_iter != _last &&     // we didn't reach the end
+           _iter != _root &&     // this is not a root position
+           *_iter == '/' &&      // we are on a slash
+           (_iter + 1) != _last  // the slash is not the last char
+    ) {
+        ++_iter;
+    }
+    updateCurrent();
+    return *this;
+}
+
+GHC_INLINE path::iterator path::iterator::operator++(int)
+{
+    path::iterator i{*this};
+    ++(*this);
+    return i;
+}
+
+GHC_INLINE path::iterator& path::iterator::operator--()
+{
+    _iter = decrement(_iter);
+    updateCurrent();
+    return *this;
+}
+
+GHC_INLINE path::iterator path::iterator::operator--(int)
+{
+    auto i = *this;
+    --(*this);
+    return i;
+}
+
+GHC_INLINE bool path::iterator::operator==(const path::iterator& other) const
+{
+    return _iter == other._iter;
+}
+
+GHC_INLINE bool path::iterator::operator!=(const path::iterator& other) const
+{
+    return _iter != other._iter;
+}
+
+GHC_INLINE path::iterator::reference path::iterator::operator*() const
+{
+    return _current;
+}
+
+GHC_INLINE path::iterator::pointer path::iterator::operator->() const
+{
+    return &_current;
+}
+
+GHC_INLINE path::iterator path::begin() const
+{
+    return iterator(_path.begin(), _path.end(), _path.begin());
+}
+
+GHC_INLINE path::iterator path::end() const
+{
+    return iterator(_path.begin(), _path.end(), _path.end());
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.8.6, path non-member functions
+GHC_INLINE void swap(path& lhs, path& rhs) noexcept
+{
+    swap(lhs._path, rhs._path);
+}
+
+GHC_INLINE size_t hash_value(const path& p) noexcept
+{
+    return std::hash<std::string>()(p.generic_string());
+}
+
+GHC_INLINE bool operator==(const path& lhs, const path& rhs) noexcept
+{
+    return lhs.generic_string() == rhs.generic_string();
+}
+
+GHC_INLINE bool operator!=(const path& lhs, const path& rhs) noexcept
+{
+    return lhs.generic_string() != rhs.generic_string();
+}
+
+GHC_INLINE bool operator<(const path& lhs, const path& rhs) noexcept
+{
+    return lhs.generic_string() < rhs.generic_string();
+}
+
+GHC_INLINE bool operator<=(const path& lhs, const path& rhs) noexcept
+{
+    return lhs.generic_string() <= rhs.generic_string();
+}
+
+GHC_INLINE bool operator>(const path& lhs, const path& rhs) noexcept
+{
+    return lhs.generic_string() > rhs.generic_string();
+}
+
+GHC_INLINE bool operator>=(const path& lhs, const path& rhs) noexcept
+{
+    return lhs.generic_string() >= rhs.generic_string();
+}
+
+GHC_INLINE path operator/(const path& lhs, const path& rhs)
+{
+    path result(lhs);
+    result /= rhs;
+    return result;
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+//-----------------------------------------------------------------------------
+// 30.10.8.6.1 path inserter and extractor
+template <class charT, class traits>
+inline std::basic_ostream<charT, traits>& operator<<(std::basic_ostream<charT, traits>& os, const path& p)
+{
+    os << "\"";
+    auto ps = p.string<charT, traits>();
+    for (auto c : ps) {
+        if (c == '"' || c == '\\') {
+            os << '\\';
+        }
+        os << c;
+    }
+    os << "\"";
+    return os;
+}
+
+template <class charT, class traits>
+inline std::basic_istream<charT, traits>& operator>>(std::basic_istream<charT, traits>& is, path& p)
+{
+    std::basic_string<charT, traits> tmp;
+    charT c;
+    is >> c;
+    if (c == '"') {
+        auto sf = is.flags();
+        is >> std::noskipws;
+        while (is) {
+            auto c2 = is.get();
+            if (is) {
+                if (c2 == '\\') {
+                    c2 = is.get();
+                    if (is) {
+                        tmp += static_cast<charT>(c2);
+                    }
+                }
+                else if (c2 == '"') {
+                    break;
+                }
+                else {
+                    tmp += static_cast<charT>(c2);
+                }
+            }
+        }
+        if ((sf & std::ios_base::skipws) == std::ios_base::skipws) {
+            is >> std::skipws;
+        }
+        p = path(tmp);
+    }
+    else {
+        is >> tmp;
+        p = path(static_cast<charT>(c) + tmp);
+    }
+    return is;
+}
+
+#ifdef GHC_EXPAND_IMPL
+
+//-----------------------------------------------------------------------------
+// 30.10.9 Class filesystem_error
+GHC_INLINE filesystem_error::filesystem_error(const std::string& what_arg, std::error_code ec)
+    : std::system_error(ec, what_arg)
+    , _what_arg(what_arg)
+    , _ec(ec)
+{
+}
+
+GHC_INLINE filesystem_error::filesystem_error(const std::string& what_arg, const path& p1, std::error_code ec)
+    : std::system_error(ec, what_arg)
+    , _what_arg(what_arg)
+    , _ec(ec)
+    , _p1(p1)
+{
+    if (!_p1.empty()) {
+        _what_arg += ": '" + _p1.u8string() + "'";
+    }
+}
+
+GHC_INLINE filesystem_error::filesystem_error(const std::string& what_arg, const path& p1, const path& p2, std::error_code ec)
+    : std::system_error(ec, what_arg)
+    , _what_arg(what_arg)
+    , _ec(ec)
+    , _p1(p1)
+    , _p2(p2)
+{
+    if (!_p1.empty()) {
+        _what_arg += ": '" + _p1.u8string() + "'";
+    }
+    if (!_p2.empty()) {
+        _what_arg += ", '" + _p2.u8string() + "'";
+    }
+}
+
+GHC_INLINE const path& filesystem_error::path1() const noexcept
+{
+    return _p1;
+}
+
+GHC_INLINE const path& filesystem_error::path2() const noexcept
+{
+    return _p2;
+}
+
+GHC_INLINE const char* filesystem_error::what() const noexcept
+{
+    return _what_arg.c_str();
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.15, filesystem operations
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path absolute(const path& p)
+{
+    std::error_code ec;
+    path result = absolute(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE path absolute(const path& p, std::error_code& ec)
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    if (p.empty()) {
+        return absolute(current_path(ec), ec) / "";
+    }
+    ULONG size = ::GetFullPathNameW(p.wstring().c_str(), 0, 0, 0);
+    if (size) {
+        std::vector<wchar_t> buf(size, 0);
+        ULONG s2 = GetFullPathNameW(p.wstring().c_str(), size, buf.data(), nullptr);
+        if (s2 && s2 < size) {
+            path result = path(std::wstring(buf.data(), s2));
+            if (p.filename() == ".") {
+                result /= ".";
+            }
+            return result;
+        }
+    }
+    ec = detail::make_system_error();
+    return path();
+#else
+    path base = current_path(ec);
+    if (!ec) {
+        if (p.empty()) {
+            return base / p;
+        }
+        if (p.has_root_name()) {
+            if (p.has_root_directory()) {
+                return p;
+            }
+            else {
+                return p.root_name() / base.root_directory() / base.relative_path() / p.relative_path();
+            }
+        }
+        else {
+            if (p.has_root_directory()) {
+                return base.root_name() / p;
+            }
+            else {
+                return base / p;
+            }
+        }
+    }
+    ec = detail::make_system_error();
+    return path();
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path canonical(const path& p)
+{
+    std::error_code ec;
+    auto result = canonical(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE path canonical(const path& p, std::error_code& ec)
+{
+    if (p.empty()) {
+        ec = detail::make_error_code(detail::portable_error::not_found);
+        return path();
+    }
+    path work = p.is_absolute() ? p : absolute(p, ec);
+    path root = work.root_path();
+    path result;
+
+    auto fs = status(work, ec);
+    if (ec) {
+        return path();
+    }
+    if (fs.type() == file_type::not_found) {
+        ec = detail::make_error_code(detail::portable_error::not_found);
+        return path();
+    }
+    bool redo;
+    do {
+        redo = false;
+        result.clear();
+        for (auto pe : work) {
+            if (pe.empty() || pe == ".") {
+                continue;
+            }
+            else if (pe == "..") {
+                result = result.parent_path();
+                continue;
+            }
+            else if ((result / pe).string().length() <= root.string().length()) {
+                result /= pe;
+                continue;
+            }
+            auto sls = symlink_status(result / pe, ec);
+            if (ec) {
+                return path();
+            }
+            if (is_symlink(sls)) {
+                redo = true;
+                auto target = read_symlink(result / pe, ec);
+                if (ec) {
+                    return path();
+                }
+                if (target.is_absolute()) {
+                    result = target;
+                    continue;
+                }
+                else {
+                    result /= target;
+                    continue;
+                }
+            }
+            else {
+                result /= pe;
+            }
+        }
+        work = result;
+    } while (redo);
+    ec.clear();
+    return result;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void copy(const path& from, const path& to)
+{
+    copy(from, to, copy_options::none);
+}
+#endif
+
+GHC_INLINE void copy(const path& from, const path& to, std::error_code& ec) noexcept
+{
+    copy(from, to, copy_options::none, ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void copy(const path& from, const path& to, copy_options options)
+{
+    std::error_code ec;
+    copy(from, to, options, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), from, to, ec);
+    }
+}
+#endif
+
+GHC_INLINE void copy(const path& from, const path& to, copy_options options, std::error_code& ec) noexcept
+{
+    std::error_code tec;
+    file_status fs_from, fs_to;
+    ec.clear();
+    if ((options & (copy_options::skip_symlinks | copy_options::copy_symlinks | copy_options::create_symlinks)) != copy_options::none) {
+        fs_from = symlink_status(from, ec);
+    }
+    else {
+        fs_from = status(from, ec);
+    }
+    if (!exists(fs_from)) {
+        if (!ec) {
+            ec = detail::make_error_code(detail::portable_error::not_found);
+        }
+        return;
+    }
+    if ((options & (copy_options::skip_symlinks | copy_options::create_symlinks)) != copy_options::none) {
+        fs_to = symlink_status(to, tec);
+    }
+    else {
+        fs_to = status(to, tec);
+    }
+    if (is_other(fs_from) || is_other(fs_to) || (is_directory(fs_from) && is_regular_file(fs_to)) || (exists(fs_to) && equivalent(from, to, ec))) {
+        ec = detail::make_error_code(detail::portable_error::invalid_argument);
+    }
+    else if (is_symlink(fs_from)) {
+        if ((options & copy_options::skip_symlinks) == copy_options::none) {
+            if (!exists(fs_to) && (options & copy_options::copy_symlinks) != copy_options::none) {
+                copy_symlink(from, to, ec);
+            }
+            else {
+                ec = detail::make_error_code(detail::portable_error::invalid_argument);
+            }
+        }
+    }
+    else if (is_regular_file(fs_from)) {
+        if ((options & copy_options::directories_only) == copy_options::none) {
+            if ((options & copy_options::create_symlinks) != copy_options::none) {
+                create_symlink(from.is_absolute() ? from : canonical(from, ec), to, ec);
+            }
+            else if ((options & copy_options::create_hard_links) != copy_options::none) {
+                create_hard_link(from, to, ec);
+            }
+            else if (is_directory(fs_to)) {
+                copy_file(from, to / from.filename(), options, ec);
+            }
+            else {
+                copy_file(from, to, options, ec);
+            }
+        }
+    }
+#ifdef LWG_2682_BEHAVIOUR
+    else if (is_directory(fs_from) && (options & copy_options::create_symlinks) != copy_options::none) {
+        ec = detail::make_error_code(detail::portable_error::is_a_directory);
+    }
+#endif
+    else if (is_directory(fs_from) && (options == copy_options::none || (options & copy_options::recursive) != copy_options::none)) {
+        if (!exists(fs_to)) {
+            create_directory(to, from, ec);
+            if (ec) {
+                return;
+            }
+        }
+        for (auto iter = directory_iterator(from, ec); iter != directory_iterator(); iter.increment(ec)) {
+            if (!ec) {
+                copy(iter->path(), to / iter->path().filename(), options | static_cast<copy_options>(0x8000), ec);
+            }
+            if (ec) {
+                return;
+            }
+        }
+    }
+    return;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool copy_file(const path& from, const path& to)
+{
+    return copy_file(from, to, copy_options::none);
+}
+#endif
+
+GHC_INLINE bool copy_file(const path& from, const path& to, std::error_code& ec) noexcept
+{
+    return copy_file(from, to, copy_options::none, ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool copy_file(const path& from, const path& to, copy_options option)
+{
+    std::error_code ec;
+    auto result = copy_file(from, to, option, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), from, to, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE bool copy_file(const path& from, const path& to, copy_options options, std::error_code& ec) noexcept
+{
+    std::error_code tecf, tect;
+    auto sf = status(from, tecf);
+    auto st = status(to, tect);
+    bool overwrite = false;
+    ec.clear();
+    if (!is_regular_file(sf)) {
+        ec = tecf;
+        return false;
+    }
+    if (exists(st) && (!is_regular_file(st) || equivalent(from, to, ec) || (options & (copy_options::skip_existing | copy_options::overwrite_existing | copy_options::update_existing)) == copy_options::none)) {
+        ec = tect ? tect : detail::make_error_code(detail::portable_error::exists);
+        return false;
+    }
+    if (exists(st)) {
+        if ((options & copy_options::update_existing) == copy_options::update_existing) {
+            auto from_time = last_write_time(from, ec);
+            if (ec) {
+                ec = detail::make_system_error();
+                return false;
+            }
+            auto to_time = last_write_time(to, ec);
+            if (ec) {
+                ec = detail::make_system_error();
+                return false;
+            }
+            if (from_time <= to_time) {
+                return false;
+            }
+        }
+        overwrite = true;
+    }
+#ifdef GHC_OS_WINDOWS
+    if (!::CopyFileW(detail::fromUtf8<std::wstring>(from.u8string()).c_str(), detail::fromUtf8<std::wstring>(to.u8string()).c_str(), !overwrite)) {
+        ec = detail::make_system_error();
+        return false;
+    }
+    return true;
+#else
+    std::vector<char> buffer(16384, '\0');
+    int in = -1, out = -1;
+    if ((in = ::open(from.c_str(), O_RDONLY)) < 0) {
+        ec = detail::make_system_error();
+        return false;
+    }
+    std::shared_ptr<void> guard_in(nullptr, [in](void*) { ::close(in); });
+    int mode = O_CREAT | O_WRONLY | O_TRUNC;
+    if (!overwrite) {
+        mode |= O_EXCL;
+    }
+    if ((out = ::open(to.c_str(), mode, static_cast<int>(sf.permissions() & perms::all))) < 0) {
+        ec = detail::make_system_error();
+        return false;
+    }
+    std::shared_ptr<void> guard_out(nullptr, [out](void*) { ::close(out); });
+    ssize_t br, bw;
+    while ((br = ::read(in, buffer.data(), buffer.size())) > 0) {
+        ssize_t offset = 0;
+        do {
+            if ((bw = ::write(out, buffer.data() + offset, static_cast<size_t>(br))) > 0) {
+                br -= bw;
+                offset += bw;
+            }
+            else if (bw < 0) {
+                ec = detail::make_system_error();
+                return false;
+            }
+        } while (br);
+    }
+    return true;
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void copy_symlink(const path& existing_symlink, const path& new_symlink)
+{
+    std::error_code ec;
+    copy_symlink(existing_symlink, new_symlink, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), existing_symlink, new_symlink, ec);
+    }
+}
+#endif
+
+GHC_INLINE void copy_symlink(const path& existing_symlink, const path& new_symlink, std::error_code& ec) noexcept
+{
+    ec.clear();
+    auto to = read_symlink(existing_symlink, ec);
+    if (!ec) {
+        if (exists(to, ec) && is_directory(to, ec)) {
+            create_directory_symlink(to, new_symlink, ec);
+        }
+        else {
+            create_symlink(to, new_symlink, ec);
+        }
+    }
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool create_directories(const path& p)
+{
+    std::error_code ec;
+    auto result = create_directories(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE bool create_directories(const path& p, std::error_code& ec) noexcept
+{
+    path current;
+    ec.clear();
+    bool didCreate = false;
+    for (path::string_type part : p) {
+        current /= part;
+        if (current != p.root_name() && current != p.root_path()) {
+            std::error_code tec;
+            auto fs = status(current, tec);
+            if (tec && fs.type() != file_type::not_found) {
+                ec = tec;
+                return false;
+            }
+            if (!exists(fs)) {
+                create_directory(current, ec);
+                if (ec) {
+                    std::error_code tmp_ec;
+                    if (is_directory(current, tmp_ec)) {
+                        ec.clear();
+                    } else {
+                        return false;
+                    }
+                }
+                didCreate = true;
+            }
+#ifndef LWG_2935_BEHAVIOUR
+            else if (!is_directory(fs)) {
+                ec = detail::make_error_code(detail::portable_error::exists);
+                return false;
+            }
+#endif
+        }
+    }
+    return didCreate;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool create_directory(const path& p)
+{
+    std::error_code ec;
+    auto result = create_directory(p, path(), ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE bool create_directory(const path& p, std::error_code& ec) noexcept
+{
+    return create_directory(p, path(), ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool create_directory(const path& p, const path& attributes)
+{
+    std::error_code ec;
+    auto result = create_directory(p, attributes, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE bool create_directory(const path& p, const path& attributes, std::error_code& ec) noexcept
+{
+    std::error_code tec;
+    ec.clear();
+    auto fs = status(p, tec);
+#ifdef LWG_2935_BEHAVIOUR
+    if (status_known(fs) && exists(fs)) {
+        return false;
+    }
+#else
+    if (status_known(fs) && exists(fs) && is_directory(fs)) {
+        return false;
+    }
+#endif
+#ifdef GHC_OS_WINDOWS
+    if (!attributes.empty()) {
+        if (!::CreateDirectoryExW(detail::fromUtf8<std::wstring>(attributes.u8string()).c_str(), detail::fromUtf8<std::wstring>(p.u8string()).c_str(), NULL)) {
+            ec = detail::make_system_error();
+            return false;
+        }
+    }
+    else if (!::CreateDirectoryW(detail::fromUtf8<std::wstring>(p.u8string()).c_str(), NULL)) {
+        ec = detail::make_system_error();
+        return false;
+    }
+#else
+    ::mode_t attribs = static_cast<mode_t>(perms::all);
+    if (!attributes.empty()) {
+        struct ::stat fileStat;
+        if (::stat(attributes.c_str(), &fileStat) != 0) {
+            ec = detail::make_system_error();
+            return false;
+        }
+        attribs = fileStat.st_mode;
+    }
+    if (::mkdir(p.c_str(), attribs) != 0) {
+        ec = detail::make_system_error();
+        return false;
+    }
+#endif
+    return true;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void create_directory_symlink(const path& to, const path& new_symlink)
+{
+    std::error_code ec;
+    create_directory_symlink(to, new_symlink, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), to, new_symlink, ec);
+    }
+}
+#endif
+
+GHC_INLINE void create_directory_symlink(const path& to, const path& new_symlink, std::error_code& ec) noexcept
+{
+    detail::create_symlink(to, new_symlink, true, ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void create_hard_link(const path& to, const path& new_hard_link)
+{
+    std::error_code ec;
+    create_hard_link(to, new_hard_link, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), to, new_hard_link, ec);
+    }
+}
+#endif
+
+GHC_INLINE void create_hard_link(const path& to, const path& new_hard_link, std::error_code& ec) noexcept
+{
+    detail::create_hardlink(to, new_hard_link, ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void create_symlink(const path& to, const path& new_symlink)
+{
+    std::error_code ec;
+    create_symlink(to, new_symlink, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), to, new_symlink, ec);
+    }
+}
+#endif
+
+GHC_INLINE void create_symlink(const path& to, const path& new_symlink, std::error_code& ec) noexcept
+{
+    detail::create_symlink(to, new_symlink, false, ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path current_path()
+{
+    std::error_code ec;
+    auto result = current_path(ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE path current_path(std::error_code& ec)
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    DWORD pathlen = ::GetCurrentDirectoryW(0, 0);
+    std::unique_ptr<wchar_t[]> buffer(new wchar_t[size_t(pathlen) + 1]);
+    if (::GetCurrentDirectoryW(pathlen, buffer.get()) == 0) {
+        ec = detail::make_system_error();
+        return path();
+    }
+    return path(std::wstring(buffer.get()), path::native_format);
+#else
+    size_t pathlen = static_cast<size_t>(std::max(int(::pathconf(".", _PC_PATH_MAX)), int(PATH_MAX)));
+    std::unique_ptr<char[]> buffer(new char[pathlen + 1]);
+    if (::getcwd(buffer.get(), pathlen) == nullptr) {
+        ec = detail::make_system_error();
+        return path();
+    }
+    return path(buffer.get());
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void current_path(const path& p)
+{
+    std::error_code ec;
+    current_path(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+}
+#endif
+
+GHC_INLINE void current_path(const path& p, std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    if (!::SetCurrentDirectoryW(detail::fromUtf8<std::wstring>(p.u8string()).c_str())) {
+        ec = detail::make_system_error();
+    }
+#else
+    if (::chdir(p.string().c_str()) == -1) {
+        ec = detail::make_system_error();
+    }
+#endif
+}
+
+GHC_INLINE bool exists(file_status s) noexcept
+{
+    return status_known(s) && s.type() != file_type::not_found;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool exists(const path& p)
+{
+    return exists(status(p));
+}
+#endif
+
+GHC_INLINE bool exists(const path& p, std::error_code& ec) noexcept
+{
+    file_status s = status(p, ec);
+    if (status_known(s)) {
+        ec.clear();
+    }
+    return exists(s);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool equivalent(const path& p1, const path& p2)
+{
+    std::error_code ec;
+    bool result = equivalent(p1, p2, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p1, p2, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE bool equivalent(const path& p1, const path& p2, std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    std::shared_ptr<void> file1(::CreateFileW(p1.wstring().c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0), CloseHandle);
+    auto e1 = ::GetLastError();
+    std::shared_ptr<void> file2(::CreateFileW(p2.wstring().c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0), CloseHandle);
+    if (file1.get() == INVALID_HANDLE_VALUE || file2.get() == INVALID_HANDLE_VALUE) {
+#ifdef LWG_2937_BEHAVIOUR
+        ec = detail::make_system_error(e1 ? e1 : ::GetLastError());
+#else
+        if (file1 == file2) {
+            ec = detail::make_system_error(e1 ? e1 : ::GetLastError());
+        }
+#endif
+        return false;
+    }
+    BY_HANDLE_FILE_INFORMATION inf1, inf2;
+    if (!::GetFileInformationByHandle(file1.get(), &inf1)) {
+        ec = detail::make_system_error();
+        return false;
+    }
+    if (!::GetFileInformationByHandle(file2.get(), &inf2)) {
+        ec = detail::make_system_error();
+        return false;
+    }
+    return inf1.ftLastWriteTime.dwLowDateTime == inf2.ftLastWriteTime.dwLowDateTime && inf1.ftLastWriteTime.dwHighDateTime == inf2.ftLastWriteTime.dwHighDateTime && inf1.nFileIndexHigh == inf2.nFileIndexHigh && inf1.nFileIndexLow == inf2.nFileIndexLow &&
+           inf1.nFileSizeHigh == inf2.nFileSizeHigh && inf1.nFileSizeLow == inf2.nFileSizeLow && inf1.dwVolumeSerialNumber == inf2.dwVolumeSerialNumber;
+#else
+    struct ::stat s1, s2;
+    auto rc1 = ::stat(p1.c_str(), &s1);
+    auto e1 = errno;
+    auto rc2 = ::stat(p2.c_str(), &s2);
+    if (rc1 || rc2) {
+#ifdef LWG_2937_BEHAVIOUR
+        ec = detail::make_system_error(e1 ? e1 : errno);
+#else
+        if (rc1 && rc2) {
+            ec = detail::make_system_error(e1 ? e1 : errno);
+        }
+#endif
+        return false;
+    }
+    return s1.st_dev == s2.st_dev && s1.st_ino == s2.st_ino && s1.st_size == s2.st_size && s1.st_mtime == s2.st_mtime;
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE uintmax_t file_size(const path& p)
+{
+    std::error_code ec;
+    auto result = file_size(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE uintmax_t file_size(const path& p, std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    WIN32_FILE_ATTRIBUTE_DATA attr;
+    if (!GetFileAttributesExW(detail::fromUtf8<std::wstring>(p.u8string()).c_str(), GetFileExInfoStandard, &attr)) {
+        ec = detail::make_system_error();
+        return static_cast<uintmax_t>(-1);
+    }
+    return static_cast<uintmax_t>(attr.nFileSizeHigh) << (sizeof(attr.nFileSizeHigh) * 8) | attr.nFileSizeLow;
+#else
+    struct ::stat fileStat;
+    if (::stat(p.c_str(), &fileStat) == -1) {
+        ec = detail::make_system_error();
+        return static_cast<uintmax_t>(-1);
+    }
+    return static_cast<uintmax_t>(fileStat.st_size);
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE uintmax_t hard_link_count(const path& p)
+{
+    std::error_code ec;
+    auto result = hard_link_count(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE uintmax_t hard_link_count(const path& p, std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    uintmax_t result = static_cast<uintmax_t>(-1);
+    std::shared_ptr<void> file(::CreateFileW(p.wstring().c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0), CloseHandle);
+    BY_HANDLE_FILE_INFORMATION inf;
+    if (file.get() == INVALID_HANDLE_VALUE) {
+        ec = detail::make_system_error();
+    }
+    else {
+        if (!::GetFileInformationByHandle(file.get(), &inf)) {
+            ec = detail::make_system_error();
+        }
+        else {
+            result = inf.nNumberOfLinks;
+        }
+    }
+    return result;
+#else
+    uintmax_t result = 0;
+    file_status fs = detail::status_ex(p, ec, nullptr, nullptr, &result, nullptr);
+    if (fs.type() == file_type::not_found) {
+        ec = detail::make_error_code(detail::portable_error::not_found);
+    }
+    return ec ? static_cast<uintmax_t>(-1) : result;
+#endif
+}
+
+GHC_INLINE bool is_block_file(file_status s) noexcept
+{
+    return s.type() == file_type::block;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_block_file(const path& p)
+{
+    return is_block_file(status(p));
+}
+#endif
+
+GHC_INLINE bool is_block_file(const path& p, std::error_code& ec) noexcept
+{
+    return is_block_file(status(p, ec));
+}
+
+GHC_INLINE bool is_character_file(file_status s) noexcept
+{
+    return s.type() == file_type::character;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_character_file(const path& p)
+{
+    return is_character_file(status(p));
+}
+#endif
+
+GHC_INLINE bool is_character_file(const path& p, std::error_code& ec) noexcept
+{
+    return is_character_file(status(p, ec));
+}
+
+GHC_INLINE bool is_directory(file_status s) noexcept
+{
+    return s.type() == file_type::directory;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_directory(const path& p)
+{
+    return is_directory(status(p));
+}
+#endif
+
+GHC_INLINE bool is_directory(const path& p, std::error_code& ec) noexcept
+{
+    return is_directory(status(p, ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_empty(const path& p)
+{
+    if (is_directory(p)) {
+        return directory_iterator(p) == directory_iterator();
+    }
+    else {
+        return file_size(p) == 0;
+    }
+}
+#endif
+
+GHC_INLINE bool is_empty(const path& p, std::error_code& ec) noexcept
+{
+    auto fs = status(p, ec);
+    if (ec) {
+        return false;
+    }
+    if (is_directory(fs)) {
+        directory_iterator iter(p, ec);
+        if (ec) {
+            return false;
+        }
+        return iter == directory_iterator();
+    }
+    else {
+        auto sz = file_size(p, ec);
+        if (ec) {
+            return false;
+        }
+        return sz == 0;
+    }
+}
+
+GHC_INLINE bool is_fifo(file_status s) noexcept
+{
+    return s.type() == file_type::fifo;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_fifo(const path& p)
+{
+    return is_fifo(status(p));
+}
+#endif
+
+GHC_INLINE bool is_fifo(const path& p, std::error_code& ec) noexcept
+{
+    return is_fifo(status(p, ec));
+}
+
+GHC_INLINE bool is_other(file_status s) noexcept
+{
+    return exists(s) && !is_regular_file(s) && !is_directory(s) && !is_symlink(s);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_other(const path& p)
+{
+    return is_other(status(p));
+}
+#endif
+
+GHC_INLINE bool is_other(const path& p, std::error_code& ec) noexcept
+{
+    return is_other(status(p, ec));
+}
+
+GHC_INLINE bool is_regular_file(file_status s) noexcept
+{
+    return s.type() == file_type::regular;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_regular_file(const path& p)
+{
+    return is_regular_file(status(p));
+}
+#endif
+
+GHC_INLINE bool is_regular_file(const path& p, std::error_code& ec) noexcept
+{
+    return is_regular_file(status(p, ec));
+}
+
+GHC_INLINE bool is_socket(file_status s) noexcept
+{
+    return s.type() == file_type::socket;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_socket(const path& p)
+{
+    return is_socket(status(p));
+}
+#endif
+
+GHC_INLINE bool is_socket(const path& p, std::error_code& ec) noexcept
+{
+    return is_socket(status(p, ec));
+}
+
+GHC_INLINE bool is_symlink(file_status s) noexcept
+{
+    return s.type() == file_type::symlink;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool is_symlink(const path& p)
+{
+    return is_symlink(symlink_status(p));
+}
+#endif
+
+GHC_INLINE bool is_symlink(const path& p, std::error_code& ec) noexcept
+{
+    return is_symlink(symlink_status(p, ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE file_time_type last_write_time(const path& p)
+{
+    std::error_code ec;
+    auto result = last_write_time(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE file_time_type last_write_time(const path& p, std::error_code& ec) noexcept
+{
+    time_t result = 0;
+    ec.clear();
+    file_status fs = detail::status_ex(p, ec, nullptr, nullptr, nullptr, &result);
+    return ec ? (file_time_type::min)() : std::chrono::system_clock::from_time_t(result);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void last_write_time(const path& p, file_time_type new_time)
+{
+    std::error_code ec;
+    last_write_time(p, new_time, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+}
+#endif
+
+GHC_INLINE void last_write_time(const path& p, file_time_type new_time, std::error_code& ec) noexcept
+{
+    ec.clear();
+    auto d = new_time.time_since_epoch();
+#ifdef GHC_OS_WINDOWS
+    std::shared_ptr<void> file(::CreateFileW(p.wstring().c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL), ::CloseHandle);
+    FILETIME ft;
+    auto tt = std::chrono::duration_cast<std::chrono::microseconds>(d).count() * 10 + 116444736000000000;
+    ft.dwLowDateTime = static_cast<DWORD>(tt);
+    ft.dwHighDateTime = static_cast<DWORD>(tt >> 32);
+    if (!::SetFileTime(file.get(), 0, 0, &ft)) {
+        ec = detail::make_system_error();
+    }
+#elif defined(GHC_OS_MACOS)
+#ifdef __MAC_OS_X_VERSION_MIN_REQUIRED
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < 101300
+    struct ::stat fs;
+    if (::stat(p.c_str(), &fs) == 0) {
+        struct ::timeval tv[2];
+        tv[0].tv_sec = fs.st_atimespec.tv_sec;
+        tv[0].tv_usec = static_cast<int>(fs.st_atimespec.tv_nsec / 1000);
+        tv[1].tv_sec = std::chrono::duration_cast<std::chrono::seconds>(d).count();
+        tv[1].tv_usec = static_cast<int>(std::chrono::duration_cast<std::chrono::microseconds>(d).count() % 1000000);
+        if (::utimes(p.c_str(), tv) == 0) {
+            return;
+        }
+    }
+    ec = detail::make_system_error();
+    return;
+#else
+    struct ::timespec times[2];
+    times[0].tv_sec = 0;
+    times[0].tv_nsec = UTIME_OMIT;
+    times[1].tv_sec = std::chrono::duration_cast<std::chrono::seconds>(d).count();
+    times[1].tv_nsec = std::chrono::duration_cast<std::chrono::nanoseconds>(d).count() % 1000000000;
+    if (::utimensat(AT_FDCWD, p.c_str(), times, AT_SYMLINK_NOFOLLOW) != 0) {
+        ec = detail::make_system_error();
+    }
+    return;
+#endif
+#endif
+#else
+#ifndef UTIME_OMIT
+#define UTIME_OMIT ((1l << 30) - 2l)
+#endif
+    struct ::timespec times[2];
+    times[0].tv_sec = 0;
+    times[0].tv_nsec = UTIME_OMIT;
+    times[1].tv_sec = static_cast<decltype(times[1].tv_sec)>(std::chrono::duration_cast<std::chrono::seconds>(d).count());
+    times[1].tv_nsec = static_cast<decltype(times[1].tv_nsec)>(std::chrono::duration_cast<std::chrono::nanoseconds>(d).count() % 1000000000);
+#if defined(__ANDROID_API__) && __ANDROID_API__ < 12
+    if (syscall(__NR_utimensat, AT_FDCWD, p.c_str(), times, AT_SYMLINK_NOFOLLOW) != 0) {
+#else
+    if (::utimensat(AT_FDCWD, p.c_str(), times, AT_SYMLINK_NOFOLLOW) != 0) {
+#endif
+        ec = detail::make_system_error();
+    }
+    return;
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void permissions(const path& p, perms prms, perm_options opts)
+{
+    std::error_code ec;
+    permissions(p, prms, opts, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+}
+#endif
+
+GHC_INLINE void permissions(const path& p, perms prms, std::error_code& ec) noexcept
+{
+    permissions(p, prms, perm_options::replace, ec);
+}
+
+GHC_INLINE void permissions(const path& p, perms prms, perm_options opts, std::error_code& ec)
+{
+    if (static_cast<int>(opts & (perm_options::replace | perm_options::add | perm_options::remove)) == 0) {
+        ec = detail::make_error_code(detail::portable_error::invalid_argument);
+        return;
+    }
+    auto fs = symlink_status(p, ec);
+    if ((opts & perm_options::replace) != perm_options::replace) {
+        if ((opts & perm_options::add) == perm_options::add) {
+            prms = fs.permissions() | prms;
+        }
+        else {
+            prms = fs.permissions() & ~prms;
+        }
+    }
+#ifdef GHC_OS_WINDOWS
+#ifdef __GNUC__
+    auto oldAttr = GetFileAttributesW(p.wstring().c_str());
+    if (oldAttr != INVALID_FILE_ATTRIBUTES) {
+        DWORD newAttr = ((prms & perms::owner_write) == perms::owner_write) ? oldAttr & ~(static_cast<DWORD>(FILE_ATTRIBUTE_READONLY)) : oldAttr | FILE_ATTRIBUTE_READONLY;
+        if (oldAttr == newAttr || SetFileAttributesW(p.wstring().c_str(), newAttr)) {
+            return;
+        }
+    }
+    ec = detail::make_system_error();
+#else
+    int mode = 0;
+    if ((prms & perms::owner_read) == perms::owner_read) {
+        mode |= _S_IREAD;
+    }
+    if ((prms & perms::owner_write) == perms::owner_write) {
+        mode |= _S_IWRITE;
+    }
+    if (::_wchmod(p.wstring().c_str(), mode) != 0) {
+        ec = detail::make_system_error();
+    }
+#endif
+#else
+    if ((opts & perm_options::nofollow) != perm_options::nofollow) {
+        if (::chmod(p.c_str(), static_cast<mode_t>(prms)) != 0) {
+            ec = detail::make_system_error();
+        }
+    }
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path proximate(const path& p, std::error_code& ec)
+{
+    return proximate(p, current_path(), ec);
+}
+#endif
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path proximate(const path& p, const path& base)
+{
+    return weakly_canonical(p).lexically_proximate(weakly_canonical(base));
+}
+#endif
+
+GHC_INLINE path proximate(const path& p, const path& base, std::error_code& ec)
+{
+    return weakly_canonical(p, ec).lexically_proximate(weakly_canonical(base, ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path read_symlink(const path& p)
+{
+    std::error_code ec;
+    auto result = read_symlink(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE path read_symlink(const path& p, std::error_code& ec)
+{
+    file_status fs = symlink_status(p, ec);
+    if (fs.type() != file_type::symlink) {
+        ec = detail::make_error_code(detail::portable_error::invalid_argument);
+        return path();
+    }
+    auto result = detail::resolveSymlink(p, ec);
+    return ec ? path() : result;
+}
+
+GHC_INLINE path relative(const path& p, std::error_code& ec)
+{
+    return relative(p, current_path(ec), ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path relative(const path& p, const path& base)
+{
+    return weakly_canonical(p).lexically_relative(weakly_canonical(base));
+}
+#endif
+
+GHC_INLINE path relative(const path& p, const path& base, std::error_code& ec)
+{
+    return weakly_canonical(p, ec).lexically_relative(weakly_canonical(base, ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool remove(const path& p)
+{
+    std::error_code ec;
+    auto result = remove(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE bool remove(const path& p, std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    std::wstring np = detail::fromUtf8<std::wstring>(p.u8string());
+    DWORD attr = GetFileAttributesW(np.c_str());
+    if (attr == INVALID_FILE_ATTRIBUTES) {
+        auto error = ::GetLastError();
+        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
+            return false;
+        }
+        ec = detail::make_system_error(error);
+    }
+    if (!ec) {
+        if (attr & FILE_ATTRIBUTE_DIRECTORY) {
+            if (!RemoveDirectoryW(np.c_str())) {
+                ec = detail::make_system_error();
+            }
+        }
+        else {
+            if (!DeleteFileW(np.c_str())) {
+                ec = detail::make_system_error();
+            }
+        }
+    }
+#else
+    if (::remove(p.c_str()) == -1) {
+        auto error = errno;
+        if (error == ENOENT) {
+            return false;
+        }
+        ec = detail::make_system_error();
+    }
+#endif
+    return ec ? false : true;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE uintmax_t remove_all(const path& p)
+{
+    std::error_code ec;
+    auto result = remove_all(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE uintmax_t remove_all(const path& p, std::error_code& ec) noexcept
+{
+    ec.clear();
+    uintmax_t count = 0;
+    if (p == "/") {
+        ec = detail::make_error_code(detail::portable_error::not_supported);
+        return static_cast<uintmax_t>(-1);
+    }
+    std::error_code tec;
+    auto fs = status(p, tec);
+    if (exists(fs) && is_directory(fs)) {
+        for (auto iter = directory_iterator(p, ec); iter != directory_iterator(); iter.increment(ec)) {
+            if (ec) {
+                break;
+            }
+            bool is_symlink_result = iter->is_symlink(ec);
+            if (ec) return static_cast<uintmax_t>(-1);
+            bool is_directory_result = iter->is_directory(ec);
+            if (ec) return static_cast<uintmax_t>(-1);
+            if (!is_symlink_result && is_directory_result) {
+                count += remove_all(iter->path(), ec);
+                if (ec) {
+                    return static_cast<uintmax_t>(-1);
+                }
+            }
+            else {
+                remove(iter->path(), ec);
+                if (ec) {
+                    return static_cast<uintmax_t>(-1);
+                }
+                ++count;
+            }
+        }
+    }
+    if (!ec) {
+        if (remove(p, ec)) {
+            ++count;
+        }
+    }
+    if (ec) {
+        return static_cast<uintmax_t>(-1);
+    }
+    return count;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void rename(const path& from, const path& to)
+{
+    std::error_code ec;
+    rename(from, to, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), from, to, ec);
+    }
+}
+#endif
+
+GHC_INLINE void rename(const path& from, const path& to, std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    if (from != to) {
+        if (!MoveFileExW(detail::fromUtf8<std::wstring>(from.u8string()).c_str(), detail::fromUtf8<std::wstring>(to.u8string()).c_str(), (DWORD)MOVEFILE_REPLACE_EXISTING)) {
+            ec = detail::make_system_error();
+        }
+    }
+#else
+    if (from != to) {
+        if (::rename(from.c_str(), to.c_str()) != 0) {
+            ec = detail::make_system_error();
+        }
+    }
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void resize_file(const path& p, uintmax_t size)
+{
+    std::error_code ec;
+    resize_file(p, size, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+}
+#endif
+
+GHC_INLINE void resize_file(const path& p, uintmax_t size, std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    LARGE_INTEGER lisize;
+    lisize.QuadPart = static_cast<LONGLONG>(size);
+    if(lisize.QuadPart < 0) {
+#ifdef ERROR_FILE_TOO_LARGE
+        ec = detail::make_system_error(ERROR_FILE_TOO_LARGE);
+#else
+        ec = detail::make_system_error(223);
+#endif
+        return;
+    }
+    std::shared_ptr<void> file(CreateFileW(detail::fromUtf8<std::wstring>(p.u8string()).c_str(), GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL), CloseHandle);
+    if (file.get() == INVALID_HANDLE_VALUE) {
+        ec = detail::make_system_error();
+    }
+    else if (SetFilePointerEx(file.get(), lisize, NULL, FILE_BEGIN) == 0 || SetEndOfFile(file.get()) == 0) {
+        ec = detail::make_system_error();
+    }
+#else
+    if (::truncate(p.c_str(), static_cast<off_t>(size)) != 0) {
+        ec = detail::make_system_error();
+    }
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE space_info space(const path& p)
+{
+    std::error_code ec;
+    auto result = space(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE space_info space(const path& p, std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    ULARGE_INTEGER freeBytesAvailableToCaller = {{0, 0}};
+    ULARGE_INTEGER totalNumberOfBytes = {{0, 0}};
+    ULARGE_INTEGER totalNumberOfFreeBytes = {{0, 0}};
+    if (!GetDiskFreeSpaceExW(detail::fromUtf8<std::wstring>(p.u8string()).c_str(), &freeBytesAvailableToCaller, &totalNumberOfBytes, &totalNumberOfFreeBytes)) {
+        ec = detail::make_system_error();
+        return {static_cast<uintmax_t>(-1), static_cast<uintmax_t>(-1), static_cast<uintmax_t>(-1)};
+    }
+    return {static_cast<uintmax_t>(totalNumberOfBytes.QuadPart), static_cast<uintmax_t>(totalNumberOfFreeBytes.QuadPart), static_cast<uintmax_t>(freeBytesAvailableToCaller.QuadPart)};
+#else
+    struct ::statvfs sfs;
+    if (::statvfs(p.c_str(), &sfs) != 0) {
+        ec = detail::make_system_error();
+        return {static_cast<uintmax_t>(-1), static_cast<uintmax_t>(-1), static_cast<uintmax_t>(-1)};
+    }
+    return {static_cast<uintmax_t>(sfs.f_blocks * sfs.f_frsize), static_cast<uintmax_t>(sfs.f_bfree * sfs.f_frsize), static_cast<uintmax_t>(sfs.f_bavail * sfs.f_frsize)};
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE file_status status(const path& p)
+{
+    std::error_code ec;
+    auto result = status(p, ec);
+    if (result.type() == file_type::none) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE file_status status(const path& p, std::error_code& ec) noexcept
+{
+    return detail::status_ex(p, ec);
+}
+
+GHC_INLINE bool status_known(file_status s) noexcept
+{
+    return s.type() != file_type::none;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE file_status symlink_status(const path& p)
+{
+    std::error_code ec;
+    auto result = symlink_status(p, ec);
+    if (result.type() == file_type::none) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE file_status symlink_status(const path& p, std::error_code& ec) noexcept
+{
+    return detail::symlink_status_ex(p, ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path temp_directory_path()
+{
+    std::error_code ec;
+    path result = temp_directory_path(ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE path temp_directory_path(std::error_code& ec) noexcept
+{
+    ec.clear();
+#ifdef GHC_OS_WINDOWS
+    wchar_t buffer[512];
+    auto rc = GetTempPathW(511, buffer);
+    if (!rc || rc > 511) {
+        ec = detail::make_system_error();
+        return path();
+    }
+    return path(std::wstring(buffer));
+#else
+    static const char* temp_vars[] = {"TMPDIR", "TMP", "TEMP", "TEMPDIR", nullptr};
+    const char* temp_path = nullptr;
+    for (auto temp_name = temp_vars; *temp_name != nullptr; ++temp_name) {
+        temp_path = std::getenv(*temp_name);
+        if (temp_path) {
+            return path(temp_path);
+        }
+    }
+    return path("/tmp");
+#endif
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE path weakly_canonical(const path& p)
+{
+    std::error_code ec;
+    auto result = weakly_canonical(p, ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), p, ec);
+    }
+    return result;
+}
+#endif
+
+GHC_INLINE path weakly_canonical(const path& p, std::error_code& ec) noexcept
+{
+    path result;
+    ec.clear();
+    bool scan = true;
+    for (auto pe : p) {
+        if (scan) {
+            std::error_code tec;
+            if (exists(result / pe, tec)) {
+                result /= pe;
+            }
+            else {
+                if (ec) {
+                    return path();
+                }
+                scan = false;
+                if (!result.empty()) {
+                    result = canonical(result, ec) / pe;
+                    if (ec) {
+                        break;
+                    }
+                }
+                else {
+                    result /= pe;
+                }
+            }
+        }
+        else {
+            result /= pe;
+        }
+    }
+    if (scan) {
+        if (!result.empty()) {
+            result = canonical(result, ec);
+        }
+    }
+    return ec ? path() : result.lexically_normal();
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.11 class file_status
+// 30.10.11.1 constructors and destructor
+GHC_INLINE file_status::file_status() noexcept
+    : file_status(file_type::none)
+{
+}
+
+GHC_INLINE file_status::file_status(file_type ft, perms prms) noexcept
+    : _type(ft)
+    , _perms(prms)
+{
+}
+
+GHC_INLINE file_status::file_status(const file_status& other) noexcept
+    : _type(other._type)
+    , _perms(other._perms)
+{
+}
+
+GHC_INLINE file_status::file_status(file_status&& other) noexcept
+    : _type(other._type)
+    , _perms(other._perms)
+{
+}
+
+GHC_INLINE file_status::~file_status() {}
+
+// assignments:
+GHC_INLINE file_status& file_status::operator=(const file_status& rhs) noexcept
+{
+    _type = rhs._type;
+    _perms = rhs._perms;
+    return *this;
+}
+
+GHC_INLINE file_status& file_status::operator=(file_status&& rhs) noexcept
+{
+    _type = rhs._type;
+    _perms = rhs._perms;
+    return *this;
+}
+
+// 30.10.11.3 modifiers
+GHC_INLINE void file_status::type(file_type ft) noexcept
+{
+    _type = ft;
+}
+
+GHC_INLINE void file_status::permissions(perms prms) noexcept
+{
+    _perms = prms;
+}
+
+// 30.10.11.2 observers
+GHC_INLINE file_type file_status::type() const noexcept
+{
+    return _type;
+}
+
+GHC_INLINE perms file_status::permissions() const noexcept
+{
+    return _perms;
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.12 class directory_entry
+// 30.10.12.1 constructors and destructor
+// directory_entry::directory_entry() noexcept = default;
+// directory_entry::directory_entry(const directory_entry&) = default;
+// directory_entry::directory_entry(directory_entry&&) noexcept = default;
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE directory_entry::directory_entry(const filesystem::path& p)
+    : _path(p)
+    , _file_size(0)
+#ifndef GHC_OS_WINDOWS
+    , _hard_link_count(0)
+#endif
+    , _last_write_time(0)
+{
+    refresh();
+}
+#endif
+
+GHC_INLINE directory_entry::directory_entry(const filesystem::path& p, std::error_code& ec)
+    : _path(p)
+    , _file_size(0)
+#ifndef GHC_OS_WINDOWS
+    , _hard_link_count(0)
+#endif
+    , _last_write_time(0)
+{
+    refresh(ec);
+}
+
+GHC_INLINE directory_entry::~directory_entry() {}
+
+// assignments:
+// directory_entry& directory_entry::operator=(const directory_entry&) = default;
+// directory_entry& directory_entry::operator=(directory_entry&&) noexcept = default;
+
+// 30.10.12.2 directory_entry modifiers
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void directory_entry::assign(const filesystem::path& p)
+{
+    _path = p;
+    refresh();
+}
+#endif
+
+GHC_INLINE void directory_entry::assign(const filesystem::path& p, std::error_code& ec)
+{
+    _path = p;
+    refresh(ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void directory_entry::replace_filename(const filesystem::path& p)
+{
+    _path.replace_filename(p);
+    refresh();
+}
+#endif
+
+GHC_INLINE void directory_entry::replace_filename(const filesystem::path& p, std::error_code& ec)
+{
+    _path.replace_filename(p);
+    refresh(ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void directory_entry::refresh()
+{
+    std::error_code ec;
+    refresh(ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), _path, ec);
+    }
+}
+#endif
+
+GHC_INLINE void directory_entry::refresh(std::error_code& ec) noexcept
+{
+#ifdef GHC_OS_WINDOWS
+    _status = detail::status_ex(_path, ec, &_symlink_status, &_file_size, nullptr, &_last_write_time);
+#else
+    _status = detail::status_ex(_path, ec, &_symlink_status, &_file_size, &_hard_link_count, &_last_write_time);
+#endif
+}
+
+// 30.10.12.3 directory_entry observers
+GHC_INLINE const filesystem::path& directory_entry::path() const noexcept
+{
+    return _path;
+}
+
+GHC_INLINE directory_entry::operator const filesystem::path&() const noexcept
+{
+    return _path;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::exists() const
+{
+    return filesystem::exists(status());
+}
+#endif
+
+GHC_INLINE bool directory_entry::exists(std::error_code& ec) const noexcept
+{
+    return filesystem::exists(status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::is_block_file() const
+{
+    return filesystem::is_block_file(status());
+}
+#endif
+GHC_INLINE bool directory_entry::is_block_file(std::error_code& ec) const noexcept
+{
+    return filesystem::is_block_file(status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::is_character_file() const
+{
+    return filesystem::is_character_file(status());
+}
+#endif
+
+GHC_INLINE bool directory_entry::is_character_file(std::error_code& ec) const noexcept
+{
+    return filesystem::is_character_file(status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::is_directory() const
+{
+    return filesystem::is_directory(status());
+}
+#endif
+
+GHC_INLINE bool directory_entry::is_directory(std::error_code& ec) const noexcept
+{
+    return filesystem::is_directory(status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::is_fifo() const
+{
+    return filesystem::is_fifo(status());
+}
+#endif
+
+GHC_INLINE bool directory_entry::is_fifo(std::error_code& ec) const noexcept
+{
+    return filesystem::is_fifo(status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::is_other() const
+{
+    return filesystem::is_other(status());
+}
+#endif
+
+GHC_INLINE bool directory_entry::is_other(std::error_code& ec) const noexcept
+{
+    return filesystem::is_other(status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::is_regular_file() const
+{
+    return filesystem::is_regular_file(status());
+}
+#endif
+
+GHC_INLINE bool directory_entry::is_regular_file(std::error_code& ec) const noexcept
+{
+    return filesystem::is_regular_file(status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::is_socket() const
+{
+    return filesystem::is_socket(status());
+}
+#endif
+
+GHC_INLINE bool directory_entry::is_socket(std::error_code& ec) const noexcept
+{
+    return filesystem::is_socket(status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE bool directory_entry::is_symlink() const
+{
+    return filesystem::is_symlink(symlink_status());
+}
+#endif
+
+GHC_INLINE bool directory_entry::is_symlink(std::error_code& ec) const noexcept
+{
+    return filesystem::is_symlink(symlink_status(ec));
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE uintmax_t directory_entry::file_size() const
+{
+    if (_status.type() != file_type::none) {
+        return _file_size;
+    }
+    return filesystem::file_size(path());
+}
+#endif
+
+GHC_INLINE uintmax_t directory_entry::file_size(std::error_code& ec) const noexcept
+{
+    if (_status.type() != file_type::none) {
+        ec.clear();
+        return _file_size;
+    }
+    return filesystem::file_size(path(), ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE uintmax_t directory_entry::hard_link_count() const
+{
+#ifndef GHC_OS_WINDOWS
+    if (_status.type() != file_type::none) {
+        return _hard_link_count;
+    }
+#endif
+    return filesystem::hard_link_count(path());
+}
+#endif
+
+GHC_INLINE uintmax_t directory_entry::hard_link_count(std::error_code& ec) const noexcept
+{
+#ifndef GHC_OS_WINDOWS
+    if (_status.type() != file_type::none) {
+        ec.clear();
+        return _hard_link_count;
+    }
+#endif
+    return filesystem::hard_link_count(path(), ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE file_time_type directory_entry::last_write_time() const
+{
+    if (_status.type() != file_type::none) {
+        return std::chrono::system_clock::from_time_t(_last_write_time);
+    }
+    return filesystem::last_write_time(path());
+}
+#endif
+
+GHC_INLINE file_time_type directory_entry::last_write_time(std::error_code& ec) const noexcept
+{
+    if (_status.type() != file_type::none) {
+        ec.clear();
+        return std::chrono::system_clock::from_time_t(_last_write_time);
+    }
+    return filesystem::last_write_time(path(), ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE file_status directory_entry::status() const
+{
+    if (_status.type() != file_type::none) {
+        return _status;
+    }
+    return filesystem::status(path());
+}
+#endif
+
+GHC_INLINE file_status directory_entry::status(std::error_code& ec) const noexcept
+{
+    if (_status.type() != file_type::none) {
+        ec.clear();
+        return _status;
+    }
+    return filesystem::status(path(), ec);
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE file_status directory_entry::symlink_status() const
+{
+    if (_symlink_status.type() != file_type::none) {
+        return _symlink_status;
+    }
+    return filesystem::symlink_status(path());
+}
+#endif
+
+GHC_INLINE file_status directory_entry::symlink_status(std::error_code& ec) const noexcept
+{
+    if (_symlink_status.type() != file_type::none) {
+        ec.clear();
+        return _symlink_status;
+    }
+    return filesystem::symlink_status(path(), ec);
+}
+
+GHC_INLINE bool directory_entry::operator<(const directory_entry& rhs) const noexcept
+{
+    return _path < rhs._path;
+}
+
+GHC_INLINE bool directory_entry::operator==(const directory_entry& rhs) const noexcept
+{
+    return _path == rhs._path;
+}
+
+GHC_INLINE bool directory_entry::operator!=(const directory_entry& rhs) const noexcept
+{
+    return _path != rhs._path;
+}
+
+GHC_INLINE bool directory_entry::operator<=(const directory_entry& rhs) const noexcept
+{
+    return _path <= rhs._path;
+}
+
+GHC_INLINE bool directory_entry::operator>(const directory_entry& rhs) const noexcept
+{
+    return _path > rhs._path;
+}
+
+GHC_INLINE bool directory_entry::operator>=(const directory_entry& rhs) const noexcept
+{
+    return _path >= rhs._path;
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.13 class directory_iterator
+
+#ifdef GHC_OS_WINDOWS
+class directory_iterator::impl
+{
+public:
+    impl(const path& p, directory_options options)
+        : _base(p)
+        , _options(options)
+        , _dirHandle(INVALID_HANDLE_VALUE)
+    {
+        if (!_base.empty()) {
+            ZeroMemory(&_findData, sizeof(WIN32_FIND_DATAW));
+            if ((_dirHandle = FindFirstFileW(detail::fromUtf8<std::wstring>((_base / "*").u8string()).c_str(), &_findData)) != INVALID_HANDLE_VALUE) {
+                if (std::wstring(_findData.cFileName) == L"." || std::wstring(_findData.cFileName) == L"..") {
+                    increment(_ec);
+                }
+                else {
+                    _current = _base / std::wstring(_findData.cFileName);
+                    copyToDirEntry(_ec);
+                }
+            }
+            else {
+                auto error = ::GetLastError();
+                _base = filesystem::path();
+                if (error != ERROR_ACCESS_DENIED || (options & directory_options::skip_permission_denied) == directory_options::none) {
+                    _ec = detail::make_system_error();
+                }
+            }
+        }
+    }
+    impl(const impl& other) = delete;
+    ~impl()
+    {
+        if (_dirHandle != INVALID_HANDLE_VALUE) {
+            FindClose(_dirHandle);
+            _dirHandle = INVALID_HANDLE_VALUE;
+        }
+    }
+    void increment(std::error_code& ec)
+    {
+        if (_dirHandle != INVALID_HANDLE_VALUE) {
+            do {
+                if (FindNextFileW(_dirHandle, &_findData)) {
+                    _current = _base;
+#ifdef GHC_RAISE_UNICODE_ERRORS
+                    try {
+                        _current.append_name(detail::toUtf8(_findData.cFileName).c_str());
+                    }
+                    catch(filesystem_error& fe) {
+                        ec = fe.code();
+                        return;
+                    }
+#else
+                    _current.append_name(detail::toUtf8(_findData.cFileName).c_str());
+#endif
+                    copyToDirEntry(ec);
+                }
+                else {
+                    auto err = ::GetLastError();
+                    if(err != ERROR_NO_MORE_FILES) {
+                        _ec = ec = detail::make_system_error(err);
+                    }
+                    FindClose(_dirHandle);
+                    _dirHandle = INVALID_HANDLE_VALUE;
+                    _current = filesystem::path();
+                    break;
+                }
+            } while (std::wstring(_findData.cFileName) == L"." || std::wstring(_findData.cFileName) == L"..");
+        }
+        else {
+            ec = _ec;
+        }
+    }
+    void copyToDirEntry(std::error_code& ec)
+    {
+        _dir_entry._path = _current;
+        if (_findData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+            _dir_entry._status = detail::status_ex(_current, ec, &_dir_entry._symlink_status, &_dir_entry._file_size, nullptr, &_dir_entry._last_write_time);
+        }
+        else {
+            _dir_entry._status = detail::status_from_INFO(_current, &_findData, ec, &_dir_entry._file_size, &_dir_entry._last_write_time);
+            _dir_entry._symlink_status = _dir_entry._status;
+        }
+        if (ec) {
+            if (_dir_entry._status.type() != file_type::none && _dir_entry._symlink_status.type() != file_type::none) {
+                ec.clear();
+            }
+            else {
+                _dir_entry._file_size = static_cast<uintmax_t>(-1);
+                _dir_entry._last_write_time = 0;
+            }
+        }
+    }
+    path _base;
+    directory_options _options;
+    WIN32_FIND_DATAW _findData;
+    HANDLE _dirHandle;
+    path _current;
+    directory_entry _dir_entry;
+    std::error_code _ec;
+};
+#else
+// POSIX implementation
+class directory_iterator::impl
+{
+public:
+    impl(const path& path, directory_options options)
+        : _base(path)
+        , _options(options)
+        , _dir(nullptr)
+        , _entry(nullptr)
+    {
+        if (!path.empty()) {
+            _dir = ::opendir(path.native().c_str());
+        }
+        if (!path.empty()) {
+            if (!_dir) {
+                auto error = errno;
+                _base = filesystem::path();
+                if (error != EACCES || (options & directory_options::skip_permission_denied) == directory_options::none) {
+                    _ec = detail::make_system_error();
+                }
+            }
+            else {
+                increment(_ec);
+            }
+        }
+    }
+    impl(const impl& other) = delete;
+    ~impl()
+    {
+        if (_dir) {
+            ::closedir(_dir);
+        }
+    }
+    void increment(std::error_code& ec)
+    {
+        if (_dir) {
+            do {
+                errno = 0;
+                _entry = readdir(_dir);
+                if (_entry) {
+                    _current = _base;
+                    _current.append_name(_entry->d_name);
+                    _dir_entry = directory_entry(_current, ec);
+                }
+                else {
+                    ::closedir(_dir);
+                    _dir = nullptr;
+                    _current = path();
+                    if (errno) {
+                        ec = detail::make_system_error();
+                    }
+                    break;
+                }
+            } while (std::strcmp(_entry->d_name, ".") == 0 || std::strcmp(_entry->d_name, "..") == 0);
+        }
+    }
+    path _base;
+    directory_options _options;
+    path _current;
+    DIR* _dir;
+    struct ::dirent* _entry;
+    directory_entry _dir_entry;
+    std::error_code _ec;
+};
+#endif
+
+// 30.10.13.1 member functions
+GHC_INLINE directory_iterator::directory_iterator() noexcept
+    : _impl(new impl(path(), directory_options::none))
+{
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE directory_iterator::directory_iterator(const path& p)
+    : _impl(new impl(p, directory_options::none))
+{
+    if (_impl->_ec) {
+        throw filesystem_error(detail::systemErrorText(_impl->_ec.value()), p, _impl->_ec);
+    }
+    _impl->_ec.clear();
+}
+
+GHC_INLINE directory_iterator::directory_iterator(const path& p, directory_options options)
+    : _impl(new impl(p, options))
+{
+    if (_impl->_ec) {
+        throw filesystem_error(detail::systemErrorText(_impl->_ec.value()), p, _impl->_ec);
+    }
+}
+#endif
+
+GHC_INLINE directory_iterator::directory_iterator(const path& p, std::error_code& ec) noexcept
+    : _impl(new impl(p, directory_options::none))
+{
+    if (_impl->_ec) {
+        ec = _impl->_ec;
+    }
+}
+
+GHC_INLINE directory_iterator::directory_iterator(const path& p, directory_options options, std::error_code& ec) noexcept
+    : _impl(new impl(p, options))
+{
+    if (_impl->_ec) {
+        ec = _impl->_ec;
+    }
+}
+
+GHC_INLINE directory_iterator::directory_iterator(const directory_iterator& rhs)
+    : _impl(rhs._impl)
+{
+}
+
+GHC_INLINE directory_iterator::directory_iterator(directory_iterator&& rhs) noexcept
+    : _impl(std::move(rhs._impl))
+{
+}
+
+GHC_INLINE directory_iterator::~directory_iterator() {}
+
+GHC_INLINE directory_iterator& directory_iterator::operator=(const directory_iterator& rhs)
+{
+    _impl = rhs._impl;
+    return *this;
+}
+
+GHC_INLINE directory_iterator& directory_iterator::operator=(directory_iterator&& rhs) noexcept
+{
+    _impl = std::move(rhs._impl);
+    return *this;
+}
+
+GHC_INLINE const directory_entry& directory_iterator::operator*() const
+{
+    return _impl->_dir_entry;
+}
+
+GHC_INLINE const directory_entry* directory_iterator::operator->() const
+{
+    return &_impl->_dir_entry;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE directory_iterator& directory_iterator::operator++()
+{
+    std::error_code ec;
+    _impl->increment(ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), _impl->_current, ec);
+    }
+    return *this;
+}
+#endif
+
+GHC_INLINE directory_iterator& directory_iterator::increment(std::error_code& ec) noexcept
+{
+    _impl->increment(ec);
+    return *this;
+}
+
+GHC_INLINE bool directory_iterator::operator==(const directory_iterator& rhs) const
+{
+    return _impl->_current == rhs._impl->_current;
+}
+
+GHC_INLINE bool directory_iterator::operator!=(const directory_iterator& rhs) const
+{
+    return _impl->_current != rhs._impl->_current;
+}
+
+// 30.10.13.2 directory_iterator non-member functions
+
+GHC_INLINE directory_iterator begin(directory_iterator iter) noexcept
+{
+    return iter;
+}
+
+GHC_INLINE directory_iterator end(const directory_iterator&) noexcept
+{
+    return directory_iterator();
+}
+
+//-----------------------------------------------------------------------------
+// 30.10.14 class recursive_directory_iterator
+
+GHC_INLINE recursive_directory_iterator::recursive_directory_iterator() noexcept
+    : _impl(new recursive_directory_iterator_impl(directory_options::none, true))
+{
+    _impl->_dir_iter_stack.push(directory_iterator());
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE recursive_directory_iterator::recursive_directory_iterator(const path& p)
+    : _impl(new recursive_directory_iterator_impl(directory_options::none, true))
+{
+    _impl->_dir_iter_stack.push(directory_iterator(p));
+}
+
+GHC_INLINE recursive_directory_iterator::recursive_directory_iterator(const path& p, directory_options options)
+    : _impl(new recursive_directory_iterator_impl(options, true))
+{
+    _impl->_dir_iter_stack.push(directory_iterator(p, options));
+}
+#endif
+
+GHC_INLINE recursive_directory_iterator::recursive_directory_iterator(const path& p, directory_options options, std::error_code& ec) noexcept
+    : _impl(new recursive_directory_iterator_impl(options, true))
+{
+    _impl->_dir_iter_stack.push(directory_iterator(p, options, ec));
+}
+
+GHC_INLINE recursive_directory_iterator::recursive_directory_iterator(const path& p, std::error_code& ec) noexcept
+    : _impl(new recursive_directory_iterator_impl(directory_options::none, true))
+{
+    _impl->_dir_iter_stack.push(directory_iterator(p, ec));
+}
+
+GHC_INLINE recursive_directory_iterator::recursive_directory_iterator(const recursive_directory_iterator& rhs)
+    : _impl(rhs._impl)
+{
+}
+
+GHC_INLINE recursive_directory_iterator::recursive_directory_iterator(recursive_directory_iterator&& rhs) noexcept
+    : _impl(std::move(rhs._impl))
+{
+}
+
+GHC_INLINE recursive_directory_iterator::~recursive_directory_iterator() {}
+
+// 30.10.14.1 observers
+GHC_INLINE directory_options recursive_directory_iterator::options() const
+{
+    return _impl->_options;
+}
+
+GHC_INLINE int recursive_directory_iterator::depth() const
+{
+    return static_cast<int>(_impl->_dir_iter_stack.size() - 1);
+}
+
+GHC_INLINE bool recursive_directory_iterator::recursion_pending() const
+{
+    return _impl->_recursion_pending;
+}
+
+GHC_INLINE const directory_entry& recursive_directory_iterator::operator*() const
+{
+    return *(_impl->_dir_iter_stack.top());
+}
+
+GHC_INLINE const directory_entry* recursive_directory_iterator::operator->() const
+{
+    return &(*(_impl->_dir_iter_stack.top()));
+}
+
+// 30.10.14.1 modifiers recursive_directory_iterator&
+GHC_INLINE recursive_directory_iterator& recursive_directory_iterator::operator=(const recursive_directory_iterator& rhs)
+{
+    _impl = rhs._impl;
+    return *this;
+}
+
+GHC_INLINE recursive_directory_iterator& recursive_directory_iterator::operator=(recursive_directory_iterator&& rhs) noexcept
+{
+    _impl = std::move(rhs._impl);
+    return *this;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE recursive_directory_iterator& recursive_directory_iterator::operator++()
+{
+    std::error_code ec;
+    increment(ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), _impl->_dir_iter_stack.empty() ? path() : _impl->_dir_iter_stack.top()->path(), ec);
+    }
+    return *this;
+}
+#endif
+
+GHC_INLINE recursive_directory_iterator& recursive_directory_iterator::increment(std::error_code& ec) noexcept
+{
+    auto status = (*this)->status(ec);
+    if (ec) return *this;
+    auto symlink_status = (*this)->symlink_status(ec);
+    if (ec) return *this;
+    if (recursion_pending() && is_directory(status) && (!is_symlink(symlink_status) || (options() & directory_options::follow_directory_symlink) != directory_options::none)) {
+        _impl->_dir_iter_stack.push(directory_iterator((*this)->path(), _impl->_options, ec));
+    }
+    else {
+        _impl->_dir_iter_stack.top().increment(ec);
+    }
+    if (!ec) {
+        while (depth() && _impl->_dir_iter_stack.top() == directory_iterator()) {
+            _impl->_dir_iter_stack.pop();
+            _impl->_dir_iter_stack.top().increment(ec);
+        }
+    }
+    else if (!_impl->_dir_iter_stack.empty()) {
+        _impl->_dir_iter_stack.pop();
+    }
+    _impl->_recursion_pending = true;
+    return *this;
+}
+
+#ifdef GHC_WITH_EXCEPTIONS
+GHC_INLINE void recursive_directory_iterator::pop()
+{
+    std::error_code ec;
+    pop(ec);
+    if (ec) {
+        throw filesystem_error(detail::systemErrorText(ec.value()), _impl->_dir_iter_stack.empty() ? path() : _impl->_dir_iter_stack.top()->path(), ec);
+    }
+}
+#endif
+
+GHC_INLINE void recursive_directory_iterator::pop(std::error_code& ec)
+{
+    if (depth() == 0) {
+        *this = recursive_directory_iterator();
+    }
+    else {
+        do {
+            _impl->_dir_iter_stack.pop();
+            _impl->_dir_iter_stack.top().increment(ec);
+        } while (depth() && _impl->_dir_iter_stack.top() == directory_iterator());
+    }
+}
+
+GHC_INLINE void recursive_directory_iterator::disable_recursion_pending()
+{
+    _impl->_recursion_pending = false;
+}
+
+// other members as required by 27.2.3, input iterators
+GHC_INLINE bool recursive_directory_iterator::operator==(const recursive_directory_iterator& rhs) const
+{
+    return _impl->_dir_iter_stack.top() == rhs._impl->_dir_iter_stack.top();
+}
+
+GHC_INLINE bool recursive_directory_iterator::operator!=(const recursive_directory_iterator& rhs) const
+{
+    return _impl->_dir_iter_stack.top() != rhs._impl->_dir_iter_stack.top();
+}
+
+// 30.10.14.2 directory_iterator non-member functions
+GHC_INLINE recursive_directory_iterator begin(recursive_directory_iterator iter) noexcept
+{
+    return iter;
+}
+
+GHC_INLINE recursive_directory_iterator end(const recursive_directory_iterator&) noexcept
+{
+    return recursive_directory_iterator();
+}
+
+#endif  // GHC_EXPAND_IMPL
+
+}  // namespace filesystem
+}  // namespace ghc
+
+// cleanup some macros
+#undef GHC_INLINE
+#undef GHC_EXPAND_IMPL
+
+#endif  // GHC_FILESYSTEM_H
+
+namespace fs
+{
+	using namespace ghc::filesystem;
+	using ifstream = ghc::filesystem::ifstream;
+	using ofstream = ghc::filesystem::ofstream;
+	using fstream = ghc::filesystem::fstream;
 }
 
 // file: ext/tinyformat/tinyformat.h
@@ -1136,12 +6633,19 @@ TINYFORMAT_FOREACH_ARGNUM(TINYFORMAT_MAKE_FORMAT_FUNCS)
 class TempData;
 class SymbolData;
 
+struct ValidateState
+{
+	bool noFileChange = false;
+	const wchar_t *noFileChangeDirective = nullptr;
+	int passes = 0;
+};
+
 class CAssemblerCommand
 {
 public:
 	CAssemblerCommand();
 	virtual ~CAssemblerCommand() { };
-	virtual bool Validate() = 0;
+	virtual bool Validate(const ValidateState &state) = 0;
 	virtual void Encode() const = 0;
 	virtual void writeTempData(TempData& tempData) const = 0;
 	virtual void writeSymData(SymbolData& symData) const { };
@@ -1158,33 +6662,31 @@ private:
 class DummyCommand: public CAssemblerCommand
 {
 public:
-	virtual bool Validate() { return false; };
-	virtual void Encode() const { };
-	virtual void writeTempData(TempData& tempData) const { };
-	virtual void writeSymData(SymbolData& symData) const { };
+	bool Validate(const ValidateState &state) override { return false; }
+	void Encode() const override { };
+	void writeTempData(TempData& tempData) const override { };
+	void writeSymData(SymbolData& symData) const override { };
 };
 
 class InvalidCommand: public CAssemblerCommand
 {
 public:
-	virtual bool Validate() { return false; };
-	virtual void Encode() const { };
-	virtual void writeTempData(TempData& tempData) const { };
-	virtual void writeSymData(SymbolData& symData) const { };
+	bool Validate(const ValidateState &state) override { return false; }
+	void Encode() const override { };
+	void writeTempData(TempData& tempData) const override { };
+	void writeSymData(SymbolData& symData) const override { };
 };
 
 // file: Core/Expression.h
+
 #include <memory>
+#include <string>
+#include <vector>
 
-inline std::wstring to_wstring(int64_t value)
-{
-	return formatString(L"%d", value);
-}
+class Label;
 
-inline std::wstring to_wstring(double value)
-{
-	return formatString(L"%#.17g", value);
-}
+struct ExpressionFunctionEntry;
+struct ExpressionLabelFunctionEntry;
 
 enum class OperatorType
 {
@@ -1229,6 +6731,7 @@ struct ExpressionValue
 	ExpressionValue()
 	{
 		type = ExpressionValueType::Invalid;
+		intValue = 0;
 	}
 
 	ExpressionValue(int64_t value)
@@ -1269,7 +6772,7 @@ struct ExpressionValue
 		return type != ExpressionValueType::Invalid;
 	}
 
-	struct
+	union
 	{
 		int64_t intValue;
 		double floatValue;
@@ -1298,11 +6801,6 @@ struct ExpressionValue
 	ExpressionValue operator||(const ExpressionValue& other) const;
 	ExpressionValue operator^(const ExpressionValue& other) const;
 };
-
-class Label;
-
-struct ExpressionFunctionEntry;
-struct ExpressionLabelFunctionEntry;
 
 class ExpressionInternal
 {
@@ -1370,41 +6868,9 @@ public:
 		return true;
 	}
 
-	bool evaluateString(std::wstring& dest, bool convert)
-	{
-		if (expression == nullptr)
-			return false;
-
-		ExpressionValue value = expression->evaluate();
-		if (convert && value.isInt())
-		{
-			dest = to_wstring(value.intValue);
-			return true;
-		}
-
-		if (convert && value.isFloat())
-		{
-			dest = to_wstring(value.floatValue);
-			return true;
-		}
-
-		if (value.isString() == false)
-			return false;
-
-		dest = value.strValue;
-		return true;
-	}
-
-	bool evaluateIdentifier(std::wstring& dest)
-	{
-		if (expression == nullptr || expression->isIdentifier() == false)
-			return false;
-
-		dest = expression->getStringValue();
-		return true;
-	}
-
-	std::wstring toString() { return expression != nullptr ? expression->toString() : L""; };
+	bool evaluateString(std::wstring& dest, bool convert);
+	bool evaluateIdentifier(std::wstring& dest);
+	std::wstring toString();
 private:
 	std::shared_ptr<ExpressionInternal> expression;
 	std::wstring originalText;
@@ -1413,8 +6879,244 @@ private:
 
 Expression createConstExpression(int64_t value);
 
+// file: Parser/Tokenizer.h
+
+#include <list>
+#include <string>
+#include <vector>
+
+class TextFile;
+
+enum class TokenType
+{
+	Invalid,
+	Identifier,
+	Integer,
+	String,
+	Float,
+	LParen,
+	RParen,
+	Plus,
+	Minus,
+	Mult,
+	Div,
+	Mod,
+	Caret,
+	Tilde,
+	LeftShift,
+	RightShift,
+	Less,
+	Greater,
+	LessEqual,
+	GreaterEqual,
+	Equal,
+	NotEqual,
+	BitAnd,
+	BitOr,
+	LogAnd,
+	LogOr,
+	Exclamation,
+	Question,
+	Colon,
+	LBrack,
+	RBrack,
+	Comma,
+	Assign,
+	Equ,
+	EquValue,
+	Hash,
+	LBrace,
+	RBrace,
+	Dollar,
+	NumberString,
+	Degree,
+	Separator
+};
+
+struct Token
+{
+	friend class Tokenizer;
+
+	Token()
+	{
+	}
+
+	void setOriginalText(const std::wstring& t)
+	{
+		setOriginalText(t, 0, t.length());
+	}
+
+	void setOriginalText(const std::wstring& t, const size_t pos, const size_t len)
+	{
+		originalText = t.substr(pos, len);
+	}
+
+	std::wstring getOriginalText() const
+	{
+		return originalText;
+	}
+
+	void setStringValue(const std::wstring& t)
+	{
+		setStringValue(t, 0, t.length());
+	}
+
+	void setStringValue(const std::wstring& t, const size_t pos, const size_t len)
+	{
+		stringValue = t.substr(pos, len);
+	}
+
+	void setStringAndOriginalValue(const std::wstring& t)
+	{
+		setStringAndOriginalValue(t, 0, t.length());
+	}
+
+	void setStringAndOriginalValue(const std::wstring& t, const size_t pos, const size_t len)
+	{
+		setStringValue(t, pos, len);
+		originalText = stringValue;
+	}
+
+	std::wstring getStringValue() const
+	{
+		return stringValue;
+	}
+
+	bool stringValueStartsWith(wchar_t c) const
+	{
+		return stringValue[0] == c;
+	}
+
+	TokenType type;
+	size_t line;
+	size_t column;
+
+	union
+	{
+		int64_t intValue;
+		double floatValue;
+	};
+
+protected:
+	std::wstring originalText;
+	std::wstring stringValue;
+
+	bool checked = false;
+};
+
+typedef std::list<Token> TokenList;
+
+struct TokenizerPosition
+{
+	friend class Tokenizer;
+
+	TokenizerPosition previous()
+	{
+		TokenizerPosition pos = *this;
+		pos.it--;
+		return pos;
+	}
+private:
+	TokenList::iterator it;
+};
+
+class Tokenizer
+{
+public:
+	Tokenizer();
+	const Token& nextToken();
+	const Token& peekToken(int ahead = 0);
+	void eatToken() { eatTokens(1); }
+	void eatTokens(int num);
+	bool atEnd() { return position.it == tokens.end(); }
+	TokenizerPosition getPosition() { return position; }
+	void setPosition(TokenizerPosition pos) { position = pos; }
+	void skipLookahead();
+	std::vector<Token> getTokens(TokenizerPosition start, TokenizerPosition end) const;
+	void registerReplacement(const std::wstring& identifier, std::vector<Token>& tokens);
+	void registerReplacement(const std::wstring& identifier, const std::wstring& newValue);
+	void registerReplacementString(const std::wstring& identifier, const std::wstring& newValue);
+	void registerReplacementInteger(const std::wstring& identifier, int64_t newValue);
+	void registerReplacementFloat(const std::wstring& identifier, double newValue);
+	static size_t addEquValue(const std::vector<Token>& tokens);
+	static void clearEquValues() { equValues.clear(); }
+	void resetLookaheadCheckMarks();
+protected:
+	void clearTokens() { tokens.clear(); };
+	void resetPosition() { position.it = tokens.begin(); }
+	void addToken(Token token);
+private:
+	bool processElement(TokenList::iterator& it);
+
+	TokenList tokens;
+	TokenizerPosition position;
+
+	struct Replacement
+	{
+		std::wstring identifier;
+		std::vector<Token> value;
+	};
+
+	Token invalidToken;
+	std::vector<Replacement> replacements;
+	static std::vector<std::vector<Token>> equValues;
+};
+
+class FileTokenizer: public Tokenizer
+{
+public:
+	bool init(TextFile* input);
+protected:
+	Token loadToken();
+	bool isInputAtEnd();
+
+	void skipWhitespace();
+	void createToken(TokenType type, size_t length);
+	void createToken(TokenType type, size_t length, int64_t value);
+	void createToken(TokenType type, size_t length, double value);
+	void createToken(TokenType type, size_t length, const std::wstring& value);
+	void createToken(TokenType type, size_t length, const std::wstring& value, size_t valuePos, size_t valueLength);
+	void createTokenCurrentString(TokenType type, size_t length);
+
+	bool convertInteger(size_t start, size_t end, int64_t& result);
+	bool convertFloat(size_t start, size_t end, double& result);
+	bool parseOperator();
+
+	TextFile* input;
+	std::wstring currentLine;
+	size_t lineNumber;
+	size_t linePos;
+
+	Token token;
+	bool equActive;
+};
+
+class TokenStreamTokenizer: public Tokenizer
+{
+public:
+	void init(const std::vector<Token>& tokens)
+	{
+		clearTokens();
+
+		for (const Token &tok: tokens)
+			addToken(tok);
+
+		resetPosition();
+	}
+};
+
+
 // file: Core/ExpressionFunctions.h
+
 #include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+
+class Label;
+
+struct ExpressionValue;
 
 bool getExpFuncParameter(const std::vector<ExpressionValue>& parameters, size_t index, int64_t& dest,
 	const std::wstring& funcName, bool optional);
@@ -1451,6 +7153,38 @@ struct ExpressionLabelFunctionEntry
 	ExpFuncSafety safety;
 };
 
+struct UserExpressionFunction
+{
+	std::wstring name;
+	std::vector<std::wstring> parameters;
+	std::vector<Token> content;
+};
+
+class UserFunctions
+{
+public:
+	static UserFunctions &instance()
+	{
+		static UserFunctions func;
+		return func;
+	}
+
+	bool addFunction(const UserExpressionFunction &func)
+	{
+		_entries.emplace(func.name, func);
+		return true;
+	}
+	const UserExpressionFunction *findFunction(const std::wstring &name) const
+	{
+		auto it = _entries.find(name);
+		return it != _entries.end() ? &it->second : nullptr;
+	}
+
+private:
+	UserFunctions() = default;
+
+	std::map<std::wstring, UserExpressionFunction> _entries;
+};
 
 using ExpressionFunctionMap =  std::map<std::wstring, const ExpressionFunctionEntry>;
 using ExpressionLabelFunctionMap =  std::map<std::wstring, const ExpressionLabelFunctionEntry>;
@@ -1459,7 +7193,12 @@ extern const ExpressionFunctionMap expressionFunctions;
 extern const ExpressionLabelFunctionMap expressionLabelFunctions;
 
 // file: Core/SymbolData.h
+
+
+#include <cstdint>
 #include <set>
+#include <string>
+#include <vector>
 
 class AssemblerFile;
 
@@ -1535,7 +7274,7 @@ public:
 
 	SymbolData();
 	void clear();
-	void setNocashSymFileName(const std::wstring& name, int version) { nocashSymFileName = name; nocashSymVersion = version; };
+	void setNocashSymFileName(const fs::path& name, int version) { nocashSymFileName = name; nocashSymVersion = version; };
 	void write();
 	void setEnabled(bool b) { enabled = b; };
 
@@ -1549,7 +7288,7 @@ private:
 	void writeNocashSym();
 	size_t addFileName(const std::wstring& fileName);
 
-	std::wstring nocashSymFileName;
+	fs::path nocashSymFileName;
 	bool enabled;
 	int nocashSymVersion;
 
@@ -1561,11 +7300,10 @@ private:
 };
 
 // file: Util/Util.h
+
+
 #include <string>
-#include <stdio.h>
-
-
-typedef std::vector<std::wstring> StringList;
+#include <vector>
 
 std::wstring convertUtf8ToWString(const char* source);
 std::string convertWCharToUtf8(wchar_t character);
@@ -1578,60 +7316,18 @@ int32_t getFloatBits(float value);
 float bitsToFloat(int32_t value);
 int64_t getDoubleBits(double value);
 
-StringList getStringListFromArray(wchar_t** source, int count);
-StringList splitString(const std::wstring& str, const wchar_t delim, bool skipEmpty);
-
-int64_t fileSize(const std::wstring& fileName);
-bool fileExists(const std::wstring& strFilename);
-bool copyFile(const std::wstring& existingFile, const std::wstring& newFile);
-bool deleteFile(const std::wstring& fileName);
+std::vector<std::wstring> getStringListFromArray(wchar_t** source, int count);
+std::vector<std::wstring> splitString(const std::wstring& str, const wchar_t delim, bool skipEmpty);
 
 std::wstring toWLowercase(const std::string& str);
-std::wstring getFileNameFromPath(const std::wstring& path);
 size_t replaceAll(std::wstring& str, const wchar_t* oldValue,const std::wstring& newValue);
 bool startsWith(const std::wstring& str, const wchar_t* value, size_t stringPos = 0);
 
-enum class OpenFileMode { ReadBinary, WriteBinary, ReadWriteBinary };
-FILE* openFile(const std::wstring& fileName, OpenFileMode mode);
-std::wstring getCurrentDirectory();
-bool changeDirectory(const std::wstring& dir);
-bool isAbsolutePath(const std::wstring& path);
-
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(x) (sizeof((x)) / sizeof((x)[0]))
-#endif
-
 // file: Util/FileClasses.h
+
+
 #include <list>
-
-class BinaryFile
-{
-public:
-	enum Mode { Read, Write, ReadWrite };
-
-	BinaryFile();
-	~BinaryFile();
-
-	bool open(const std::wstring& fileName, Mode mode);
-	bool open(Mode mode);
-	bool isOpen() { return handle != nullptr; };
-	bool atEnd() { return isOpen() && mode != Write && ftell(handle) == size_; };
-	void setPos(long pos) { if (isOpen()) fseek(handle,pos,SEEK_SET); };
-	long pos() { return isOpen() ? ftell(handle) : -1; }
-	long size() { return size_; };
-	void close();
-
-	void setFileName(const std::wstring& name) { fileName = name; };
-	const std::wstring& getFileName() { return fileName; };
-
-	size_t read(void* dest, size_t length);
-	size_t write(void* source, size_t length);
-private:
-	FILE* handle;
-	std::wstring fileName;
-	Mode mode;
-	long size_;
-};
+#include <vector>
 
 class TextFile
 {
@@ -1642,9 +7338,9 @@ public:
 	TextFile();
 	~TextFile();
 	void openMemory(const std::wstring& content);
-	bool open(const std::wstring& fileName, Mode mode, Encoding defaultEncoding = GUESS);
+	bool open(const fs::path& fileName, Mode mode, Encoding defaultEncoding = GUESS);
 	bool open(Mode mode, Encoding defaultEncoding = GUESS);
-	bool isOpen() { return fromMemory || handle != nullptr; };
+	bool isOpen() { return fromMemory || stream.is_open(); };
 	bool atEnd() { return isOpen() && mode == Read && tell() >= size_; };
 	long size() { return size_; };
 	void close();
@@ -1653,12 +7349,12 @@ public:
 	bool isFromMemory() { return fromMemory; }
 	int getNumLines() { return lineCount; }
 
-	void setFileName(const std::wstring& name) { fileName = name; };
-	const std::wstring& getFileName() { return fileName; };
+	void setFileName(const fs::path& name) { fileName = name; };
+	const fs::path& getFileName() { return fileName; };
 
 	wchar_t readCharacter();
 	std::wstring readLine();
-	StringList readAll();
+	std::vector<std::wstring> readAll();
 	void writeCharacter(wchar_t character);
 	void write(const wchar_t* line);
 	void write(const std::wstring& line);
@@ -1668,12 +7364,12 @@ public:
 	void writeLine(const std::wstring& line);
 	void writeLine(const char* line);
 	void writeLine(const std::string& line);
-	void writeLines(StringList& list);
+	void writeLines(std::vector<std::wstring>& list);
 
 	template <typename... Args>
 	void writeFormat(const wchar_t* text, const Args&... args)
 	{
-		std::wstring message = formatString(text,args...);
+		std::wstring message = tfm::format(text,args...);
 		write(message);
 	}
 
@@ -1683,8 +7379,8 @@ private:
 	long tell();
 	void seek(long pos);
 
-	FILE* handle;
-	std::wstring fileName;
+	fs::fstream stream;
+	fs::path fileName;
 	Encoding encoding;
 	Mode mode;
 	bool recursion;
@@ -1712,14 +7408,14 @@ private:
 	}
 	inline unsigned short bufGet16LE()
 	{
-		char c1 = bufGetChar();
-		char c2 = bufGetChar();
+		unsigned char c1 = bufGetChar();
+		unsigned char c2 = bufGetChar();
 		return c1 | (c2 << 8);
 	}
 	inline unsigned short bufGet16BE()
 	{
-		char c1 = bufGetChar();
-		char c2 = bufGetChar();
+		unsigned char c1 = bufGetChar();
+		unsigned char c2 = bufGetChar();
 		return c2 | (c1 << 8);
 	}
 
@@ -1734,6 +7430,9 @@ wchar_t sjisToUnicode(unsigned short);
 TextFile::Encoding getEncodingFromString(const std::wstring& str);
 
 // file: Util/ByteArray.h
+
+
+#include <string>
 
 #include <sys/types.h>
 
@@ -1842,8 +7541,8 @@ public:
 	ByteArray left(size_t length) { return mid(0,length); };
 	ByteArray right(size_t length) { return mid(size_-length,length); };
 
-	static ByteArray fromFile(const std::wstring& fileName, long start = 0, size_t size = 0);
-	bool toFile(const std::wstring& fileName);
+	static ByteArray fromFile(const fs::path& fileName, unsigned long start = 0, size_t size = 0);
+	bool toFile(const fs::path& fileName);
 private:
 	void grow(size_t neededSize);
 	byte* data_;
@@ -1852,7 +7551,14 @@ private:
 };
 
 // file: Core/FileManager.h
+
+
+#include <memory>
 #include <vector>
+
+class SymbolData;
+
+struct SymDataModuleInfo;
 
 class AssemblerFile
 {
@@ -1872,18 +7578,18 @@ public:
 	virtual bool hasFixedVirtualAddress() { return false; };
 	virtual void beginSymData(SymbolData& symData) { };
 	virtual void endSymData(SymbolData& symData) { };
-	virtual const std::wstring& getFileName() = 0;
+	virtual const fs::path& getFileName() = 0;
 };
 
 class GenericAssemblerFile: public AssemblerFile
 {
 public:
-	GenericAssemblerFile(const std::wstring& fileName, int64_t headerSize, bool overwrite);
-	GenericAssemblerFile(const std::wstring& fileName, const std::wstring& originalFileName, int64_t headerSize);
+	GenericAssemblerFile(const fs::path& fileName, int64_t headerSize, bool overwrite);
+	GenericAssemblerFile(const fs::path& fileName, const fs::path& originalFileName, int64_t headerSize);
 
 	virtual bool open(bool onlyCheck);
-	virtual void close() { if (handle.isOpen()) handle.close(); };
-	virtual bool isOpen() { return handle.isOpen(); };
+	virtual void close() { if (stream.is_open()) stream.close(); };
+	virtual bool isOpen() { return stream.is_open(); };
 	virtual bool write(void* data, size_t length);
 	virtual int64_t getVirtualAddress() { return virtualAddress; };
 	virtual int64_t getPhysicalAddress() { return virtualAddress-headerSize; };
@@ -1892,8 +7598,8 @@ public:
 	virtual bool seekPhysical(int64_t physicalAddress);
 	virtual bool hasFixedVirtualAddress() { return true; };
 
-	virtual const std::wstring& getFileName() { return fileName; };
-	const std::wstring& getOriginalFileName() { return originalName; };
+	virtual const fs::path& getFileName() { return fileName; };
+	const fs::path& getOriginalFileName() { return originalName; };
 	int64_t getOriginalHeaderSize() { return originalHeaderSize; };
 	void setHeaderSize(int64_t size) { headerSize = size; };
 
@@ -1904,9 +7610,9 @@ private:
 	int64_t originalHeaderSize;
 	int64_t headerSize;
 	int64_t virtualAddress;
-	BinaryFile handle;
-	std::wstring fileName;
-	std::wstring originalName;
+	fs::ofstream stream;
+	fs::path fileName;
+	fs::path originalName;
 };
 
 
@@ -1932,6 +7638,7 @@ public:
 	bool seekPhysical(int64_t physicalAddress);
 	bool advanceMemory(size_t bytes);
 	std::shared_ptr<AssemblerFile> getOpenFile() { return activeFile; };
+	int64_t getOpenFileID();
 	void setEndianness(Endianness endianness) { this->endianness = endianness; };
 	Endianness getEndianness() { return endianness; }
 private:
@@ -2218,6 +7925,7 @@ struct Elf32_Rela
 
 // file: Core/ELF/ElfFile.h
 
+
 #include <vector>
 
 enum ElfPart { ELFPART_SEGMENTTABLE, ELFPART_SECTIONTABLE, ELFPART_SEGMENTS, ELFPART_SEGMENTLESSSECTIONS };
@@ -2229,9 +7937,9 @@ class ElfFile
 {
 public:
 
-	bool load(const std::wstring&fileName, bool sort);
+	bool load(const fs::path&fileName, bool sort);
 	bool load(ByteArray& data, bool sort);
-	void save(const std::wstring&fileName);
+	void save(const fs::path& fileName);
 
 	Elf32_Half getType() { return fileHeader.e_type; };
 	Elf32_Half getMachine() { return fileHeader.e_machine; };
@@ -2252,9 +7960,9 @@ public:
 	const char* getStrTableString(size_t pos);
 private:
 	void loadElfHeader();
-	void writeHeader(ByteArray& data, int pos, Endianness endianness);
-	void loadProgramHeader(Elf32_Phdr& header, ByteArray& data, int pos);
-	void loadSectionHeader(Elf32_Shdr& header, ByteArray& data, int pos);
+	void writeHeader(ByteArray& data, size_t pos, Endianness endianness);
+	void loadProgramHeader(Elf32_Phdr& header, ByteArray& data, size_t pos);
+	void loadSectionHeader(Elf32_Shdr& header, ByteArray& data, size_t pos);
 	void loadSectionNames();
 	void determinePartOrder();
 
@@ -2279,7 +7987,7 @@ public:
 	void setData(ByteArray& data) { this->data = data; };
 	void setOwner(ElfSegment* segment);
 	bool hasOwner() { return owner != nullptr; };
-	void writeHeader(ByteArray& data, int pos, Endianness endianness);
+	void writeHeader(ByteArray& data, size_t pos, Endianness endianness);
 	void writeData(ByteArray& output);
 	void setOffsetBase(int base);
 	ByteArray& getData() { return data; };
@@ -2310,7 +8018,7 @@ public:
 	Elf32_Word getType() { return header.p_type; };
 	Elf32_Addr getVirtualAddress() { return header.p_vaddr; };
 	size_t getSectionCount() { return sections.size(); };
-	void writeHeader(ByteArray& data, int pos, Endianness endianness);
+	void writeHeader(ByteArray& data, size_t pos, Endianness endianness);
 	void writeData(ByteArray& output);
 	void splitSections();
 
@@ -2338,6 +8046,9 @@ struct RelocationData
 
 // file: Core/ELF/ElfRelocator.h
 
+
+#include <memory>
+
 struct ElfRelocatorCtor
 {
 	std::wstring symbolName;
@@ -2364,11 +8075,12 @@ public:
 	virtual bool finish(std::vector<RelocationAction>& actions, std::vector<std::wstring>& errors) { return true; }
 	virtual void setSymbolAddress(RelocationData& data, int64_t symbolAddress, int symbolType) = 0;
 
-	virtual std::unique_ptr<CAssemblerCommand> generateCtorStub(std::vector<ElfRelocatorCtor>& ctors) { return nullptr; }
+	virtual std::unique_ptr<CAssemblerCommand> generateCtorStub(std::vector<ElfRelocatorCtor>& ctors);
 };
 
 
 class Label;
+class SymbolData;
 
 struct ElfRelocatorSection
 {
@@ -2400,7 +8112,7 @@ struct ElfRelocatorFile
 class ElfRelocator
 {
 public:
-	bool init(const std::wstring& inputName);
+	bool init(const fs::path& inputName);
 	bool exportSymbols();
 	void writeSymbols(SymbolData& symData) const;
 	std::unique_ptr<CAssemblerCommand> generateCtor(const std::wstring& ctorName);
@@ -2420,32 +8132,39 @@ private:
 
 // file: Archs/Architecture.h
 
+
+#include <map>
+#include <memory>
+
+class IElfRelocator;
 class Tokenizer;
 class Parser;
+
+struct ExpressionFunctionEntry;
+
+using ExpressionFunctionMap =  std::map<std::wstring, const ExpressionFunctionEntry>;
 
 class CArchitecture
 {
 public:
 	virtual std::unique_ptr<CAssemblerCommand> parseDirective(Parser& parser) { return nullptr; }
 	virtual std::unique_ptr<CAssemblerCommand> parseOpcode(Parser& parser) { return nullptr; }
-	virtual const ExpressionFunctionMap& getExpressionFunctions() { return emptyMap; }
+	virtual const ExpressionFunctionMap& getExpressionFunctions();
 	virtual void NextSection() = 0;
 	virtual void Pass2() = 0;
 	virtual void Revalidate() = 0;
 	virtual std::unique_ptr<IElfRelocator> getElfRelocator() = 0;
 	virtual Endianness getEndianness() = 0;
-private:
-	const ExpressionFunctionMap emptyMap = {};
 };
 
 class ArchitectureCommand: public CAssemblerCommand
 {
 public:
 	ArchitectureCommand(const std::wstring& tempText, const std::wstring& symText);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 private:
 	int64_t position;
 	Endianness endianness;
@@ -2456,16 +8175,19 @@ private:
 class CInvalidArchitecture: public CArchitecture
 {
 public:
-	virtual void NextSection();
-	virtual void Pass2();
-	virtual void Revalidate();
-	virtual std::unique_ptr<IElfRelocator> getElfRelocator();
-	virtual Endianness getEndianness() { return Endianness::Little; }
+	void NextSection() override;
+	void Pass2() override;
+	void Revalidate() override;
+	std::unique_ptr<IElfRelocator> getElfRelocator() override;
+	Endianness getEndianness() override { return Endianness::Little; }
 };
 
 extern CInvalidArchitecture InvalidArchitecture;
 
 // file: Archs/MIPS/Mips.h
+
+
+class Expression;
 
 enum MipsArchType { MARCH_PSX = 0, MARCH_N64, MARCH_PS2, MARCH_PSP, MARCH_RSP, MARCH_INVALID };
 
@@ -2538,49 +8260,54 @@ bool MipsCheckImmediate(const char* Source, Expression& Dest, int& RetLen);
 
 // file: Archs/MIPS/MipsOpcodes.h
 
-#define MA_MIPS1		0x00000001
-#define MA_MIPS2		0x00000002
-#define MA_MIPS3		0x00000004
-#define MA_MIPS4		0x00000008
-#define MA_PSX			0x00000010
-#define MA_PS2			0x00000040
-#define MA_PSP			0x00000080
-#define MA_RSP			0x00000100
+#include <cstdint>
 
-#define MA_EXPSX		0x00001000
-#define MA_EXN64		0x00002000
-#define MA_EXPS2		0x00004000
-#define MA_EXPSP		0x00008000
-#define MA_EXRSP		0x00010000
+#define MA_MIPS1		(1 << 0)
+#define MA_MIPS2		(1 << 1)
+#define MA_MIPS3		(1 << 2)
+#define MA_MIPS4		(1 << 3)
+#define MA_PSX			(1 << 4)
+#define MA_PS2			(1 << 6)
+#define MA_PSP			(1 << 7)
+#define MA_RSP			(1 << 8)
 
-#define MO_IPCA			0x00000001	// pc >> 2
-#define MO_IPCR			0x00000002	// PC, -> difference >> 2
-#define MO_RSD			0x00000004	// rs = rd
-#define MO_RST			0x00000008	// rs = rt
-#define MO_RDT			0x00000010	// rd = rt
-#define MO_DELAY		0x00000020	// delay slot follows
-#define MO_NODELAYSLOT	0x00000040	// can't be in a delay slot
-#define MO_DELAYRT		0x00000080	// rt won't be available for one instruction
-#define MO_IGNORERTD	0x00000100	// don't care for rt delay
-#define MO_FRSD			0x00000200	// float rs + rd
-#define MO_IMMALIGNED	0x00000400	// immediate 4 byte aligned
-#define MO_VFPU_MIXED	0x00000800	// mixed mode vfpu register
-#define MO_VFPU_6BIT	0x00001000	// vfpu register can have 6 bits max
-#define MO_VFPU_SINGLE	0x00002000	// single vfpu reg
-#define MO_VFPU_QUAD	0x00004000	// quad vfpu reg
-#define MO_VFPU			0x00008000	// vfpu type opcode
-#define MO_64BIT		0x00010000	// only available on 64 bit cpus
-#define MO_FPU			0x00020000	// only available with an fpu
-#define MO_TRANSPOSE_VS	0x00040000	// matrix vs has to be transposed
-#define MO_VFPU_PAIR	0x00080000	// pair vfpu reg
-#define MO_VFPU_TRIPLE	0x00100000	// triple vfpu reg
-#define MO_DFPU			0x00200000	// double-precision fpu opcodes
-#define MO_RSPVRSD		0x00400000	// rsp vector rs + rd
-#define MO_NEGIMM		0x00800000 	// negated immediate (for subi)
-#define MO_RSP_HWOFFSET	0x01000000	// RSP halfword load/store offset
-#define MO_RSP_WOFFSET	0x02000000	// RSP word load/store offset
-#define MO_RSP_DWOFFSET	0x04000000	// RSP doubleword load/store offset
-#define MO_RSP_QWOFFSET	0x08000000	// RSP quadword load/store offset
+#define MA_EXPSX		(1 << 12)
+#define MA_EXN64		(1 << 13)
+#define MA_EXPS2		(1 << 14)
+#define MA_EXPSP		(1 << 15)
+#define MA_EXRSP		(1 << 16)
+
+#define MO_IPCA							(1 << 0)	// pc >> 2
+#define MO_IPCR							(1 << 1)	// PC, -> difference >> 2
+#define MO_RSD							(1 << 2)	// rs = rd
+#define MO_RST							(1 << 3)	// rs = rt
+#define MO_RDT							(1 << 4)	// rd = rt
+#define MO_DELAY						(1 << 5)	// delay slot follows
+#define MO_NODELAYSLOT					(1 << 6)	// can't be in a delay slot
+#define MO_DELAYRT						(1 << 7)	// rt won't be available for one instruction
+#define MO_IGNORERTD					(1 << 8)	// don't care for rt delay
+#define MO_FRSD							(1 << 9)	// float rs + rd
+#define MO_IMMALIGNED					(1 << 10)	// immediate 4 byte aligned
+#define MO_NEGIMM						(1 << 11)	// negated immediate (for subi)
+#define MO_64BIT						(1 << 12)	// only available on 64 bit cpus
+#define MO_FPU							(1 << 13)	// only available with an fpu
+#define MO_DFPU							(1 << 14)	// double-precision fpu opcodes
+
+#define MO_VFPU							(1 << 16)	// vfpu type opcode
+#define MO_VFPU_MIXED					(1 << 17)	// mixed mode vfpu register
+#define MO_VFPU_6BIT					(1 << 18)	// vfpu register can have 6 bits max
+#define MO_VFPU_SINGLE					(1 << 19)	// single vfpu reg
+#define MO_VFPU_QUAD					(1 << 20)	// quad vfpu reg
+#define MO_VFPU_TRANSPOSE_VS			(1 << 21)	// matrix vs has to be transposed
+#define MO_VFPU_PAIR					(1 << 22)	// pair vfpu reg
+#define MO_VFPU_TRIPLE					(1 << 23)	// triple vfpu reg
+
+#define MO_RSP_VRSD						(1 << 24)	// rsp vector rs + rd
+#define MO_RSP_HWOFFSET					(1 << 25) // RSP halfword load/store offset
+#define MO_RSP_WOFFSET					(1 << 26) // RSP word load/store offset
+#define MO_RSP_DWOFFSET					(1 << 27)	// RSP doubleword load/store offset
+#define MO_RSP_QWOFFSET					(1 << 28)	// RSP quadword load/store offset
+
 
 #define BITFIELD(START,LENGTH,VALUE)	(((VALUE) & ((1 << (LENGTH)) - 1)) << (START))
 #define MIPS_FUNC(VALUE)				BITFIELD(0,6,(VALUE))
@@ -2643,17 +8370,19 @@ struct MipsArchDefinition
 
 extern const MipsArchDefinition mipsArchs[];
 
-typedef struct {
+struct tMipsOpcode
+{
 	const char* name;
 	const char* encoding;
-	int destencoding;
+	int32_t destencoding;
 	int archs;
 	int flags;
-} tMipsOpcode;
+};
 
 extern const tMipsOpcode MipsOpcodes[];
 
 // file: Archs/MIPS/CMipsInstruction.h
+
 
 enum class MipsRegisterType
 {
@@ -2781,9 +8510,9 @@ class CMipsInstruction: public CAssemblerCommand
 public:
 	CMipsInstruction(MipsOpcodeData& opcode, MipsImmediateData& immediate, MipsRegisterData& registers);
 	~CMipsInstruction();
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
 private:
 	void encodeNormal() const;
 	void encodeVfpu() const;
@@ -2800,7 +8529,10 @@ private:
 };
 
 // file: Util/EncodingTable.h
+
+
 #include <map>
+#include <vector>
 
 class Trie
 {
@@ -2840,7 +8572,7 @@ public:
 	EncodingTable();
 	~EncodingTable();
 	void clear();
-	bool load(const std::wstring& fileName, TextFile::Encoding encoding = TextFile::GUESS);
+	bool load(const fs::path& fileName, TextFile::Encoding encoding = TextFile::GUESS);
 	bool isLoaded() { return entries.size() != 0; };
 	void addEntry(unsigned char* hex, size_t hexLength, const std::wstring& value);
 	void addEntry(unsigned char* hex, size_t hexLength, wchar_t value);
@@ -2862,6 +8594,8 @@ private:
 };
 
 // file: Core/Misc.h
+
+
 #include <vector>
 
 class Logger
@@ -2876,7 +8610,7 @@ public:
 	template <typename... Args>
 	static void printLine(const wchar_t* text, const Args&... args)
 	{
-		std::wstring message = formatString(text,args...);
+		std::wstring message = tfm::format(text,args...);
 		printLine(message);
 	}
 
@@ -2885,7 +8619,7 @@ public:
 	template <typename... Args>
 	static void print(const wchar_t* text, const Args&... args)
 	{
-		std::wstring message = formatString(text,args...);
+		std::wstring message = tfm::format(text,args...);
 		print(message);
 	}
 
@@ -2897,20 +8631,20 @@ public:
 	template <typename... Args>
 	static void printError(ErrorType type, const wchar_t* text, const Args&... args)
 	{
-		std::wstring message = formatString(text,args...);
+		std::wstring message = tfm::format(text,args...);
 		printError(type,message);
 	}
 
 	template <typename... Args>
 	static void queueError(ErrorType type, const wchar_t* text, const Args&... args)
 	{
-		std::wstring message = formatString(text,args...);
+		std::wstring message = tfm::format(text,args...);
 		queueError(type,message);
 	}
 
 	static void printQueue();
 	static void clearQueue() { queue.clear(); };
-	static StringList getErrors() { return errors; };
+	static std::vector<std::wstring> getErrors() { return errors; };
 	static bool hasError() { return error; };
 	static bool hasFatalError() { return fatalError; };
 	static void setErrorOnWarning(bool b) { errorOnWarning = b; };
@@ -2940,8 +8674,8 @@ private:
 class TempData
 {
 public:
-	void setFileName(const std::wstring& name) { file.setFileName(name); };
-	void clear() { file.setFileName(L""); }
+	void setFileName(const fs::path& name) { file.setFileName(name); };
+	void clear() { file.setFileName({}); }
 	void start();
 	void end();
 	void writeLine(int64_t memoryAddress, const std::wstring& text);
@@ -2951,6 +8685,13 @@ private:
 };
 
 // file: Core/Assembler.h
+
+
+#include <memory>
+#include <string>
+#include <vector>
+
+class AssemblerFile;
 
 #define ARMIPS_VERSION_MAJOR    0
 #define ARMIPS_VERSION_MINOR    11
@@ -2978,14 +8719,15 @@ struct ArmipsArguments
 	int symFileVersion;
 	bool errorOnWarning;
 	bool silent;
-	StringList* errorsResult;
+	bool showStats;
+	std::vector<std::wstring>* errorsResult;
 	std::vector<EquationDefinition> equList;
 	std::vector<LabelDefinition> labels;
 
 	// file mode
-	std::wstring inputFileName;
-	std::wstring tempFileName;
-	std::wstring symFileName;
+	fs::path inputFileName;
+	fs::path tempFileName;
+	fs::path symFileName;
 	bool useAbsoluteFileNames;
 
 	// memory mode
@@ -2998,6 +8740,7 @@ struct ArmipsArguments
 		symFileVersion = 0;
 		errorOnWarning = false;
 		silent = false;
+		showStats = false;
 		errorsResult = nullptr;
 		useAbsoluteFileNames = true;
 	}
@@ -3008,6 +8751,12 @@ bool runArmips(ArmipsArguments& settings);
 // file: Core/SymbolTable.h
 
 #include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <vector>
+
+struct LabelDefinition;
 
 struct SymbolKey
 {
@@ -3094,24 +8843,61 @@ private:
 
 // file: Core/Common.h
 
+
+#include <string>
 #include <vector>
 
+class AssemblerFile;
+class CArchitecture;
+
+class FileList
+{
+public:
+	void add(const fs::path& path);
+
+	const fs::path& path(int fileIndex) const;
+	const fs::path& relative_path(int fileIndex) const;
+	const std::wstring& wstring(int fileIndex) const;
+	const std::wstring& relativeWstring(int fileIndex) const;
+
+	size_t size() const;
+	void clear();
+
+private:
+	class Entry
+	{
+	public:
+		Entry(const fs::path& path);
+
+		const fs::path& path() const;
+		const fs::path& relativePath() const;
+		const std::wstring& wstring() const;
+		const std::wstring& relativeWstring() const;
+
+	private:
+		fs::path _path;
+		fs::path _relativePath;
+		std::wstring _string; // preconverted for performance
+		std::wstring _relativeString; // preconverted for performance
+	};
+
+	std::vector<Entry> _entries;
+};
+
 typedef struct {
-	std::vector<std::wstring> FileList;
-	int FileCount;
 	int FileNum;
 	int LineNumber;
 	int TotalLineCount;
 } tFileInfo;
 
 typedef struct {
+	FileList fileList;
 	tFileInfo FileInfo;
 	SymbolTable symbolTable;
 	EncodingTable Table;
 	int Section;
 	bool nocash;
 	bool relativeInclude;
-	int validationPasses;
 	bool memoryMode;
 	std::shared_ptr<AssemblerFile> memoryFile;
 	bool multiThreading;
@@ -3123,16 +8909,357 @@ extern CArchitecture* Arch;
 class FileManager;
 extern FileManager* g_fileManager;
 
-std::wstring getFolderNameFromPath(const std::wstring& src);
-std::wstring getFullPathName(const std::wstring& path);
+fs::path getFullPathName(const fs::path& path);
 
 bool checkLabelDefined(const std::wstring& labelName, int section);
 bool checkValidLabelName(const std::wstring& labelName);
 
 bool isPowerOfTwo(int64_t n);
 
+// file: Core/Allocations.h
+
+#include <cstdint>
+#include <map>
+
+struct AllocationStats
+{
+	int64_t largestPosition;
+	int64_t largestSize;
+	int64_t largestUsage;
+
+	int64_t largestFreePosition;
+	int64_t largestFreeSize;
+	int64_t largestFreeUsage;
+
+	int64_t sharedFreePosition;
+	int64_t sharedFreeSize;
+	int64_t sharedFreeUsage;
+
+	int64_t totalSize;
+	int64_t totalUsage;
+	int64_t sharedSize;
+	int64_t sharedUsage;
+
+	int64_t largestPoolPosition;
+	int64_t largestPoolSize;
+	int64_t totalPoolSize;
+};
+
+class Allocations
+{
+public:
+	static void clear();
+	static void setArea(int64_t fileID, int64_t position, int64_t space, int64_t usage, bool usesFill, bool shared);
+	static void forgetArea(int64_t fileID, int64_t position, int64_t space);
+
+	static void setPool(int64_t fileID, int64_t position, int64_t size);
+	static void forgetPool(int64_t fileID, int64_t position, int64_t size);
+
+	static void clearSubAreas();
+	static bool allocateSubArea(int64_t fileID, int64_t& position, int64_t minRange, int64_t maxRange, int64_t size);
+	static int64_t getSubAreaUsage(int64_t fileID, int64_t position);
+
+	static bool canTrimSpace();
+
+	static void validateOverlap();
+	static AllocationStats collectStats();
+
+private:
+	struct Key
+	{
+		int64_t fileID;
+		int64_t position;
+
+		inline bool operator <(const Allocations::Key &other) const
+		{
+			return std::tie(fileID, position) < std::tie(other.fileID, other.position);
+		}
+	};
+	struct Usage
+	{
+		int64_t space;
+		int64_t usage;
+		bool usesFill;
+		bool shared;
+	};
+
+	struct SubArea
+	{
+		int64_t offset;
+		int64_t size;
+	};
+
+	static void collectAreaStats(AllocationStats &stats);
+	static void collectPoolStats(AllocationStats &stats);
+
+	static int64_t getSubAreaUsage(Key key)
+	{
+		return getSubAreaUsage(key.fileID, key.position);
+	}
+
+	static std::map<Key, Usage> allocations;
+	static std::map<Key, int64_t> pools;
+	static std::multimap<Key, SubArea> subAreas;
+	static bool keepPositions;
+	static bool nextKeepPositions;
+	static bool keptPositions;
+};
+
+// file: Core/Allocations.cpp
+
+std::map<Allocations::Key, Allocations::Usage> Allocations::allocations;
+std::map<Allocations::Key, int64_t> Allocations::pools;
+std::multimap<Allocations::Key, Allocations::SubArea> Allocations::subAreas;
+
+// Are we keeping existing positions this round?  Start with no, since we have none.
+bool Allocations::keepPositions = false;
+// Should we keep positions next time?  This is set to false on allocation failure.
+bool Allocations::nextKeepPositions = true;
+// Did we adjust any positions to keep the old?
+bool Allocations::keptPositions = false;
+
+void Allocations::clear()
+{
+	allocations.clear();
+	keepPositions = false;
+	nextKeepPositions = true;
+	keptPositions = false;
+}
+
+void Allocations::setArea(int64_t fileID, int64_t position, int64_t space, int64_t usage, bool usesFill, bool shared)
+{
+	Key key{ fileID, position };
+	allocations[key] = Usage{ space, usage, usesFill, shared };
+}
+
+void Allocations::forgetArea(int64_t fileID, int64_t position, int64_t space)
+{
+	Key key{ fileID, position };
+	auto it = allocations.find(key);
+	if (it != allocations.end() && it->second.space == space)
+		allocations.erase(it);
+
+	subAreas.erase(key);
+}
+
+void Allocations::setPool(int64_t fileID, int64_t position, int64_t size)
+{
+	Key key{ fileID, position };
+	pools[key] = size;
+}
+
+void Allocations::forgetPool(int64_t fileID, int64_t position, int64_t size)
+{
+	Key key{ fileID, position };
+	auto it = pools.find(key);
+	if (it != pools.end() && it->second == size)
+		pools.erase(it);
+}
+
+bool Allocations::allocateSubArea(int64_t fileID, int64_t& position, int64_t minRange, int64_t maxRange, int64_t size)
+{
+	for (auto it : allocations)
+	{
+		if (it.first.fileID != fileID || !it.second.shared)
+			continue;
+		if (minRange != -1 && it.first.position + it.second.space < minRange)
+			continue;
+		if (maxRange != -1 && it.first.position > maxRange)
+			continue;
+
+		int64_t actualUsage = it.second.usage + getSubAreaUsage(it.first);
+		int64_t possiblePosition = it.first.position + actualUsage;
+		if (minRange != -1 && possiblePosition < minRange)
+			continue;
+		if (maxRange != -1 && possiblePosition > maxRange)
+			continue;
+
+		// Can we use the position it had before?  Nudge up size if so.
+		if (keepPositions && position != -1 && position > possiblePosition)
+		{
+			int64_t offset = position - it.first.position;
+			if (it.second.space >= offset + size && offset != actualUsage)
+			{
+				size += offset - actualUsage;
+				keptPositions = true;
+				// Fall through to reuse the emplace.
+				possiblePosition = position;
+			}
+		}
+
+		if (it.second.space >= actualUsage + size)
+		{
+			position = possiblePosition;
+			subAreas.emplace(it.first, SubArea{ actualUsage, size });
+			return true;
+		}
+	}
+
+	nextKeepPositions = false;
+	return false;
+}
+
+void Allocations::clearSubAreas()
+{
+	subAreas.clear();
+	keepPositions = nextKeepPositions;
+	nextKeepPositions = true;
+	keptPositions = false;
+}
+
+bool Allocations::canTrimSpace()
+{
+	return keptPositions;
+}
+
+int64_t Allocations::getSubAreaUsage(int64_t fileID, int64_t position)
+{
+	Key key{ fileID, position };
+	// For safety, just find the end of the last sub area.
+	int64_t maxExtent = 0;
+	auto range = subAreas.equal_range(key);
+	for (auto it = range.first; it != range.second; ++it)
+	{
+		int64_t extent = it->second.offset + it->second.size;
+		maxExtent = std::max(extent, maxExtent);
+	}
+
+	// Now subtract out the original usage.
+	if (maxExtent <= allocations[key].usage)
+		return 0;
+	return maxExtent - allocations[key].usage;
+}
+
+void Allocations::validateOverlap()
+{
+	// An easy mistake to make is a "subarea" where the parent area fills, and erases the subarea.
+	// Let's detect any sort of area overlap and report a warning.
+	Key lastKey{ -1, -1 };
+	int64_t lastEndPosition = -1;
+	Usage lastUsage{};
+
+	for (auto it : allocations) {
+		if (it.first.fileID == lastKey.fileID && it.first.position > lastKey.position && it.first.position < lastEndPosition) {
+			// First, the obvious: does the content overlap?
+			if (it.first.position < lastKey.position + lastUsage.usage)
+				Logger::queueError(Logger::Warning, L"Content of areas %08llX and %08llx overlap", lastKey.position, it.first.position);
+			// Next question, does the earlier one fill?
+			else if (it.second.usesFill && lastUsage.usesFill)
+				Logger::queueError(Logger::Warning, L"Areas %08llX and %08llx overlap and both fill", lastKey.position, it.first.position);
+
+			// If the new area ends before the last, keep it as the last.
+			if (lastEndPosition > it.first.position + it.second.space) {
+				// But update the usage to the max position.
+				int64_t newUsageEnd = it.first.position + it.second.usage + getSubAreaUsage(it.first);
+				lastUsage.usage = newUsageEnd - lastKey.position;
+				continue;
+			}
+		}
+
+		lastKey = it.first;
+		lastUsage = it.second;
+		lastUsage.usage += getSubAreaUsage(lastKey);
+		lastEndPosition = it.first.position + it.second.space;
+	}
+}
+
+AllocationStats Allocations::collectStats()
+{
+	AllocationStats stats{};
+	collectAreaStats(stats);
+	collectPoolStats(stats);
+	return stats;
+}
+
+void Allocations::collectAreaStats(AllocationStats &stats)
+{
+	// Need to work out overlaps.
+	Key lastKey{ -1, -1 };
+	int64_t lastEndPosition = -1;
+	Usage lastUsage{};
+
+	auto applyUsage = [&stats](int64_t position, const Usage &usage)
+	{
+		if (usage.space > stats.largestSize)
+		{
+			stats.largestPosition = position;
+			stats.largestSize = usage.space;
+			stats.largestUsage = usage.usage;
+		}
+
+		if (usage.space - usage.usage > stats.largestFreeSize - stats.largestFreeUsage)
+		{
+			stats.largestFreePosition = position;
+			stats.largestFreeSize = usage.space;
+			stats.largestFreeUsage = usage.usage;
+		}
+
+		// We assume overlaps agree on sharing, hopefully...
+		if (usage.shared && usage.space - usage.usage > stats.sharedFreeSize - stats.sharedFreeUsage)
+		{
+			stats.sharedFreePosition = position;
+			stats.sharedFreeSize = usage.space;
+			stats.sharedFreeUsage = usage.usage;
+		}
+
+		stats.totalSize += usage.space;
+		stats.totalUsage += usage.usage;
+		if (usage.shared)
+		{
+			stats.sharedSize += usage.space;
+			stats.sharedUsage += usage.usage;
+		}
+	};
+
+	for (auto it : allocations)
+	{
+		if (it.first.fileID == lastKey.fileID && it.first.position > lastKey.position && it.first.position < lastEndPosition)
+		{
+			// Overlap, merge.
+			int64_t lastUsageEnd = lastKey.position + lastUsage.usage;
+			int64_t newUsageEnd = it.first.position + it.second.usage + getSubAreaUsage(it.first);
+
+			if (lastUsageEnd >= it.first.position)
+				lastUsage.usage += newUsageEnd - lastUsageEnd;
+			else
+				lastUsage.usage += it.second.usage + getSubAreaUsage(it.first);
+
+			lastEndPosition = it.first.position + it.second.space;
+			lastUsage.space = lastEndPosition - lastKey.position;
+
+			continue;
+		}
+
+		if (lastKey.position != -1)
+			applyUsage(lastKey.position, lastUsage);
+
+		lastKey = it.first;
+		lastUsage = it.second;
+		lastUsage.usage += getSubAreaUsage(lastKey);
+		lastEndPosition = it.first.position + it.second.space;
+	}
+
+	if (lastKey.position != -1)
+		applyUsage(lastKey.position, lastUsage);
+}
+
+void Allocations::collectPoolStats(AllocationStats &stats)
+{
+	for (auto it : pools)
+	{
+		if (it.second > stats.largestPoolSize)
+		{
+			stats.largestPoolPosition = it.first.position;
+			stats.largestPoolSize = it.second;
+		}
+
+		stats.totalPoolSize += it.second;
+	}
+}
+
 // file: Parser/DirectivesParser.h
 
+#include <memory>
 #include <unordered_map>
 
 class CAssemblerCommand;
@@ -3200,310 +9327,18 @@ using DirectiveMap = std::unordered_multimap<std::wstring, const DirectiveEntry>
 #define DIRECTIVE_ARM_BIG			0x00000004
 #define DIRECTIVE_ARM_LITTLE		0x00000005
 
+// Area directive flags
+#define DIRECTIVE_AREA_SHARED		0x00000001
+
 extern const DirectiveMap directives;
 
-// file: Parser/Tokenizer.h
-
-enum class TokenType
-{
-	Invalid,
-	Identifier,
-	Integer,
-	String,
-	Float,
-	LParen,
-	RParen,
-	Plus,
-	Minus,
-	Mult,
-	Div,
-	Mod,
-	Caret,
-	Tilde,
-	LeftShift,
-	RightShift,
-	Less,
-	Greater,
-	LessEqual,
-	GreaterEqual,
-	Equal,
-	NotEqual,
-	BitAnd,
-	BitOr,
-	LogAnd,
-	LogOr,
-	Exclamation,
-	Question,
-	Colon,
-	LBrack,
-	RBrack,
-	Comma,
-	Assign,
-	Equ,
-	EquValue,
-	Hash,
-	LBrace,
-	RBrace,
-	Dollar,
-	NumberString,
-	Degree,
-	Separator
-};
-
-struct Token
-{
-	friend class Tokenizer;
-
-	Token() : originalText(nullptr), stringValue(nullptr), checked(false)
-	{
-	}
-
-	Token(Token &&src)
-	{
-		// Move strings.
-		originalText = src.originalText;
-		src.originalText = nullptr;
-		stringValue = src.stringValue;
-		src.stringValue = nullptr;
-
-		// Just copy the rest.
-		type = src.type;
-		line = src.line;
-		column = src.column;
-		floatValue = src.floatValue;
-		checked = src.checked;
-	}
-
-	Token(const Token &src) {
-		// Copy strings.
-		originalText = nullptr;
-		if (src.originalText)
-			setOriginalText(src.originalText);
-		stringValue = nullptr;
-		if (src.stringValue)
-			setStringValue(src.stringValue);
-
-		// And copy the rest.
-		type = src.type;
-		line = src.line;
-		column = src.column;
-		floatValue = src.floatValue;
-		checked = src.checked;
-	}
-
-	~Token()
-	{
-		clearOriginalText();
-		clearStringValue();
-	}
-
-	Token& operator=(const Token& src)
-	{
-		// Copy strings.
-		originalText = nullptr;
-		if (src.originalText)
-			setOriginalText(src.originalText);
-		stringValue = nullptr;
-		if (src.stringValue)
-			setStringValue(src.stringValue);
-
-		// And copy the rest.
-		type = src.type;
-		line = src.line;
-		column = src.column;
-		floatValue = src.floatValue;
-		checked = src.checked;
-
-		return *this;
-	}
-
-	void setOriginalText(const std::wstring& t)
-	{
-		setOriginalText(t, 0, t.length());
-	}
-
-	void setOriginalText(const std::wstring& t, const size_t pos, const size_t len)
-	{
-		clearOriginalText();
-		originalText = new wchar_t[len + 1];
-		wmemcpy(originalText, t.data() + pos, len);
-		originalText[len] = 0;
-	}
-
-	std::wstring getOriginalText() const
-	{
-		return originalText;
-	}
-
-	void setStringValue(const std::wstring& t)
-	{
-		setStringValue(t, 0, t.length());
-	}
-
-	void setStringValue(const std::wstring& t, const size_t pos, const size_t len)
-	{
-		clearStringValue();
-		stringValue = new wchar_t[len + 1];
-		wmemcpy(stringValue, t.data() + pos, len);
-		stringValue[len] = 0;
-	}
-
-	void setStringAndOriginalValue(const std::wstring& t)
-	{
-		setStringAndOriginalValue(t, 0, t.length());
-	}
-
-	void setStringAndOriginalValue(const std::wstring& t, const size_t pos, const size_t len)
-	{
-		setStringValue(t, pos, len);
-		clearOriginalText();
-		originalText = stringValue;
-	}
-
-	std::wstring getStringValue() const
-	{
-		if (stringValue)
-			return stringValue;
-		return L"";
-	}
-
-	bool stringValueStartsWith(wchar_t c) const
-	{
-		if (stringValue)
-			return stringValue[0] == c;
-		return false;
-	}
-
-	TokenType type;
-	size_t line;
-	size_t column;
-
-	union
-	{
-		int64_t intValue;
-		double floatValue;
-	};
-
-protected:
-	void clearOriginalText()
-	{
-		if (originalText != stringValue)
-			delete [] originalText;
-		originalText = nullptr;
-	}
-
-	void clearStringValue()
-	{
-		if (stringValue != originalText)
-			delete [] stringValue;
-		stringValue = nullptr;
-	}
-
-	wchar_t* originalText;
-	wchar_t* stringValue;
-
-	bool checked;
-};
-
-typedef std::list<Token> TokenList;
-
-struct TokenizerPosition
-{
-	friend class Tokenizer;
-
-	TokenizerPosition previous()
-	{
-		TokenizerPosition pos = *this;
-		pos.it--;
-		return pos;
-	}
-private:
-	TokenList::iterator it;
-};
-
-class Tokenizer
-{
-public:
-	Tokenizer();
-	const Token& nextToken();
-	const Token& peekToken(int ahead = 0);
-	void eatToken() { eatTokens(1); }
-	void eatTokens(int num);
-	bool atEnd() { return position.it == tokens.end(); }
-	TokenizerPosition getPosition() { return position; }
-	void setPosition(TokenizerPosition pos) { position = pos; }
-	void skipLookahead();
-	std::vector<Token> getTokens(TokenizerPosition start, TokenizerPosition end) const;
-	void registerReplacement(const std::wstring& identifier, std::vector<Token>& tokens);
-	void registerReplacement(const std::wstring& identifier, const std::wstring& newValue);
-	static size_t addEquValue(const std::vector<Token>& tokens);
-	static void clearEquValues() { equValues.clear(); }
-	void resetLookaheadCheckMarks();
-protected:
-	void clearTokens() { tokens.clear(); };
-	void resetPosition() { position.it = tokens.begin(); }
-	void addToken(Token token);
-private:
-	bool processElement(TokenList::iterator& it);
-
-	TokenList tokens;
-	TokenizerPosition position;
-
-	struct Replacement
-	{
-		std::wstring identifier;
-		std::vector<Token> value;
-	};
-
-	Token invalidToken;
-	std::vector<Replacement> replacements;
-	static std::vector<std::vector<Token>> equValues;
-};
-
-class FileTokenizer: public Tokenizer
-{
-public:
-	bool init(TextFile* input);
-protected:
-	Token loadToken();
-	bool isInputAtEnd() { return linePos >= currentLine.size() && input->atEnd(); };
-
-	void skipWhitespace();
-	void createToken(TokenType type, size_t length);
-	void createToken(TokenType type, size_t length, int64_t value);
-	void createToken(TokenType type, size_t length, double value);
-	void createToken(TokenType type, size_t length, const std::wstring& value);
-	void createToken(TokenType type, size_t length, const std::wstring& value, size_t valuePos, size_t valueLength);
-	void createTokenCurrentString(TokenType type, size_t length);
-
-	bool convertInteger(size_t start, size_t end, int64_t& result);
-	bool convertFloat(size_t start, size_t end, double& result);
-	bool parseOperator();
-
-	TextFile* input;
-	std::wstring currentLine;
-	size_t lineNumber;
-	size_t linePos;
-
-	Token token;
-	bool equActive;
-};
-
-class TokenStreamTokenizer: public Tokenizer
-{
-public:
-	void init(const std::vector<Token>& tokens)
-	{
-		clearTokens();
-
-		for (const Token &tok: tokens)
-			addToken(tok);
-
-		resetPosition();
-	}
-};
-
 // file: Archs/MIPS/MipsMacros.h
+
+
+#include <memory>
+
+struct MipsImmediateData;
+struct MipsRegisterData;
 
 #define MIPSM_B						0x00000001
 #define MIPSM_BU					0x00000002
@@ -3557,9 +9392,9 @@ class MipsMacroCommand: public CAssemblerCommand
 {
 public:
 	MipsMacroCommand(std::unique_ptr<CAssemblerCommand> content, int macroFlags);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
 private:
 	std::unique_ptr<CAssemblerCommand> content;
 	int macroFlags;
@@ -3567,7 +9402,17 @@ private:
 };
 
 // file: Archs/MIPS/MipsParser.h
-#include <unordered_map>
+
+
+#include <memory>
+#include <string>
+
+class CAssemblerCommand;
+class Expression;
+class Parser;
+
+struct MipsMacroDefinition;
+struct tMipsOpcode;
 
 struct MipsRegisterDescriptor {
 	const wchar_t* name;
@@ -3637,6 +9482,7 @@ private:
 };
 
 // file: Archs/MIPS/CMipsInstruction.cpp
+
 
 CMipsInstruction::CMipsInstruction(MipsOpcodeData& opcode, MipsImmediateData& immediate, MipsRegisterData& registers)
 {
@@ -3713,7 +9559,7 @@ int CMipsInstruction::floatToHalfFloat(int i)
 	return s | (e << 10) | (f >> 13);
 }
 
-bool CMipsInstruction::Validate()
+bool CMipsInstruction::Validate(const ValidateState &state)
 {
 	bool Result = false;
 
@@ -3732,7 +9578,7 @@ bool CMipsInstruction::Validate()
 	{
 		if (immediateData.primary.expression.isLoaded())
 		{
-			if (immediateData.primary.expression.evaluateInteger(immediateData.primary.value) == false)
+			if (!immediateData.primary.expression.evaluateInteger(immediateData.primary.value))
 			{
 				Logger::queueError(Logger::Error, L"Invalid immediate expression");
 				return false;
@@ -3803,7 +9649,7 @@ bool CMipsInstruction::Validate()
 	{
 		if (immediateData.secondary.expression.isLoaded())
 		{
-			if (immediateData.secondary.expression.evaluateInteger(immediateData.secondary.value) == false)
+			if (!immediateData.secondary.expression.evaluateInteger(immediateData.secondary.value))
 			{
 				Logger::queueError(Logger::Error, L"Invalid immediate expression");
 				return false;
@@ -3840,7 +9686,7 @@ bool CMipsInstruction::Validate()
 	}
 
 	// check load delay
-	if (Mips.hasLoadDelay() && Mips.GetLoadDelay() && IgnoreLoadDelay == false)
+	if (Mips.hasLoadDelay() && Mips.GetLoadDelay() && !IgnoreLoadDelay)
 	{
 		bool fix = false;
 
@@ -3859,23 +9705,23 @@ bool CMipsInstruction::Validate()
 			fix = true;
 		}
 
-		if (Mips.GetFixLoadDelay() == true && fix == true)
+		if (Mips.GetFixLoadDelay() && fix)
 		{
 			addNop = true;
 			Logger::queueError(Logger::Notice,L"added nop to ensure correct behavior");
 		}
 	}
 
-	if ((opcodeData.opcode.flags & MO_NODELAYSLOT) && Mips.GetDelaySlot() == true && IgnoreLoadDelay == false)
+	if ((opcodeData.opcode.flags & MO_NODELAYSLOT) && Mips.GetDelaySlot() && !IgnoreLoadDelay)
 	{
 		Logger::queueError(Logger::Error,L"This instruction can't be in a delay slot");
 	}
 
-	Mips.SetDelaySlot(opcodeData.opcode.flags & MO_DELAY ? true : false);
+	Mips.SetDelaySlot((opcodeData.opcode.flags & MO_DELAY) != 0);
 
 	// now check if this opcode causes a load delay
 	if (Mips.hasLoadDelay())
-		Mips.SetLoadDelay(opcodeData.opcode.flags & MO_DELAYRT ? true : false,registerData.grt.num);
+		Mips.SetLoadDelay((opcodeData.opcode.flags & MO_DELAYRT) != 0,registerData.grt.num);
 
 	if (previousNop != addNop)
 		Result = true;
@@ -3886,7 +9732,7 @@ bool CMipsInstruction::Validate()
 
 void CMipsInstruction::encodeNormal() const
 {
-	int encoding = opcodeData.opcode.destencoding;
+	int32_t encoding = opcodeData.opcode.destencoding;
 
 	if (registerData.grs.num != -1) encoding |= MIPS_RS(registerData.grs.num);	// source reg
 	if (registerData.grt.num != -1) encoding |= MIPS_RT(registerData.grt.num);	// target reg
@@ -4009,6 +9855,7 @@ void CMipsInstruction::writeTempData(TempData& tempData) const
 
 // file: Archs/MIPS/MipsExpressionFunctions.h
 
+
 extern const ExpressionFunctionMap mipsExpressionFunctions;
 
 // file: Archs/MIPS/MipsElfRelocator.h
@@ -4052,6 +9899,7 @@ private:
 };
 
 // file: Archs/MIPS/Mips.cpp
+
 
 CMipsArchitecture Mips;
 
@@ -4108,7 +9956,7 @@ std::unique_ptr<IElfRelocator> CMipsArchitecture::getElfRelocator()
 	case MARCH_PS2:
 	case MARCH_PSP:
 	case MARCH_N64:
-		return ::make_unique<MipsElfRelocator>();
+		return std::make_unique<MipsElfRelocator>();
 	case MARCH_PSX:
 	case MARCH_RSP:
 	default:
@@ -4123,6 +9971,7 @@ void CMipsArchitecture::SetLoadDelay(bool Delay, int Register)
 }
 
 // file: Archs/MIPS/MipsElfFile.h
+
 
 class MipsElfFile: public AssemblerFile
 {
@@ -4140,15 +9989,15 @@ public:
 	virtual bool getModuleInfo(SymDataModuleInfo& info);
 	virtual void beginSymData(SymbolData& symData);
 	virtual void endSymData(SymbolData& symData);
-	virtual const std::wstring& getFileName() { return fileName; };
+	virtual const fs::path& getFileName() { return fileName; };
 
-	bool load(const std::wstring& fileName, const std::wstring& outputFileName);
+	bool load(const fs::path& fileName, const fs::path& outputFileName);
 	void save();
 	bool setSection(const std::wstring& name);
 private:
 	ElfFile elf;
-	std::wstring fileName;
-	std::wstring outputFileName;
+	fs::path fileName;
+	fs::path outputFileName;
 	bool opened;
 	int platform;
 
@@ -4161,25 +10010,28 @@ private:
 class DirectiveLoadMipsElf: public CAssemblerCommand
 {
 public:
-	DirectiveLoadMipsElf(const std::wstring& fileName);
-	DirectiveLoadMipsElf(const std::wstring& inputName, const std::wstring& outputName);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	DirectiveLoadMipsElf(const fs::path& fileName);
+	DirectiveLoadMipsElf(const fs::path& inputName, const fs::path& outputName);
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 private:
 	std::shared_ptr<MipsElfFile> file;
-	std::wstring inputName;
-	std::wstring outputName;
+	fs::path inputName;
+	fs::path outputName;
 };
 
 // file: Util/CRC.h
+
+#include <cstddef>
 
 unsigned short getCrc16(unsigned char* Source, size_t len);
 unsigned int getCrc32(unsigned char* Source, size_t len);
 unsigned int getChecksum(unsigned char* Source, size_t len);
 
 // file: Archs/MIPS/MipsElfFile.cpp
+
 
 MipsElfFile::MipsElfFile()
 {
@@ -4372,19 +10224,19 @@ bool MipsElfFile::write(void* data, size_t length)
 	return false;
 }
 
-bool MipsElfFile::load(const std::wstring& fileName, const std::wstring& outputFileName)
+bool MipsElfFile::load(const fs::path& fileName, const fs::path& outputFileName)
 {
 	this->outputFileName = outputFileName;
 
-	if (elf.load(fileName,true) == false)
+	if (!elf.load(fileName,true))
 	{
-		Logger::printError(Logger::FatalError,L"Failed to load %s",fileName);
+		Logger::printError(Logger::FatalError,L"Failed to load %s",fileName.wstring());
 		return false;
 	}
 
 	if (elf.getType() == 0xFFA0)
 	{
-		Logger::printError(Logger::FatalError,L"Relocatable ELF %s not supported yet",fileName);
+		Logger::printError(Logger::FatalError,L"Relocatable ELF %s not supported yet",fileName.wstring());
 		return false;
 	}
 
@@ -4439,12 +10291,12 @@ void MipsElfFile::save()
 // DirectiveLoadPspElf
 //
 
-DirectiveLoadMipsElf::DirectiveLoadMipsElf(const std::wstring& fileName)
+DirectiveLoadMipsElf::DirectiveLoadMipsElf(const fs::path& fileName)
 {
 	file = std::make_shared<MipsElfFile>();
 
 	this->inputName = getFullPathName(fileName);
-	if (file->load(this->inputName,this->inputName) == false)
+	if (!file->load(this->inputName,this->inputName))
 	{
 		file = nullptr;
 		return;
@@ -4453,13 +10305,13 @@ DirectiveLoadMipsElf::DirectiveLoadMipsElf(const std::wstring& fileName)
 	g_fileManager->addFile(file);
 }
 
-DirectiveLoadMipsElf::DirectiveLoadMipsElf(const std::wstring& inputName, const std::wstring& outputName)
+DirectiveLoadMipsElf::DirectiveLoadMipsElf(const fs::path& inputName, const fs::path& outputName)
 {
 	file = std::make_shared<MipsElfFile>();
 
 	this->inputName = getFullPathName(inputName);
 	this->outputName = getFullPathName(outputName);
-	if (file->load(this->inputName,this->outputName) == false)
+	if (!file->load(this->inputName,this->outputName))
 	{
 		file = nullptr;
 		return;
@@ -4468,7 +10320,7 @@ DirectiveLoadMipsElf::DirectiveLoadMipsElf(const std::wstring& inputName, const 
 	g_fileManager->addFile(file);
 }
 
-bool DirectiveLoadMipsElf::Validate()
+bool DirectiveLoadMipsElf::Validate(const ValidateState &state)
 {
 	Arch->NextSection();
 	g_fileManager->openFile(file,true);
@@ -4484,10 +10336,10 @@ void DirectiveLoadMipsElf::writeTempData(TempData& tempData) const
 {
 	if (outputName.empty())
 	{
-		tempData.writeLine(g_fileManager->getVirtualAddress(),formatString(L".loadelf \"%s\"",inputName));
+		tempData.writeLine(g_fileManager->getVirtualAddress(),tfm::format(L".loadelf \"%s\"",inputName.wstring()));
 	} else {
-		tempData.writeLine(g_fileManager->getVirtualAddress(),formatString(L".loadelf \"%s\",\"%s\"",
-			inputName,outputName));
+		tempData.writeLine(g_fileManager->getVirtualAddress(),tfm::format(L".loadelf \"%s\",\"%s\"",
+			inputName.wstring(),outputName.wstring()));
 	}
 }
 
@@ -4498,25 +10350,43 @@ void DirectiveLoadMipsElf::writeSymData(SymbolData& symData) const
 
 // file: Commands/CommandSequence.h
 
+
+#include <memory>
+#include <vector>
+
 class Label;
 
 class CommandSequence: public CAssemblerCommand
 {
 public:
 	CommandSequence();
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 	void addCommand(std::unique_ptr<CAssemblerCommand> cmd) { commands.push_back(std::move(cmd)); }
 private:
 	std::vector<std::unique_ptr<CAssemblerCommand>> commands;
 };
 
 // file: Parser/Parser.h
-#include <set>
+
+
 #include <map>
+#include <memory>
+#include <optional>
+#include <set>
+#include <string>
 #include <unordered_map>
+#include <vector>
+
+class CAssemblerCommand;
+class Expression;
+class TextFile;
+
+struct DirectiveEntry;
+
+using DirectiveMap = std::unordered_multimap<std::wstring, const DirectiveEntry>;
 
 struct AssemblyTemplateArgument
 {
@@ -4565,14 +10435,12 @@ public:
 	bool isInsideTrueBlock() { return conditionStack.back().inTrueBlock; }
 	bool isInsideUnknownBlock() { return conditionStack.back().inUnknownBlock; }
 
+	void printError(const Token &token, const std::wstring &text);
+
 	template <typename... Args>
 	void printError(const Token& token, const wchar_t* text, const Args&... args)
 	{
-		errorLine = token.line;
-		Global.FileInfo.LineNumber = (int) token.line;
-		std::wstring errorText = formatString(text,args...);
-		Logger::printError(Logger::Error,errorText);
-		error = true;
+		printError(token, tfm::format(text,args...));
 	}
 
 	bool hasError() { return error; }
@@ -4581,10 +10449,14 @@ protected:
 	void clearError() { error = false; }
 	std::unique_ptr<CAssemblerCommand> handleError();
 
-	std::unique_ptr<CAssemblerCommand> parse(Tokenizer* tokenizer, bool virtualFile, const std::wstring& name = L"");
+	std::unique_ptr<CAssemblerCommand> parse(Tokenizer* tokenizer, bool virtualFile, const fs::path& name = {});
 	std::unique_ptr<CAssemblerCommand> parseLabel();
 	bool checkEquLabel();
+	bool parseFunctionDeclaration(std::wstring& name, std::vector<std::wstring>& parameters);
+	bool checkExpFuncDefinition();
 	bool checkMacroDefinition();
+
+	std::optional<std::vector<Token>> extractMacroParameter(const Token &macroStart);
 	std::unique_ptr<CAssemblerCommand> parseMacroCall();
 
 	struct FileEntry
@@ -4667,6 +10539,7 @@ private:
 
 // file: Archs/MIPS/MipsElfRelocator.cpp
 
+
 int MipsElfRelocator::expectedMachine() const
 {
 	return EM_MIPS;
@@ -4680,7 +10553,7 @@ bool MipsElfRelocator::processHi16Entries(uint32_t lo16Opcode, int64_t lo16Reloc
 	{
 		if (hi16.relocationBase != lo16RelocationBase)
 		{
-			errors.push_back(formatString(L"Mismatched R_MIPS_HI16 with	R_MIPS_LO16 of a different symbol"));
+			errors.push_back(tfm::format(L"Mismatched R_MIPS_HI16 with	R_MIPS_LO16 of a different symbol"));
 			result = false;
 			continue;
 		}
@@ -4717,7 +10590,7 @@ bool MipsElfRelocator::relocateOpcode(int type, const RelocationData& data, std:
 		op = (op&0xffff0000) | (((op&0xffff)+data.relocationBase)&0xffff);
 		break;
 	default:
-		errors.emplace_back(formatString(L"Unknown MIPS relocation type %d",type));
+		errors.emplace_back(tfm::format(L"Unknown MIPS relocation type %d",type));
 		return false;
 	}
 
@@ -4782,12 +10655,12 @@ std::unique_ptr<CAssemblerCommand> MipsElfRelocator::generateCtorStub(std::vecto
 		{
 			if (i != 0)
 				table += ',';
-			table += formatString(L"%s,%s+0x%08X",ctors[i].symbolName,ctors[i].symbolName,ctors[i].size);
+			table += tfm::format(L"%s,%s+0x%08X",ctors[i].symbolName,ctors[i].symbolName,ctors[i].size);
 		}
 
 		return parser.parseTemplate(mipsCtorTemplate,{
 			{ L"%ctorTable%",		Global.symbolTable.getUniqueLabelName() },
-			{ L"%ctorTableSize%",	formatString(L"%d",ctors.size()*8) },
+			{ L"%ctorTableSize%",	tfm::format(L"%d",ctors.size()*8) },
 			{ L"%outerLoopLabel%",	Global.symbolTable.getUniqueLabelName() },
 			{ L"%innerLoopLabel%",	Global.symbolTable.getUniqueLabelName() },
 			{ L"%ctorContent%",		table },
@@ -4798,6 +10671,7 @@ std::unique_ptr<CAssemblerCommand> MipsElfRelocator::generateCtorStub(std::vecto
 }
 
 // file: Archs/MIPS/MipsExpressionFunctions.cpp
+
 
 #define GET_PARAM(params,index,dest) \
 	if (getExpFuncParameter(params,index,dest,funcName,false) == false) \
@@ -4828,6 +10702,7 @@ const ExpressionFunctionMap mipsExpressionFunctions = {
 
 // file: Archs/MIPS/MipsMacros.cpp
 
+
 MipsMacroCommand::MipsMacroCommand(std::unique_ptr<CAssemblerCommand> content, int macroFlags)
 {
 	this->content = std::move(content);
@@ -4835,16 +10710,16 @@ MipsMacroCommand::MipsMacroCommand(std::unique_ptr<CAssemblerCommand> content, i
 	IgnoreLoadDelay = Mips.GetIgnoreDelay();
 }
 
-bool MipsMacroCommand::Validate()
+bool MipsMacroCommand::Validate(const ValidateState &state)
 {
 	int64_t memoryPos = g_fileManager->getVirtualAddress();
 	content->applyFileInfo();
-	bool result = content->Validate();
+	bool result = content->Validate(state);
 	int64_t newMemoryPos = g_fileManager->getVirtualAddress();
 
 	applyFileInfo();
 
-	if (IgnoreLoadDelay == false && Mips.GetDelaySlot() == true && (newMemoryPos-memoryPos) > 4
+	if (!IgnoreLoadDelay && Mips.GetDelaySlot() && (newMemoryPos-memoryPos) > 4
 		&& (macroFlags & MIPSM_DONTWARNDELAYSLOT) == 0)
 	{
 		Logger::queueError(Logger::Warning,L"Macro with multiple opcodes used inside a delay slot");
@@ -4877,13 +10752,13 @@ std::wstring preprocessMacro(const wchar_t* text, MipsImmediateData& immediates)
 	immediates.primary.expression.replaceMemoryPos(labelName);
 	immediates.secondary.expression.replaceMemoryPos(labelName);
 
-	return formatString(L"%s: %s",labelName,text);
+	return tfm::format(L"%s: %s",labelName,text);
 }
 
 std::unique_ptr<CAssemblerCommand> createMacro(Parser& parser, const std::wstring& text, int flags, std::initializer_list<AssemblyTemplateArgument> variables)
 {
 	std::unique_ptr<CAssemblerCommand> content = parser.parseTemplate(text,variables);
-	return ::make_unique<MipsMacroCommand>(std::move(content),flags);
+	return std::make_unique<MipsMacroCommand>(std::move(content),flags);
 }
 
 std::unique_ptr<CAssemblerCommand> generateMipsMacroAbs(Parser& parser, MipsRegisterData& registers, MipsImmediateData& immediates, int flags)
@@ -5078,7 +10953,7 @@ std::unique_ptr<CAssemblerCommand> generateMipsMacroLoadUnaligned(Parser& parser
 		if (registers.grs.num == registers.grd.num)
 		{
 			Logger::printError(Logger::Error,L"Cannot use same register as source and destination");
-			return ::make_unique<DummyCommand>();
+			return std::make_unique<DummyCommand>();
 		}
 
 		op = type == MIPSM_W ? L"lw" : L"ld";
@@ -5131,7 +11006,7 @@ std::unique_ptr<CAssemblerCommand> generateMipsMacroStoreUnaligned(Parser& parse
 		if (registers.grs.num == registers.grd.num)
 		{
 			Logger::printError(Logger::Error,L"Cannot use same register as source and destination");
-			return ::make_unique<DummyCommand>();
+			return std::make_unique<DummyCommand>();
 		}
 
 		op = type == MIPSM_W ? L"sw" : L"sd";
@@ -5228,7 +11103,7 @@ std::unique_ptr<CAssemblerCommand> generateMipsMacroBranch(Parser& parser, MipsR
 	std::wstring macroText = preprocessMacro(selectedTemplate,immediates);
 	return createMacro(parser,macroText,flags, {
 			{ L"%op%",		op },
-			{ L"%u%",		unsigned_ ? L"u" : L""},
+			{ L"%u%",		unsigned_ ? L"u" : L" "},
 			{ L"%revcmp%",	revcmp ? L"1" : L"0"},
 			{ L"%rs%",		registers.grs.name },
 			{ L"%rt%",		registers.grt.name },
@@ -5319,7 +11194,7 @@ std::unique_ptr<CAssemblerCommand> generateMipsMacroSet(Parser& parser, MipsRegi
 
 	std::wstring macroText = preprocessMacro(selectedTemplate,immediates);
 	return createMacro(parser,macroText,flags, {
-			{ L"%u%",		unsigned_ ? L"u" : L""},
+			{ L"%u%",		unsigned_ ? L"u" : L" "},
 			{ L"%eq%",		eq ? L"1" : L"0" },
 			{ L"%ge%",		ge ? L"1" : L"0" },
 			{ L"%revcmp%",	revcmp ? L"1" : L"0" },
@@ -6390,7 +12265,7 @@ const tMipsOpcode MipsOpcodes[] = {
 //     | VMMUL |     V(H)TFM2/3/4      | VMSCL |   *1  |  ---  |VF6-1.1|
 //     |-------|-------|-------|-------|-------|-------|-------|-------|
 //		*1: vcrsp.t/vqmul.q
-	{ "vmmul.S",	"md,ms,mt",		MIPS_VFPU6(0),					MA_PSP,	MO_VFPU|MO_TRANSPOSE_VS },
+	{ "vmmul.S",	"md,ms,mt",		MIPS_VFPU6(0),					MA_PSP,	MO_VFPU|MO_VFPU_TRANSPOSE_VS },
 	{ "vtfm2.p",	"vd,ms,vt",		MIPS_VFPU6(1)|MIPS_VFPUSIZE(1),	MA_PSP,	MO_VFPU|MO_VFPU_PAIR },
 	{ "vhtfm2.p",	"vd,ms,vt",		MIPS_VFPU6(2)|MIPS_VFPUSIZE(1),	MA_PSP,	MO_VFPU|MO_VFPU_PAIR },
 	{ "vtfm3.t",	"vd,ms,vt",		MIPS_VFPU6(2)|MIPS_VFPUSIZE(2),	MA_PSP,	MO_VFPU|MO_VFPU_TRIPLE },
@@ -6437,97 +12312,97 @@ const tMipsOpcode MipsOpcodes[] = {
 // 111 | VEXTT | VEXTQ | VEXTN |  ---  | VINST | VINSQ | VINSN | VNULL | 38..3F
 //  hi |-------|-------|-------|-------|-------|-------|-------|-------|
 	{ "vmulf",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x00),		MA_RSP,		0 },
-	{ "vmulf",	"Rs,RtRe",		MIPS_RSP_COP2(0x00),		MA_RSP,		MO_RSPVRSD },
+	{ "vmulf",	"Rs,RtRe",		MIPS_RSP_COP2(0x00),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmulu",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x01),		MA_RSP,		0 },
-	{ "vmulu",	"Rs,RtRe",		MIPS_RSP_COP2(0x01),		MA_RSP,		MO_RSPVRSD },
+	{ "vmulu",	"Rs,RtRe",		MIPS_RSP_COP2(0x01),		MA_RSP,		MO_RSP_VRSD },
 	{ "vrndp",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x02),		MA_RSP,		0 },
-	{ "vrndp",	"Rs,RtRe",		MIPS_RSP_COP2(0x02),		MA_RSP,		MO_RSPVRSD },
+	{ "vrndp",	"Rs,RtRe",		MIPS_RSP_COP2(0x02),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmulq",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x03),		MA_RSP,		0 },
-	{ "vmulq",	"Rs,RtRe",		MIPS_RSP_COP2(0x03),		MA_RSP,		MO_RSPVRSD },
+	{ "vmulq",	"Rs,RtRe",		MIPS_RSP_COP2(0x03),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmudl",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x04),		MA_RSP,		0 },
-	{ "vmudl",	"Rs,RtRe",		MIPS_RSP_COP2(0x04),		MA_RSP,		MO_RSPVRSD },
+	{ "vmudl",	"Rs,RtRe",		MIPS_RSP_COP2(0x04),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmudm",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x05),		MA_RSP,		0 },
-	{ "vmudm",	"Rs,RtRe",		MIPS_RSP_COP2(0x05),		MA_RSP,		MO_RSPVRSD },
+	{ "vmudm",	"Rs,RtRe",		MIPS_RSP_COP2(0x05),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmudn",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x06),		MA_RSP,		0 },
-	{ "vmudn",	"Rs,RtRe",		MIPS_RSP_COP2(0x06),		MA_RSP,		MO_RSPVRSD },
+	{ "vmudn",	"Rs,RtRe",		MIPS_RSP_COP2(0x06),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmudh",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x07),		MA_RSP,		0 },
-	{ "vmudh",	"Rs,RtRe",		MIPS_RSP_COP2(0x07),		MA_RSP,		MO_RSPVRSD },
+	{ "vmudh",	"Rs,RtRe",		MIPS_RSP_COP2(0x07),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmacf",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x08),		MA_RSP,		0 },
-	{ "vmacf",	"Rs,RtRe",		MIPS_RSP_COP2(0x08),		MA_RSP,		MO_RSPVRSD },
+	{ "vmacf",	"Rs,RtRe",		MIPS_RSP_COP2(0x08),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmacu",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x09),		MA_RSP,		0 },
-	{ "vmacu",	"Rs,RtRe",		MIPS_RSP_COP2(0x09),		MA_RSP,		MO_RSPVRSD },
+	{ "vmacu",	"Rs,RtRe",		MIPS_RSP_COP2(0x09),		MA_RSP,		MO_RSP_VRSD },
 	{ "vrndn",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x0a),		MA_RSP,		0 },
-	{ "vrndn",	"Rs,RtRe",		MIPS_RSP_COP2(0x0a),		MA_RSP,		MO_RSPVRSD },
+	{ "vrndn",	"Rs,RtRe",		MIPS_RSP_COP2(0x0a),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmacq",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x0b),		MA_RSP,		0 },
-	{ "vmacq",	"Rs,RtRe",		MIPS_RSP_COP2(0x0b),		MA_RSP,		MO_RSPVRSD },
+	{ "vmacq",	"Rs,RtRe",		MIPS_RSP_COP2(0x0b),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmadl",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x0c),		MA_RSP,		0 },
-	{ "vmadl",	"Rs,RtRe",		MIPS_RSP_COP2(0x0c),		MA_RSP,		MO_RSPVRSD },
+	{ "vmadl",	"Rs,RtRe",		MIPS_RSP_COP2(0x0c),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmadm",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x0d),		MA_RSP,		0 },
-	{ "vmadm",	"Rs,RtRe",		MIPS_RSP_COP2(0x0d),		MA_RSP,		MO_RSPVRSD },
+	{ "vmadm",	"Rs,RtRe",		MIPS_RSP_COP2(0x0d),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmadn",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x0e),		MA_RSP,		0 },
-	{ "vmadn",	"Rs,RtRe",		MIPS_RSP_COP2(0x0e),		MA_RSP,		MO_RSPVRSD },
+	{ "vmadn",	"Rs,RtRe",		MIPS_RSP_COP2(0x0e),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmadh",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x0f),		MA_RSP,		0 },
-	{ "vmadh",	"Rs,RtRe",		MIPS_RSP_COP2(0x0f),		MA_RSP,		MO_RSPVRSD },
+	{ "vmadh",	"Rs,RtRe",		MIPS_RSP_COP2(0x0f),		MA_RSP,		MO_RSP_VRSD },
 	{ "vadd",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x10),		MA_RSP,		0 },
-	{ "vadd",	"Rs,RtRe",		MIPS_RSP_COP2(0x10),		MA_RSP,		MO_RSPVRSD },
+	{ "vadd",	"Rs,RtRe",		MIPS_RSP_COP2(0x10),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsub",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x11),		MA_RSP,		0 },
-	{ "vsub",	"Rs,RtRe",		MIPS_RSP_COP2(0x11),		MA_RSP,		MO_RSPVRSD },
+	{ "vsub",	"Rs,RtRe",		MIPS_RSP_COP2(0x11),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsut",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x12),		MA_RSP,		0 },
-	{ "vsut",	"Rs,RtRe",		MIPS_RSP_COP2(0x12),		MA_RSP,		MO_RSPVRSD },
+	{ "vsut",	"Rs,RtRe",		MIPS_RSP_COP2(0x12),		MA_RSP,		MO_RSP_VRSD },
 	{ "vabs",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x13),		MA_RSP,		0 },
-	{ "vabs",	"Rs,RtRe",		MIPS_RSP_COP2(0x13),		MA_RSP,		MO_RSPVRSD },
+	{ "vabs",	"Rs,RtRe",		MIPS_RSP_COP2(0x13),		MA_RSP,		MO_RSP_VRSD },
 	{ "vaddc",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x14),		MA_RSP,		0 },
-	{ "vaddc",	"Rs,RtRe",		MIPS_RSP_COP2(0x14),		MA_RSP,		MO_RSPVRSD },
+	{ "vaddc",	"Rs,RtRe",		MIPS_RSP_COP2(0x14),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsubc",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x15),		MA_RSP,		0 },
-	{ "vsubc",	"Rs,RtRe",		MIPS_RSP_COP2(0x15),		MA_RSP,		MO_RSPVRSD },
+	{ "vsubc",	"Rs,RtRe",		MIPS_RSP_COP2(0x15),		MA_RSP,		MO_RSP_VRSD },
 	{ "vaddb",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x16),		MA_RSP,		0 },
-	{ "vaddb",	"Rs,RtRe",		MIPS_RSP_COP2(0x16),		MA_RSP,		MO_RSPVRSD },
+	{ "vaddb",	"Rs,RtRe",		MIPS_RSP_COP2(0x16),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsubb",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x17),		MA_RSP,		0 },
-	{ "vsubb",	"Rs,RtRe",		MIPS_RSP_COP2(0x17),		MA_RSP,		MO_RSPVRSD },
+	{ "vsubb",	"Rs,RtRe",		MIPS_RSP_COP2(0x17),		MA_RSP,		MO_RSP_VRSD },
 	{ "vaccb",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x18),		MA_RSP,		0 },
-	{ "vaccb",	"Rs,RtRe",		MIPS_RSP_COP2(0x18),		MA_RSP,		MO_RSPVRSD },
+	{ "vaccb",	"Rs,RtRe",		MIPS_RSP_COP2(0x18),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsucb",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x19),		MA_RSP,		0 },
-	{ "vsucb",	"Rs,RtRe",		MIPS_RSP_COP2(0x19),		MA_RSP,		MO_RSPVRSD },
+	{ "vsucb",	"Rs,RtRe",		MIPS_RSP_COP2(0x19),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsad",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x1a),		MA_RSP,		0 },
-	{ "vsad",	"Rs,RtRe",		MIPS_RSP_COP2(0x1a),		MA_RSP,		MO_RSPVRSD },
+	{ "vsad",	"Rs,RtRe",		MIPS_RSP_COP2(0x1a),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsac",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x1b),		MA_RSP,		0 },
-	{ "vsac",	"Rs,RtRe",		MIPS_RSP_COP2(0x1b),		MA_RSP,		MO_RSPVRSD },
+	{ "vsac",	"Rs,RtRe",		MIPS_RSP_COP2(0x1b),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsum",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x1c),		MA_RSP,		0 },
-	{ "vsum",	"Rs,RtRe",		MIPS_RSP_COP2(0x1c),		MA_RSP,		MO_RSPVRSD },
+	{ "vsum",	"Rs,RtRe",		MIPS_RSP_COP2(0x1c),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsar",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x1d),		MA_RSP,		0 },
-	{ "vsar",	"Rs,RtRe",		MIPS_RSP_COP2(0x1d),		MA_RSP,		MO_RSPVRSD },
+	{ "vsar",	"Rs,RtRe",		MIPS_RSP_COP2(0x1d),		MA_RSP,		MO_RSP_VRSD },
 	{ "vacc",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x1e),		MA_RSP,		0 },
-	{ "vacc",	"Rs,RtRe",		MIPS_RSP_COP2(0x1e),		MA_RSP,		MO_RSPVRSD },
+	{ "vacc",	"Rs,RtRe",		MIPS_RSP_COP2(0x1e),		MA_RSP,		MO_RSP_VRSD },
 	{ "vsuc",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x1f),		MA_RSP,		0 },
-	{ "vsuc",	"Rs,RtRe",		MIPS_RSP_COP2(0x1f),		MA_RSP,		MO_RSPVRSD },
+	{ "vsuc",	"Rs,RtRe",		MIPS_RSP_COP2(0x1f),		MA_RSP,		MO_RSP_VRSD },
 	{ "vlt",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x20),		MA_RSP,		0 },
-	{ "vlt",	"Rs,RtRe",		MIPS_RSP_COP2(0x20),		MA_RSP,		MO_RSPVRSD },
+	{ "vlt",	"Rs,RtRe",		MIPS_RSP_COP2(0x20),		MA_RSP,		MO_RSP_VRSD },
 	{ "veq",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x21),		MA_RSP,		0 },
-	{ "veq",	"Rs,RtRe",		MIPS_RSP_COP2(0x21),		MA_RSP,		MO_RSPVRSD },
+	{ "veq",	"Rs,RtRe",		MIPS_RSP_COP2(0x21),		MA_RSP,		MO_RSP_VRSD },
 	{ "vne",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x22),		MA_RSP,		0 },
-	{ "vne",	"Rs,RtRe",		MIPS_RSP_COP2(0x22),		MA_RSP,		MO_RSPVRSD },
+	{ "vne",	"Rs,RtRe",		MIPS_RSP_COP2(0x22),		MA_RSP,		MO_RSP_VRSD },
 	{ "vge",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x23),		MA_RSP,		0 },
-	{ "vge",	"Rs,RtRe",		MIPS_RSP_COP2(0x23),		MA_RSP,		MO_RSPVRSD },
+	{ "vge",	"Rs,RtRe",		MIPS_RSP_COP2(0x23),		MA_RSP,		MO_RSP_VRSD },
 	{ "vcl",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x24),		MA_RSP,		0 },
-	{ "vcl",	"Rs,RtRe",		MIPS_RSP_COP2(0x24),		MA_RSP,		MO_RSPVRSD },
+	{ "vcl",	"Rs,RtRe",		MIPS_RSP_COP2(0x24),		MA_RSP,		MO_RSP_VRSD },
 	{ "vch",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x25),		MA_RSP,		0 },
-	{ "vch",	"Rs,RtRe",		MIPS_RSP_COP2(0x25),		MA_RSP,		MO_RSPVRSD },
+	{ "vch",	"Rs,RtRe",		MIPS_RSP_COP2(0x25),		MA_RSP,		MO_RSP_VRSD },
 	{ "vcr",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x26),		MA_RSP,		0 },
-	{ "vcr",	"Rs,RtRe",		MIPS_RSP_COP2(0x26),		MA_RSP,		MO_RSPVRSD },
+	{ "vcr",	"Rs,RtRe",		MIPS_RSP_COP2(0x26),		MA_RSP,		MO_RSP_VRSD },
 	{ "vmrg",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x27),		MA_RSP,		0 },
-	{ "vmrg",	"Rs,RtRe",		MIPS_RSP_COP2(0x27),		MA_RSP,		MO_RSPVRSD },
+	{ "vmrg",	"Rs,RtRe",		MIPS_RSP_COP2(0x27),		MA_RSP,		MO_RSP_VRSD },
 	{ "vand",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x28),		MA_RSP,		0 },
-	{ "vand",	"Rs,RtRe",		MIPS_RSP_COP2(0x28),		MA_RSP,		MO_RSPVRSD },
+	{ "vand",	"Rs,RtRe",		MIPS_RSP_COP2(0x28),		MA_RSP,		MO_RSP_VRSD },
 	{ "vnand",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x29),		MA_RSP,		0 },
-	{ "vnand",	"Rs,RtRe",		MIPS_RSP_COP2(0x29),		MA_RSP,		MO_RSPVRSD },
+	{ "vnand",	"Rs,RtRe",		MIPS_RSP_COP2(0x29),		MA_RSP,		MO_RSP_VRSD },
 	{ "vor",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x2a),		MA_RSP,		0 },
-	{ "vor",	"Rs,RtRe",		MIPS_RSP_COP2(0x2a),		MA_RSP,		MO_RSPVRSD },
+	{ "vor",	"Rs,RtRe",		MIPS_RSP_COP2(0x2a),		MA_RSP,		MO_RSP_VRSD },
 	{ "vnor",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x2b),		MA_RSP,		0 },
-	{ "vnor",	"Rs,RtRe",		MIPS_RSP_COP2(0x2b),		MA_RSP,		MO_RSPVRSD },
+	{ "vnor",	"Rs,RtRe",		MIPS_RSP_COP2(0x2b),		MA_RSP,		MO_RSP_VRSD },
 	{ "vxor",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x2c),		MA_RSP,		0 },
-	{ "vxor",	"Rs,RtRe",		MIPS_RSP_COP2(0x2c),		MA_RSP,		MO_RSPVRSD },
+	{ "vxor",	"Rs,RtRe",		MIPS_RSP_COP2(0x2c),		MA_RSP,		MO_RSP_VRSD },
 	{ "vnxor",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x2d),		MA_RSP,		0 },
-	{ "vnxor",	"Rs,RtRe",		MIPS_RSP_COP2(0x2d),		MA_RSP,		MO_RSPVRSD },
+	{ "vnxor",	"Rs,RtRe",		MIPS_RSP_COP2(0x2d),		MA_RSP,		MO_RSP_VRSD },
 	{ "vrcp",	"RdRm,RtRl",	MIPS_RSP_COP2(0x30),		MA_RSP,		0 },
 	{ "vrcpl",	"RdRm,RtRl",	MIPS_RSP_COP2(0x31),		MA_RSP,		0 },
 	{ "vrcph",	"RdRm,RtRl",	MIPS_RSP_COP2(0x32),		MA_RSP,		0 },
@@ -6537,17 +12412,17 @@ const tMipsOpcode MipsOpcodes[] = {
 	{ "vrsqh",	"RdRm,RtRl",	MIPS_RSP_COP2(0x36),		MA_RSP,		0 },
 	{ "vnop",	"",				MIPS_RSP_COP2(0x37),		MA_RSP,		0 },
 	{ "vextt",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x38),		MA_RSP,		0 },
-	{ "vextt",	"Rs,RtRe",		MIPS_RSP_COP2(0x38),		MA_RSP,		MO_RSPVRSD },
+	{ "vextt",	"Rs,RtRe",		MIPS_RSP_COP2(0x38),		MA_RSP,		MO_RSP_VRSD },
 	{ "vextq",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x39),		MA_RSP,		0 },
-	{ "vextq",	"Rs,RtRe",		MIPS_RSP_COP2(0x39),		MA_RSP,		MO_RSPVRSD },
+	{ "vextq",	"Rs,RtRe",		MIPS_RSP_COP2(0x39),		MA_RSP,		MO_RSP_VRSD },
 	{ "vextn",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x3a),		MA_RSP,		0 },
-	{ "vextn",	"Rs,RtRe",		MIPS_RSP_COP2(0x3a),		MA_RSP,		MO_RSPVRSD },
+	{ "vextn",	"Rs,RtRe",		MIPS_RSP_COP2(0x3a),		MA_RSP,		MO_RSP_VRSD },
 	{ "vinst",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x3c),		MA_RSP,		0 },
-	{ "vinst",	"Rs,RtRe",		MIPS_RSP_COP2(0x3c),		MA_RSP,		MO_RSPVRSD },
+	{ "vinst",	"Rs,RtRe",		MIPS_RSP_COP2(0x3c),		MA_RSP,		MO_RSP_VRSD },
 	{ "vinsq",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x3d),		MA_RSP,		0 },
-	{ "vinsq",	"Rs,RtRe",		MIPS_RSP_COP2(0x3d),		MA_RSP,		MO_RSPVRSD },
+	{ "vinsq",	"Rs,RtRe",		MIPS_RSP_COP2(0x3d),		MA_RSP,		MO_RSP_VRSD },
 	{ "vinsn",	"Rd,Rs,RtRe",	MIPS_RSP_COP2(0x3e),		MA_RSP,		0 },
-	{ "vinsn",	"Rs,RtRe",		MIPS_RSP_COP2(0x3e),		MA_RSP,		MO_RSPVRSD },
+	{ "vinsn",	"Rs,RtRe",		MIPS_RSP_COP2(0x3e),		MA_RSP,		MO_RSP_VRSD },
 	{ "vnull",	"",				MIPS_RSP_COP2(0x3f),		MA_RSP,		0 },
 
 //     31---------26--------------------15-------11--------------------0
@@ -6563,8 +12438,8 @@ const tMipsOpcode MipsOpcodes[] = {
 	{"lbv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x00),		MA_RSP,		0 },
 	{"lsv",		"RtRo,i7(s)",	MIPS_RSP_LWC2(0x01),		MA_RSP,		MO_RSP_HWOFFSET },
 	{"lsv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x01),		MA_RSP,		MO_RSP_HWOFFSET },
-	{"llv",		"RtRo,i7(s)",	MIPS_RSP_LWC2(0x02),		MA_RSP,		MO_RSP_WOFFSET  },
-	{"llv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x02),		MA_RSP,		MO_RSP_WOFFSET  },
+	{"llv",		"RtRo,i7(s)",	MIPS_RSP_LWC2(0x02),		MA_RSP,		MO_RSP_WOFFSET },
+	{"llv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x02),		MA_RSP,		MO_RSP_WOFFSET },
 	{"ldv",		"RtRo,i7(s)",	MIPS_RSP_LWC2(0x03),		MA_RSP,		MO_RSP_DWOFFSET },
 	{"ldv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x03),		MA_RSP,		MO_RSP_DWOFFSET },
 	{"lqv",		"RtRo,i7(s)",	MIPS_RSP_LWC2(0x04),		MA_RSP,		MO_RSP_QWOFFSET },
@@ -6579,8 +12454,6 @@ const tMipsOpcode MipsOpcodes[] = {
 	{"lhv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x08),		MA_RSP,		MO_RSP_QWOFFSET },
 	{"lfv",		"RtRo,i7(s)",	MIPS_RSP_LWC2(0x09),		MA_RSP,		MO_RSP_QWOFFSET },
 	{"lfv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x09),		MA_RSP,		MO_RSP_QWOFFSET },
-	{"lwv",		"RtRo,i7(s)",	MIPS_RSP_LWC2(0x0a),		MA_RSP,		MO_RSP_QWOFFSET },
-	{"lwv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x0a),		MA_RSP,		MO_RSP_QWOFFSET },
 	{"ltv",		"RtRo,i7(s)",	MIPS_RSP_LWC2(0x0b),		MA_RSP,		MO_RSP_QWOFFSET },
 	{"ltv",		"RtRo,(s)",		MIPS_RSP_LWC2(0x0b),		MA_RSP,		MO_RSP_QWOFFSET },
 
@@ -6638,10 +12511,21 @@ const MipsArchDefinition mipsArchs[] = {
 
 // file: Parser/ExpressionParser.h
 
+class Expression;
+class Tokenizer;
+
 Expression parseExpression(Tokenizer& tokenizer, bool inUnknownOrFalseBlock);
 void allowFunctionCallExpression(bool allow);
 
 // file: Archs/MIPS/PsxRelocator.h
+
+
+#include <memory>
+#include <string>
+#include <vector>
+
+class Label;
+class MipsElfRelocator;
 
 enum class PsxRelocationType { WordLiteral, UpperImmediate, LowerImmediate, FunctionCall };
 enum class PsxRelocationRefType { SymblId, SegmentOffset };
@@ -6650,11 +12534,11 @@ struct PsxRelocation
 {
 	PsxRelocationType type;
 	PsxRelocationRefType refType;
-	int segmentOffset;
-	int referenceId;
-	int referencePos;
-	int relativeOffset;
-	int filePos;
+	int segmentOffset = 0;
+	int referenceId = 0;
+	int referencePos = 0;
+	int relativeOffset = 0;
+	int filePos = 0;
 };
 
 struct PsxSegment
@@ -6689,7 +12573,7 @@ struct PsxRelocatorFile
 class PsxRelocator
 {
 public:
-	bool init(const std::wstring& inputName);
+	bool init(const fs::path& inputName);
 	bool relocate(int& memoryAddress);
 	bool hasDataChanged() { return dataChanged; };
 	const ByteArray& getData() const { return outputData; };
@@ -6708,18 +12592,20 @@ private:
 class DirectivePsxObjImport: public CAssemblerCommand
 {
 public:
-	DirectivePsxObjImport(const std::wstring& fileName);
+	DirectivePsxObjImport(const fs::path& fileName);
 	~DirectivePsxObjImport() { };
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const { };
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override { };
+	void writeSymData(SymbolData& symData) const override;
 private:
 	PsxRelocator rel;
 };
 
 // file: Commands/CDirectiveFile.h
 
+
+class AssemblerFile;
 class GenericAssemblerFile;
 
 class CDirectiveFile: public CAssemblerCommand
@@ -6728,15 +12614,15 @@ public:
 	enum class Type { Invalid, Open, Create, Copy, Close };
 
 	CDirectiveFile();
-	void initOpen(const std::wstring& fileName, int64_t memory);
-	void initCreate(const std::wstring& fileName, int64_t memory);
-	void initCopy(const std::wstring& inputName, const std::wstring& outputName, int64_t memory);
+	void initOpen(const fs::path& fileName, int64_t memory);
+	void initCreate(const fs::path& fileName, int64_t memory);
+	void initCopy(const fs::path& inputName, const fs::path& outputName, int64_t memory);
 	void initClose();
 
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 private:
 	Type type;
 	int64_t virtualAddress;
@@ -6749,10 +12635,10 @@ class CDirectivePosition: public CAssemblerCommand
 public:
 	enum Type { Physical, Virtual };
 	CDirectivePosition(Expression value, Type type);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const { };
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override { };
 private:
 	void exec() const;
 	Expression expression;
@@ -6764,16 +12650,16 @@ private:
 class CDirectiveIncbin: public CAssemblerCommand
 {
 public:
-	CDirectiveIncbin(const std::wstring& fileName);
+	CDirectiveIncbin(const fs::path& fileName);
 	void setStart(Expression& exp) { startExpression = exp; };
 	void setSize(Expression& exp) { sizeExpression = exp; };
 
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 private:
-	std::wstring fileName;
+	fs::path fileName;
 	int64_t fileSize;
 
 	Expression startExpression;
@@ -6791,10 +12677,10 @@ public:
 	CDirectiveAlignFill(int64_t value, Mode mode);
 	CDirectiveAlignFill(Expression& value, Mode mode);
 	CDirectiveAlignFill(Expression& value, Expression& fillValue, Mode mode);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 private:
 	Mode mode;
 	Expression valueExpression;
@@ -6809,10 +12695,10 @@ class CDirectiveSkip: public CAssemblerCommand
 {
 public:
 	CDirectiveSkip(Expression& value);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const { };
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override { };
 private:
 	Expression expression;
 	int64_t value;
@@ -6823,10 +12709,10 @@ class CDirectiveHeaderSize: public CAssemblerCommand
 {
 public:
 	CDirectiveHeaderSize(Expression expression);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const { };
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override { };
 private:
 	void exec() const;
 	Expression expression;
@@ -6837,19 +12723,20 @@ private:
 class DirectiveObjImport: public CAssemblerCommand
 {
 public:
-	DirectiveObjImport(const std::wstring& inputName);
-	DirectiveObjImport(const std::wstring& inputName, const std::wstring& ctorName);
+	DirectiveObjImport(const fs::path& inputName);
+	DirectiveObjImport(const fs::path& inputName, const std::wstring& ctorName);
 	~DirectiveObjImport() { };
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 private:
 	ElfRelocator rel;
 	std::unique_ptr<CAssemblerCommand> ctor;
 };
 
 // file: Archs/MIPS/MipsParser.cpp
+
 
 #define CHECK(exp) if (!(exp)) return false;
 
@@ -6970,32 +12857,32 @@ const MipsRegisterDescriptor mipsRspVectorRegisters[] = {
 std::unique_ptr<CAssemblerCommand> parseDirectiveResetDelay(Parser& parser, int flags)
 {
 	Mips.SetIgnoreDelay(true);
-	return ::make_unique<DummyCommand>();
+	return std::make_unique<DummyCommand>();
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveFixLoadDelay(Parser& parser, int flags)
 {
 	Mips.SetFixLoadDelay(true);
-	return ::make_unique<DummyCommand>();
+	return std::make_unique<DummyCommand>();
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveLoadElf(Parser& parser, int flags)
 {
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,1,2) == false)
+	if (!parser.parseExpressionList(list,1,2))
 		return nullptr;
 
 	std::wstring inputName, outputName;
-	if (list[0].evaluateString(inputName,true) == false)
+	if (!list[0].evaluateString(inputName,true))
 		return nullptr;
 
 	if (list.size() == 2)
 	{
-		if (list[1].evaluateString(outputName,true) == false)
+		if (!list[1].evaluateString(outputName,true))
 			return nullptr;
-		return ::make_unique<DirectiveLoadMipsElf>(inputName,outputName);
+		return std::make_unique<DirectiveLoadMipsElf>(inputName,outputName);
 	} else {
-		return ::make_unique<DirectiveLoadMipsElf>(inputName);
+		return std::make_unique<DirectiveLoadMipsElf>(inputName);
 	}
 }
 
@@ -7004,32 +12891,32 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveImportObj(Parser& parser, int f
 	const Token& start = parser.peekToken();
 
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,1,2) == false)
+	if (!parser.parseExpressionList(list,1,2))
 		return nullptr;
 
 	std::wstring inputName;
-	if (list[0].evaluateString(inputName,true) == false)
+	if (!list[0].evaluateString(inputName,true))
 		return nullptr;
 
 	if (list.size() == 2)
 	{
 		std::wstring ctorName;
-		if (list[1].evaluateIdentifier(ctorName) == false)
+		if (!list[1].evaluateIdentifier(ctorName))
 			return nullptr;
 
 		if (Mips.GetVersion() == MARCH_PSX)
 		{
 			parser.printError(start,L"Constructor not supported for PSX libraries");
-			return ::make_unique<InvalidCommand>();
+			return std::make_unique<InvalidCommand>();
 		}
 
-		return ::make_unique<DirectiveObjImport>(inputName,ctorName);
+		return std::make_unique<DirectiveObjImport>(inputName,ctorName);
 	}
 
 	if (Mips.GetVersion() == MARCH_PSX)
-		return ::make_unique<DirectivePsxObjImport>(inputName);
+		return std::make_unique<DirectivePsxObjImport>(inputName);
 	else
-		return ::make_unique<DirectiveObjImport>(inputName);
+		return std::make_unique<DirectiveObjImport>(inputName);
 }
 
 const DirectiveMap mipsDirectives = {
@@ -7053,7 +12940,7 @@ bool MipsParser::parseRegisterNumber(Parser& parser, MipsRegisterValue& dest, in
 		const Token& number = parser.peekToken(1);
 		if (number.type == TokenType::Integer && number.intValue < numValues)
 		{
-			dest.name = formatString(L"$%d", number.intValue);
+			dest.name = tfm::format(L"$%d", number.intValue);
 			dest.num = (int) number.intValue;
 
 			parser.eatTokens(2);
@@ -7098,7 +12985,7 @@ bool MipsParser::parseRegister(Parser& parser, MipsRegisterValue& dest)
 	if (parseRegisterNumber(parser, dest, 32))
 		return true;
 
-	return parseRegisterTable(parser,dest,mipsRegisters,ARRAY_SIZE(mipsRegisters));
+	return parseRegisterTable(parser,dest,mipsRegisters, std::size(mipsRegisters));
 }
 
 bool MipsParser::parseFpuRegister(Parser& parser, MipsRegisterValue& dest)
@@ -7108,7 +12995,7 @@ bool MipsParser::parseFpuRegister(Parser& parser, MipsRegisterValue& dest)
 	if (parseRegisterNumber(parser, dest, 32))
 		return true;
 
-	return parseRegisterTable(parser,dest,mipsFloatRegisters,ARRAY_SIZE(mipsFloatRegisters));
+	return parseRegisterTable(parser,dest,mipsFloatRegisters, std::size(mipsFloatRegisters));
 }
 
 bool MipsParser::parseFpuControlRegister(Parser& parser, MipsRegisterValue& dest)
@@ -7118,7 +13005,7 @@ bool MipsParser::parseFpuControlRegister(Parser& parser, MipsRegisterValue& dest
 	if (parseRegisterNumber(parser, dest, 32))
 		return true;
 
-	return parseRegisterTable(parser,dest,mipsFpuControlRegisters,ARRAY_SIZE(mipsFpuControlRegisters));
+	return parseRegisterTable(parser,dest,mipsFpuControlRegisters, std::size(mipsFpuControlRegisters));
 }
 
 bool MipsParser::parseCop0Register(Parser& parser, MipsRegisterValue& dest)
@@ -7128,13 +13015,13 @@ bool MipsParser::parseCop0Register(Parser& parser, MipsRegisterValue& dest)
 	if (parseRegisterNumber(parser, dest, 32))
 		return true;
 
-	return parseRegisterTable(parser,dest,mipsCop0Registers,ARRAY_SIZE(mipsCop0Registers));
+	return parseRegisterTable(parser,dest,mipsCop0Registers, std::size(mipsCop0Registers));
 }
 
 bool MipsParser::parsePs2Cop2Register(Parser& parser, MipsRegisterValue& dest)
 {
 	dest.type = MipsRegisterType::Ps2Cop2;
-	return parseRegisterTable(parser,dest,mipsPs2Cop2FpRegisters,ARRAY_SIZE(mipsPs2Cop2FpRegisters));
+	return parseRegisterTable(parser,dest,mipsPs2Cop2FpRegisters, std::size(mipsPs2Cop2FpRegisters));
 }
 
 bool MipsParser::parsePsxCop2DataRegister(Parser& parser, MipsRegisterValue& dest)
@@ -7144,7 +13031,7 @@ bool MipsParser::parsePsxCop2DataRegister(Parser& parser, MipsRegisterValue& des
 	if (parseRegisterNumber(parser, dest, 32))
 		return true;
 
-	return parseRegisterTable(parser,dest,mipsPsxCop2DataRegisters,ARRAY_SIZE(mipsPsxCop2DataRegisters));
+	return parseRegisterTable(parser,dest,mipsPsxCop2DataRegisters, std::size(mipsPsxCop2DataRegisters));
 }
 
 bool MipsParser::parsePsxCop2ControlRegister(Parser& parser, MipsRegisterValue& dest)
@@ -7154,7 +13041,7 @@ bool MipsParser::parsePsxCop2ControlRegister(Parser& parser, MipsRegisterValue& 
 	if (parseRegisterNumber(parser, dest, 32))
 		return true;
 
-	return parseRegisterTable(parser,dest,mipsPsxCop2ControlRegisters,ARRAY_SIZE(mipsPsxCop2ControlRegisters));
+	return parseRegisterTable(parser,dest,mipsPsxCop2ControlRegisters, std::size(mipsPsxCop2ControlRegisters));
 }
 
 bool MipsParser::parseRspCop0Register(Parser& parser, MipsRegisterValue& dest)
@@ -7164,7 +13051,7 @@ bool MipsParser::parseRspCop0Register(Parser& parser, MipsRegisterValue& dest)
 	if (parseRegisterNumber(parser, dest, 32))
 		return true;
 
-	return parseRegisterTable(parser,dest,mipsRspCop0Registers,ARRAY_SIZE(mipsRspCop0Registers));
+	return parseRegisterTable(parser,dest,mipsRspCop0Registers, std::size(mipsRspCop0Registers));
 }
 
 bool MipsParser::parseRspVectorControlRegister(Parser& parser, MipsRegisterValue& dest)
@@ -7174,13 +13061,13 @@ bool MipsParser::parseRspVectorControlRegister(Parser& parser, MipsRegisterValue
 	if (parseRegisterNumber(parser, dest, 32))
 		return true;
 
-	return parseRegisterTable(parser,dest,mipsRspVectorControlRegisters,ARRAY_SIZE(mipsRspVectorControlRegisters));
+	return parseRegisterTable(parser,dest,mipsRspVectorControlRegisters, std::size(mipsRspVectorControlRegisters));
 }
 
 bool MipsParser::parseRspVectorRegister(Parser& parser, MipsRegisterValue& dest)
 {
 	dest.type = MipsRegisterType::RspVector;
-	return parseRegisterTable(parser,dest,mipsRspVectorRegisters,ARRAY_SIZE(mipsRspVectorRegisters));
+	return parseRegisterTable(parser,dest,mipsRspVectorRegisters, std::size(mipsRspVectorRegisters));
 }
 
 bool MipsParser::parseRspVectorElement(Parser& parser, MipsRegisterValue& dest)
@@ -7215,7 +13102,7 @@ bool MipsParser::parseRspVectorElement(Parser& parser, MipsRegisterValue& dest)
 			std::transform(stringValue.begin(), stringValue.end(), stringValue.begin(), towlower);
 		}
 
-		for (size_t i = 0; i < ARRAY_SIZE(rspElementNames); i++)
+		for (size_t i = 0; i < std::size(rspElementNames); i++)
 		{
 			if (stringValue == rspElementNames[i].name)
 			{
@@ -7248,8 +13135,8 @@ bool MipsParser::parseRspScalarElement(Parser& parser, MipsRegisterValue& dest)
 	if (token.type != TokenType::Integer || token.intValue >= 8)
 		return false;
 
-	dest.name = formatString(L"%d", token.intValue);
-	dest.num = token.intValue + 8;
+	dest.name = tfm::format(L"%d", token.intValue);
+	dest.num = (int)token.intValue + 8;
 
 	return parser.nextToken().type == TokenType::RBrack;
 }
@@ -7267,8 +13154,8 @@ bool MipsParser::parseRspOffsetElement(Parser& parser, MipsRegisterValue& dest)
 		if (token.type != TokenType::Integer || token.intValue >= 16)
 			return false;
 
-		dest.name = formatString(L"%d", token.intValue);
-		dest.num = token.intValue;
+		dest.name = tfm::format(L"%d", token.intValue);
+		dest.num = (int)token.intValue;
 
 		return parser.nextToken().type == TokenType::RBrack;
 	}
@@ -7297,9 +13184,9 @@ bool MipsParser::parseVfpuRegister(Parser& parser, MipsRegisterValue& reg, int s
 		return false;
 
 	int mtx,col,row;
-	if (decodeDigit(stringValue[1],mtx) == false) return false;
-	if (decodeDigit(stringValue[2],col) == false) return false;
-	if (decodeDigit(stringValue[3],row) == false) return false;
+	if (!decodeDigit(stringValue[1],mtx)) return false;
+	if (!decodeDigit(stringValue[2],col)) return false;
+	if (!decodeDigit(stringValue[3],row)) return false;
 	wchar_t mode = towlower(stringValue[0]);
 
 	if (size < 0 || size > 3)
@@ -7313,7 +13200,8 @@ bool MipsParser::parseVfpuRegister(Parser& parser, MipsRegisterValue& reg, int s
 	{
 	case 'r':					// transposed vector
 		reg.num |= (1 << 5);
-		std::swap(col,row);		// fallthrough
+		std::swap(col,row);
+		[[fallthrough]];
 	case 'c':					// vector
 		reg.type = MipsRegisterType::VfpuVector;
 
@@ -7340,7 +13228,8 @@ bool MipsParser::parseVfpuRegister(Parser& parser, MipsRegisterValue& reg, int s
 			return false;
 		break;
 	case 'e':					// transposed matrix
-		reg.num |= (1 << 5);	// fallthrough
+		reg.num |= (1 << 5);
+		[[fallthrough]];
 	case 'm':					// matrix
 		reg.type = MipsRegisterType::VfpuMatrix;
 
@@ -7677,11 +13566,11 @@ bool MipsParser::parseVfpuCondition(Parser& parser, int& result)
 		return false;
 
 	const std::wstring stringValue = token.getStringValue();
-	for (size_t i = 0; i < ARRAY_SIZE(conditions); i++)
+	for (size_t i = 0; i <  std::size(conditions); i++)
 	{
 		if (stringValue == conditions[i])
 		{
-			result = i;
+			result = (int)i;
 			return true;
 		}
 	}
@@ -7768,7 +13657,7 @@ bool MipsParser::parseVpfxsParameter(Parser& parser, int& result)
 		result |= 1 << (12+i);
 
 		int constNum = -1;
-		if (sequenceParser.parse(parser,constNum) == false)
+		if (!sequenceParser.parse(parser,constNum))
 			return false;
 
 		result |= (constNum & 3) << (i*2);
@@ -7831,7 +13720,7 @@ bool MipsParser::parseVpfxdParameter(Parser& parser, int& result)
 		parser.eatToken();
 
 		int num = 0;
-		if (sequenceParser.parse(parser,num) == false)
+		if (!sequenceParser.parse(parser,num))
 			return false;
 
 		// m versions
@@ -8043,7 +13932,7 @@ void MipsParser::setOmittedRegisters(const tMipsOpcode& opcode)
 	if (opcode.flags & MO_FRSD)
 		registers.frd = registers.frs;
 
-	if (opcode.flags & MO_RSPVRSD)
+	if (opcode.flags & MO_RSP_VRSD)
 		registers.rspvrd = registers.rspvrs;
 }
 
@@ -8137,7 +14026,7 @@ bool MipsParser::parseParameters(Parser& parser, const tMipsOpcode& opcode)
 			case 's':
 				CHECK(parseVfpuRegister(parser,registers.vrs,opcodeData.vfpuSize));
 				CHECK(registers.vrs.type == MipsRegisterType::VfpuMatrix);
-				if (opcode.flags & MO_TRANSPOSE_VS)
+				if (opcode.flags & MO_VFPU_TRANSPOSE_VS)
 					registers.vrs.num ^= 0x20;
 				break;
 			case 't':
@@ -8326,14 +14215,14 @@ std::unique_ptr<CMipsInstruction> MipsParser::parseOpcode(Parser& parser)
 		if ((MipsOpcodes[z].flags & MO_DFPU) && !(arch.flags & MO_DFPU))
 			continue;
 
-		if (decodeOpcode(stringValue,MipsOpcodes[z]) == true)
+		if (decodeOpcode(stringValue,MipsOpcodes[z]))
 		{
 			TokenizerPosition tokenPos = parser.getTokenizer()->getPosition();
 
-			if (parseParameters(parser,MipsOpcodes[z]) == true)
+			if (parseParameters(parser,MipsOpcodes[z]))
 			{
 				// success, return opcode
-				return ::make_unique<CMipsInstruction>(opcodeData,immediate,registers);
+				return std::make_unique<CMipsInstruction>(opcodeData,immediate,registers);
 			}
 
 			parser.getTokenizer()->setPosition(tokenPos);
@@ -8341,7 +14230,7 @@ std::unique_ptr<CMipsInstruction> MipsParser::parseOpcode(Parser& parser)
 		}
 	}
 
-	if (paramFail == true)
+	if (paramFail)
 		parser.printError(token,L"MIPS parameter failure");
 	else
 		parser.printError(token,L"Invalid MIPS opcode '%s'",stringValue);
@@ -8411,7 +14300,7 @@ std::unique_ptr<CAssemblerCommand> MipsParser::parseMacro(Parser& parser)
 		{
 			TokenizerPosition tokenPos = parser.getTokenizer()->getPosition();
 
-			if (parseMacroParameters(parser,mipsMacros[z]) == true)
+			if (parseMacroParameters(parser,mipsMacros[z]))
 			{
 				return mipsMacros[z].function(parser,registers,immediate,mipsMacros[z].flags);
 			}
@@ -8451,16 +14340,16 @@ void MipsOpcodeFormatter::handleImmediate(MipsImmediateType type, unsigned int o
 	switch (type)
 	{
 	case MipsImmediateType::ImmediateHalfFloat:
-		buffer += formatString(L"%f", bitsToFloat(originalValue));
+		buffer += tfm::format(L"%f", bitsToFloat(originalValue));
 		break;
 	case MipsImmediateType::Immediate16:
 		if (!(opcodeFlags & MO_IPCR) && originalValue & 0x8000)
-			buffer += formatString(L"-0x%X", 0x10000-(originalValue & 0xFFFF));
+			buffer += tfm::format(L"-0x%X", 0x10000-(originalValue & 0xFFFF));
 		else
-			buffer += formatString(L"0x%X", originalValue);
+			buffer += tfm::format(L"0x%X", originalValue);
 		break;
 	default:
-		buffer += formatString(L"0x%X", originalValue);
+		buffer += tfm::format(L"0x%X", originalValue);
 		break;
 	}
 }
@@ -8476,7 +14365,7 @@ void MipsOpcodeFormatter::handleOpcodeParameters(const MipsOpcodeData& opData, c
 		switch (*encoding++)
 		{
 		case 'r':	// forced register
-			buffer += formatString(L"r%d",*encoding);
+			buffer += tfm::format(L"r%d",*encoding);
 			encoding += 1;
 			break;
 		case 's':	// register
@@ -8562,6 +14451,9 @@ const std::wstring& MipsOpcodeFormatter::formatOpcode(const MipsOpcodeData& opDa
 }
 
 // file: Archs/MIPS/PsxRelocator.cpp
+
+
+#include <cstring>
 #include <map>
 
 struct PsxLibEntry
@@ -8572,7 +14464,7 @@ struct PsxLibEntry
 
 const unsigned char psxObjectFileMagicNum[6] = { 'L', 'N', 'K', '\x02', '\x2E', '\x07' };
 
-std::vector<PsxLibEntry> loadPsxLibrary(const std::wstring& inputName)
+std::vector<PsxLibEntry> loadPsxLibrary(const fs::path& inputName)
 {
 	ByteArray input = ByteArray::fromFile(inputName);
 	std::vector<PsxLibEntry> result;
@@ -8583,7 +14475,7 @@ std::vector<PsxLibEntry> loadPsxLibrary(const std::wstring& inputName)
 	if (memcmp(input.data(),psxObjectFileMagicNum,sizeof(psxObjectFileMagicNum)) == 0)
 	{
 		PsxLibEntry entry;
-		entry.name = getFileNameFromPath(inputName);
+		entry.name = inputName.filename().wstring();
 		entry.data = input;
 		result.push_back(entry);
 		return result;
@@ -8875,7 +14767,7 @@ checkothertype:
 	return true;
 }
 
-bool PsxRelocator::init(const std::wstring& inputName)
+bool PsxRelocator::init(const fs::path& inputName)
 {
 	auto inputFiles = loadPsxLibrary(inputName);
 	if (inputFiles.size() == 0)
@@ -8891,10 +14783,31 @@ bool PsxRelocator::init(const std::wstring& inputName)
 		PsxRelocatorFile file;
 		file.name = entry.name;
 
-		if (parseObject(entry.data,file) == false)
+		if (!parseObject(entry.data,file))
 		{
 			Logger::printError(Logger::Error,L"Could not load object file %s",entry.name);
 			return false;
+		}
+
+		// sort relocations
+		for (PsxSegment& seg: file.segments)
+		{
+			auto sortFunc = [](const PsxRelocation &a, const PsxRelocation &b)
+			{
+				// Sort in order of...
+				// - reference type - symbol or offset
+				// - reference id - this groups references to the same symbol/segment/?
+				// - referencePos - this ensure references to the same offset are grouped
+				// - type - this ensures that HI16 is before LO16
+				auto tie = [](const PsxRelocation &rel)
+				{
+					return std::tie(rel.refType, rel.referenceId, rel.referencePos, rel.type);
+				};
+
+				return tie(a) < tie(b);
+			};
+
+			std::stable_sort(seg.relocations.begin(), seg.relocations.end(), sortFunc);
 		}
 
 		// init symbols
@@ -8972,7 +14885,7 @@ bool PsxRelocator::relocateFile(PsxRelocatorFile& file, int& relocationAddress)
 				relocationAddress++;
 			break;
 		case PsxSymbolType::External:
-			if (sym.label->isDefined() == false)
+			if (!sym.label->isDefined())
 			{
 				Logger::queueError(Logger::Error,L"Undefined external symbol %s in file %s",sym.name,file.name);
 				error = true;
@@ -9078,7 +14991,7 @@ bool PsxRelocator::relocate(int& memoryAddress)
 
 	for (PsxRelocatorFile& file: files)
 	{
-		if (relocateFile(file,memoryAddress) == false)
+		if (!relocateFile(file,memoryAddress))
 			error = true;
 	}
 
@@ -9107,14 +15020,14 @@ void PsxRelocator::writeSymbols(SymbolData& symData) const
 // DirectivePsxObjImport
 //
 
-DirectivePsxObjImport::DirectivePsxObjImport(const std::wstring& fileName)
+DirectivePsxObjImport::DirectivePsxObjImport(const fs::path& fileName)
 {
 	if (rel.init(fileName))
 	{
 	}
 }
 
-bool DirectivePsxObjImport::Validate()
+bool DirectivePsxObjImport::Validate(const ValidateState &state)
 {
 	int memory = (int) g_fileManager->getVirtualAddress();
 	rel.relocate(memory);
@@ -9135,7 +15048,14 @@ void DirectivePsxObjImport::writeSymData(SymbolData& symData) const
 
 // file: Archs/Architecture.cpp
 
+
 CInvalidArchitecture InvalidArchitecture;
+
+const ExpressionFunctionMap &CArchitecture::getExpressionFunctions()
+{
+	const static ExpressionFunctionMap emptyMap = {};
+	return emptyMap;
+}
 
 ArchitectureCommand::ArchitectureCommand(const std::wstring& tempText, const std::wstring& symText)
 {
@@ -9144,7 +15064,7 @@ ArchitectureCommand::ArchitectureCommand(const std::wstring& tempText, const std
 	this->endianness = Arch->getEndianness();
 }
 
-bool ArchitectureCommand::Validate()
+bool ArchitectureCommand::Validate(const ValidateState &state)
 {
 	position = g_fileManager->getVirtualAddress();
 	g_fileManager->setEndianness(endianness);
@@ -9203,8 +15123,8 @@ std::unique_ptr<IElfRelocator> CInvalidArchitecture::getElfRelocator()
 	return nullptr;
 }
 
-
 // file: Commands/CAssemblerCommand.cpp
+
 
 CAssemblerCommand::CAssemblerCommand()
 {
@@ -9221,6 +15141,7 @@ void CAssemblerCommand::applyFileInfo()
 
 // file: Commands/CAssemblerLabel.h
 
+
 class Label;
 
 class CAssemblerLabel: public CAssemblerCommand
@@ -9228,10 +15149,10 @@ class CAssemblerLabel: public CAssemblerCommand
 public:
 	CAssemblerLabel(const std::wstring& name, const std::wstring& originalName);
 	CAssemblerLabel(const std::wstring& name, const std::wstring& originalName, Expression& value);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 private:
 	Expression labelValue;
 	std::shared_ptr<Label> label;
@@ -9242,10 +15163,10 @@ class CDirectiveFunction: public CAssemblerCommand
 {
 public:
 	CDirectiveFunction(const std::wstring& name, const std::wstring& originalName);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 	void setContent(std::unique_ptr<CAssemblerCommand> content) { this->content = std::move(content); }
 private:
 	std::unique_ptr<CAssemblerLabel> label;
@@ -9255,12 +15176,13 @@ private:
 
 // file: Commands/CAssemblerLabel.cpp
 
+
 CAssemblerLabel::CAssemblerLabel(const std::wstring& name, const std::wstring& originalName)
 {
 	this->defined = false;
 	this->label = nullptr;
 
-	if (Global.symbolTable.isLocalSymbol(name) == false)
+	if (!Global.symbolTable.isLocalSymbol(name))
 		updateSection(++Global.Section);
 
 	label = Global.symbolTable.getLabel(name, FileNum, getSection());
@@ -9290,10 +15212,10 @@ CAssemblerLabel::CAssemblerLabel(const std::wstring& name, const std::wstring& o
 	labelValue = value;
 }
 
-bool CAssemblerLabel::Validate()
+bool CAssemblerLabel::Validate(const ValidateState &state)
 {
 	bool result = false;
-	if (defined == false)
+	if (!defined)
 	{
 		if (label->isDefined())
 		{
@@ -9313,7 +15235,7 @@ bool CAssemblerLabel::Validate()
 	if (labelValue.isLoaded())
 	{
 		// label value is given by expression
-		if (labelValue.evaluateInteger(virtualValue) == false)
+		if (!labelValue.evaluateInteger(virtualValue))
 		{
 			Logger::printError(Logger::Error, L"Invalid expression");
 			return result;
@@ -9347,8 +15269,8 @@ void CAssemblerLabel::Encode() const
 
 void CAssemblerLabel::writeTempData(TempData& tempData) const
 {
-	if (Global.symbolTable.isGeneratedLabel(label->getName()) == false)
-		tempData.writeLine(label->getValue(),formatString(L"%s:",label->getName()));
+	if (!Global.symbolTable.isGeneratedLabel(label->getName()))
+		tempData.writeLine(label->getValue(),tfm::format(L"%s:",label->getName()));
 }
 
 void CAssemblerLabel::writeSymData(SymbolData& symData) const
@@ -9365,20 +15287,23 @@ void CAssemblerLabel::writeSymData(SymbolData& symData) const
 
 CDirectiveFunction::CDirectiveFunction(const std::wstring& name, const std::wstring& originalName)
 {
-	this->label = ::make_unique<CAssemblerLabel>(name,originalName);
+	this->label = std::make_unique<CAssemblerLabel>(name,originalName);
 	this->content = nullptr;
 	this->start = this->end = 0;
 }
 
-bool CDirectiveFunction::Validate()
+bool CDirectiveFunction::Validate(const ValidateState &state)
 {
 	start = g_fileManager->getVirtualAddress();
 
 	label->applyFileInfo();
-	bool result = label->Validate();
+	bool result = label->Validate(state);
 
+	ValidateState contentValidation = state;
+	contentValidation.noFileChange = true;
+	contentValidation.noFileChangeDirective = L"function";
 	content->applyFileInfo();
-	if (content->Validate())
+	if (content->Validate(contentValidation))
 		result = true;
 
 	end = g_fileManager->getVirtualAddress();
@@ -9408,35 +15333,67 @@ void CDirectiveFunction::writeSymData(SymbolData& symData) const
 
 // file: Commands/CDirectiveArea.h
 
+
 class CDirectiveArea: public CAssemblerCommand
 {
 public:
-	CDirectiveArea(Expression& size);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	CDirectiveArea(bool shared, Expression& size);
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 	void setFillExpression(Expression& exp);
+	void setPositionExpression(Expression& exp);
 	void setContent(std::unique_ptr<CAssemblerCommand> content) { this->content = std::move(content); }
 private:
+	bool shared;
 	int64_t position;
 	Expression sizeExpression;
 	int64_t areaSize;
 	int64_t contentSize;
 	Expression fillExpression;
 	int8_t fillValue;
+	int64_t fileID = 0;
+	Expression positionExpression;
+	std::unique_ptr<CAssemblerCommand> content;
+};
+
+class CDirectiveAutoRegion : public CAssemblerCommand
+{
+public:
+	CDirectiveAutoRegion();
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
+	void setMinRangeExpression(Expression& exp);
+	void setRangeExpressions(Expression& minExp, Expression& maxExp);
+	void setContent(std::unique_ptr<CAssemblerCommand> content) { this->content = std::move(content); }
+
+private:
+	int64_t resetPosition;
+	int64_t position;
+	int64_t contentSize;
+	int64_t fileID = 0;
+	Expression minRangeExpression;
+	Expression maxRangeExpression;
 	std::unique_ptr<CAssemblerCommand> content;
 };
 
 // file: Commands/CDirectiveArea.cpp
-#include <algorithm>
 
-CDirectiveArea::CDirectiveArea(Expression& size)
+
+#include <algorithm>
+#include <cstring>
+
+CDirectiveArea::CDirectiveArea(bool shared, Expression& size)
 {
 	this->areaSize = 0;
 	this->contentSize = 0;
+	this->position = 0;
 	this->fillValue = 0;
 
+	this->shared = shared;
 	this->sizeExpression = size;
 	this->content = nullptr;
 }
@@ -9446,14 +15403,31 @@ void CDirectiveArea::setFillExpression(Expression& exp)
 	fillExpression = exp;
 }
 
-bool CDirectiveArea::Validate()
+void CDirectiveArea::setPositionExpression(Expression& exp)
+{
+	positionExpression = exp;
+}
+
+bool CDirectiveArea::Validate(const ValidateState &state)
 {
 	int64_t oldAreaSize = areaSize;
 	int64_t oldContentSize = contentSize;
+	int64_t oldPosition = position;
 
-	position = g_fileManager->getVirtualAddress();
+	if (positionExpression.isLoaded())
+	{
+		if (!positionExpression.evaluateInteger(position))
+		{
+			Logger::queueError(Logger::Error, L"Invalid position expression");
+			return false;
+		}
+		Arch->NextSection();
+		g_fileManager->seekVirtual(position);
+	}
+	else
+		position = g_fileManager->getVirtualAddress();
 
-	if (sizeExpression.evaluateInteger(areaSize) == false)
+	if (!sizeExpression.evaluateInteger(areaSize))
 	{
 		Logger::queueError(Logger::Error,L"Invalid size expression");
 		return false;
@@ -9467,15 +15441,22 @@ bool CDirectiveArea::Validate()
 
 	if (fillExpression.isLoaded())
 	{
-		if (fillExpression.evaluateInteger(fillValue) == false)
+		if (!fillExpression.evaluateInteger(fillValue))
 		{
 			Logger::queueError(Logger::Error,L"Invalid fill expression");
 			return false;
 		}
 	}
 
-	content->applyFileInfo();
-	bool result = content->Validate();
+	bool result = false;
+	if (content)
+	{
+		ValidateState contentValidation = state;
+		contentValidation.noFileChange = true;
+		contentValidation.noFileChangeDirective = L"area";
+		content->applyFileInfo();
+		result = content->Validate(contentValidation);
+	}
 	contentSize = g_fileManager->getVirtualAddress()-position;
 
 	// restore info of this command
@@ -9483,28 +15464,47 @@ bool CDirectiveArea::Validate()
 
 	if (areaSize < contentSize)
 	{
-		Logger::queueError(Logger::Error,L"Area overflowed");
+		Logger::queueError(Logger::Error, L"Area at %08x overflowed by %d bytes", position, contentSize - areaSize);
 	}
 
-	if (fillExpression.isLoaded())
+	if (fillExpression.isLoaded() || shared)
 		g_fileManager->advanceMemory(areaSize-contentSize);
 
 	if (areaSize != oldAreaSize || contentSize != oldContentSize)
 		result = true;
+
+	int64_t oldFileID = fileID;
+	fileID = g_fileManager->getOpenFileID();
+
+	if ((oldFileID != fileID || oldPosition != position || areaSize == 0) && oldAreaSize != 0)
+		Allocations::forgetArea(oldFileID, oldPosition, oldAreaSize);
+	if (areaSize != 0)
+		Allocations::setArea(fileID, position, areaSize, contentSize, fillExpression.isLoaded(), shared);
 
 	return result;
 }
 
 void CDirectiveArea::Encode() const
 {
-	content->Encode();
+	if (positionExpression.isLoaded())
+	{
+		Arch->NextSection();
+		g_fileManager->seekVirtual(position);
+	}
+
+	if (content)
+		content->Encode();
 
 	if (fillExpression.isLoaded())
 	{
+		int64_t subAreaUsage = Allocations::getSubAreaUsage(fileID, position);
+		if (subAreaUsage != 0)
+			g_fileManager->advanceMemory(subAreaUsage);
+
 		unsigned char buffer[64];
 		memset(buffer,fillValue,64);
 
-		size_t writeSize = areaSize-contentSize;
+		size_t writeSize = areaSize-contentSize-subAreaUsage;
 		while (writeSize > 0)
 		{
 			size_t part = std::min<size_t>(64,writeSize);
@@ -9512,33 +15512,162 @@ void CDirectiveArea::Encode() const
 			writeSize -= part;
 		}
 	}
+	else if (shared)
+		g_fileManager->advanceMemory(areaSize-contentSize);
 }
 
 void CDirectiveArea::writeTempData(TempData& tempData) const
 {
-	tempData.writeLine(position,formatString(L".area 0x%08X",areaSize));
-	content->applyFileInfo();
-	content->writeTempData(tempData);
-
-	if (fillExpression.isLoaded())
+	const wchar_t *directiveType = shared ? L"region" : L"area";
+	if (positionExpression.isLoaded())
+		tempData.writeLine(position, tfm::format(L".org 0x%08llX", position));
+	if (shared && fillExpression.isLoaded())
+		tempData.writeLine(position,tfm::format(L".%S 0x%08X,0x%02x",directiveType,areaSize,fillValue));
+	else
+		tempData.writeLine(position,tfm::format(L".%S 0x%08X",directiveType,areaSize));
+	if (content)
 	{
-		std::wstring fillString = formatString(L".fill 0x%08X,0x%02X",areaSize-contentSize,fillValue);
-		tempData.writeLine(position+contentSize,fillString);
-		tempData.writeLine(position+areaSize,L".endarea");
+		content->applyFileInfo();
+		content->writeTempData(tempData);
+	}
+
+	if (fillExpression.isLoaded() && !shared)
+	{
+		int64_t subAreaUsage = Allocations::getSubAreaUsage(fileID, position);
+		if (subAreaUsage != 0)
+			tempData.writeLine(position+contentSize, tfm::format(L".skip 0x%08llX",subAreaUsage));
+
+		std::wstring fillString = tfm::format(L".fill 0x%08X,0x%02X",areaSize-contentSize-subAreaUsage,fillValue);
+		tempData.writeLine(position+contentSize+subAreaUsage,fillString);
+		tempData.writeLine(position+areaSize,tfm::format(L".end%S",directiveType));
 	} else {
-		tempData.writeLine(position+contentSize,L".endarea");
+		tempData.writeLine(position+contentSize,tfm::format(L".end%S",directiveType));
 	}
 }
 
 void CDirectiveArea::writeSymData(SymbolData& symData) const
 {
-	content->writeSymData(symData);
+	if (content)
+		content->writeSymData(symData);
 
 	if (fillExpression.isLoaded())
-		symData.addData(position+contentSize,areaSize-contentSize,SymbolData::Data8);
+	{
+		int64_t subAreaUsage = Allocations::getSubAreaUsage(fileID, position);
+		symData.addData(position+contentSize+subAreaUsage,areaSize-contentSize-subAreaUsage,SymbolData::Data8);
+	}
+}
+
+CDirectiveAutoRegion::CDirectiveAutoRegion()
+{
+	this->contentSize = 0;
+	this->resetPosition = 0;
+	this->position = -1;
+
+	this->content = nullptr;
+}
+
+void CDirectiveAutoRegion::setMinRangeExpression(Expression& exp)
+{
+	minRangeExpression = exp;
+}
+
+void CDirectiveAutoRegion::setRangeExpressions(Expression& minExp, Expression& maxExp)
+{
+	minRangeExpression = minExp;
+	maxRangeExpression = maxExp;
+}
+
+bool CDirectiveAutoRegion::Validate(const ValidateState &state)
+{
+	resetPosition = g_fileManager->getVirtualAddress();
+
+	ValidateState contentValidation = state;
+	contentValidation.noFileChange = true;
+	contentValidation.noFileChangeDirective = L"region";
+
+	// We need at least one full pass run before we can get an address.
+	if (state.passes < 1)
+	{
+		// Just calculate contentSize.
+		position = g_fileManager->getVirtualAddress();
+		content->applyFileInfo();
+		content->Validate(contentValidation);
+		contentSize = g_fileManager->getVirtualAddress() - position;
+
+		g_fileManager->seekVirtual(resetPosition);
+		return true;
+	}
+
+	int64_t oldPosition = position;
+	int64_t oldContentSize = contentSize;
+
+	int64_t minRange = -1;
+	int64_t maxRange = -1;
+	if (minRangeExpression.isLoaded())
+	{
+		if (!minRangeExpression.evaluateInteger(minRange))
+		{
+			Logger::queueError(Logger::Error, L"Invalid range expression for .autoregion");
+			return false;
+		}
+	}
+	if (maxRangeExpression.isLoaded())
+	{
+		if (!maxRangeExpression.evaluateInteger(maxRange))
+		{
+			Logger::queueError(Logger::Error, L"Invalid range expression for .autoregion");
+			return false;
+		}
+	}
+
+	fileID = g_fileManager->getOpenFileID();
+	if (!Allocations::allocateSubArea(fileID, position, minRange, maxRange, contentSize))
+	{
+		Logger::queueError(Logger::Error, L"No space available for .autoregion of size %d", contentSize);
+		// We might be able to do better next time.
+		return Allocations::canTrimSpace();
+	}
+
+	Arch->NextSection();
+	g_fileManager->seekVirtual(position);
+
+	content->applyFileInfo();
+	bool result = content->Validate(contentValidation);
+	contentSize = g_fileManager->getVirtualAddress() - position;
+
+	// restore info of this command
+	applyFileInfo();
+	g_fileManager->seekVirtual(resetPosition);
+
+	if (position != oldPosition || contentSize != oldContentSize)
+		result = true;
+
+	return result;
+}
+
+void CDirectiveAutoRegion::Encode() const
+{
+	Arch->NextSection();
+	g_fileManager->seekVirtual(position);
+	content->Encode();
+	g_fileManager->seekVirtual(resetPosition);
+}
+
+void CDirectiveAutoRegion::writeTempData(TempData& tempData) const
+{
+	tempData.writeLine(position,tfm::format(L".autoregion 0x%08X",position));
+	content->applyFileInfo();
+	content->writeTempData(tempData);
+	tempData.writeLine(position+contentSize,L".endautoregion");
+}
+
+void CDirectiveAutoRegion::writeSymData(SymbolData& symData) const
+{
+	content->writeSymData(symData);
 }
 
 // file: Commands/CDirectiveConditional.h
+
 
 enum class ConditionType
 {
@@ -9556,10 +15685,10 @@ public:
 	CDirectiveConditional(ConditionType type);
 	CDirectiveConditional(ConditionType type, const std::wstring& name);
 	CDirectiveConditional(ConditionType type, const Expression& exp);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 	void setContent(std::unique_ptr<CAssemblerCommand> ifBlock, std::unique_ptr<CAssemblerCommand> elseBlock);
 private:
 	bool evaluate();
@@ -9574,6 +15703,7 @@ private:
 };
 
 // file: Commands/CDirectiveConditional.cpp
+
 
 #ifdef ARMIPS_ARM
 extern CArmArchitecture Arm;
@@ -9610,10 +15740,10 @@ void CDirectiveConditional::setContent(std::unique_ptr<CAssemblerCommand> ifBloc
 
 bool CDirectiveConditional::evaluate()
 {
-	int64_t value;
+	int64_t value = 0;
 	if (expression.isLoaded())
 	{
-		if (expression.evaluateInteger(value) == false)
+		if (!expression.evaluateInteger(value))
 		{
 			Logger::queueError(Logger::Error,L"Invalid conditional expression");
 			return false;
@@ -9636,7 +15766,7 @@ bool CDirectiveConditional::evaluate()
 	return false;
 }
 
-bool CDirectiveConditional::Validate()
+bool CDirectiveConditional::Validate(const ValidateState &state)
 {
 	bool result = evaluate();
 	bool returnValue = result != previousResult;
@@ -9645,12 +15775,12 @@ bool CDirectiveConditional::Validate()
 	if (result)
 	{
 		ifBlock->applyFileInfo();
-		if (ifBlock->Validate())
+		if (ifBlock->Validate(state))
 			returnValue = true;
 	} else if (elseBlock != nullptr)
 	{
 		elseBlock->applyFileInfo();
-		if (elseBlock->Validate())
+		if (elseBlock->Validate(state))
 			returnValue = true;
 	}
 
@@ -9694,16 +15824,17 @@ void CDirectiveConditional::writeSymData(SymbolData& symData) const
 
 // file: Commands/CDirectiveData.h
 
+
 enum class EncodingMode { Invalid, U8, U16, U32, U64, Ascii, Float, Double, Sjis, Custom };
 
 class TableCommand: public CAssemblerCommand
 {
 public:
 	TableCommand(const std::wstring& fileName, TextFile::Encoding encoding);
-	virtual bool Validate();
-	virtual void Encode() const { };
-	virtual void writeTempData(TempData& tempData) const { };
-	virtual void writeSymData(SymbolData& symData) const { };
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override { };
+	void writeTempData(TempData& tempData) const override { };
+	void writeSymData(SymbolData& symData) const override { };
 private:
 	EncodingTable table;
 };
@@ -9719,10 +15850,10 @@ public:
 	void setAscii(std::vector<Expression>& entries, bool terminate);
 	void setSjis(std::vector<Expression>& entries, bool terminate);
 	void setCustom(std::vector<Expression>& entries, bool terminate);
-	virtual bool Validate();
-	virtual void Encode() const;
-	virtual void writeTempData(TempData& tempData) const;
-	virtual void writeSymData(SymbolData& symData) const;
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override;
+	void writeTempData(TempData& tempData) const override;
+	void writeSymData(SymbolData& symData) const override;
 private:
 	void encodeCustom(EncodingTable& table);
 	void encodeSjis();
@@ -9743,6 +15874,7 @@ private:
 
 // file: Commands/CDirectiveData.cpp
 
+
 //
 // TableCommand
 //
@@ -9751,20 +15883,20 @@ TableCommand::TableCommand(const std::wstring& fileName, TextFile::Encoding enco
 {
 	auto fullName = getFullPathName(fileName);
 
-	if (fileExists(fullName) == false)
+	if (!fs::exists(fullName))
 	{
 		Logger::printError(Logger::Error,L"Table file \"%s\" does not exist",fileName);
 		return;
 	}
 
-	if (table.load(fullName,encoding) == false)
+	if (!table.load(fullName,encoding))
 	{
 		Logger::printError(Logger::Error,L"Invalid table file \"%s\"",fileName);
 		return;
 	}
 }
 
-bool TableCommand::Validate()
+bool TableCommand::Validate(const ValidateState &state)
 {
 	Global.Table = table;
 	return false;
@@ -9908,7 +16040,7 @@ void CDirectiveData::encodeCustom(EncodingTable& table)
 
 		if (value.isInt())
 		{
-			customData.appendByte(value.intValue);
+			customData.appendByte((byte)value.intValue);
 		} else if (value.isString())
 		{
 			ByteArray encoded = table.encodeString(value.strValue,false);
@@ -9932,7 +16064,7 @@ void CDirectiveData::encodeCustom(EncodingTable& table)
 void CDirectiveData::encodeSjis()
 {
 	static EncodingTable sjisTable;
-	if (sjisTable.isLoaded() == false)
+	if (!sjisTable.isLoaded())
 	{
 		unsigned char hexBuffer[2];
 
@@ -10016,7 +16148,7 @@ void CDirectiveData::encodeNormal()
 				int64_t num = value.strValue[l];
 				normalData.push_back(num);
 
-				if (num >= 0x80 && hadNonAscii == false)
+				if (num >= 0x80 && !hadNonAscii)
 				{
 					Logger::printError(Logger::Warning,L"Non-ASCII character in data directive. Use .string instead");
 					hadNonAscii = true;
@@ -10044,7 +16176,7 @@ void CDirectiveData::encodeNormal()
 	}
 }
 
-bool CDirectiveData::Validate()
+bool CDirectiveData::Validate(const ValidateState &state)
 {
 	position = g_fileManager->getVirtualAddress();
 
@@ -10211,6 +16343,9 @@ void CDirectiveData::writeSymData(SymbolData& symData) const
 
 // file: Commands/CDirectiveFile.cpp
 
+
+#include <cstring>
+
 //
 // CDirectiveFile
 //
@@ -10221,10 +16356,10 @@ CDirectiveFile::CDirectiveFile()
 	file = nullptr;
 }
 
-void CDirectiveFile::initOpen(const std::wstring& fileName, int64_t memory)
+void CDirectiveFile::initOpen(const fs::path& fileName, int64_t memory)
 {
 	type = Type::Open;
-	std::wstring fullName = getFullPathName(fileName);
+	fs::path fullName = getFullPathName(fileName);
 
 	file = std::make_shared<GenericAssemblerFile>(fullName,memory,false);
 	g_fileManager->addFile(file);
@@ -10232,10 +16367,10 @@ void CDirectiveFile::initOpen(const std::wstring& fileName, int64_t memory)
 	updateSection(++Global.Section);
 }
 
-void CDirectiveFile::initCreate(const std::wstring& fileName, int64_t memory)
+void CDirectiveFile::initCreate(const fs::path& fileName, int64_t memory)
 {
 	type = Type::Create;
-	std::wstring fullName = getFullPathName(fileName);
+	fs::path fullName = getFullPathName(fileName);
 
 	file = std::make_shared<GenericAssemblerFile>(fullName,memory,true);
 	g_fileManager->addFile(file);
@@ -10243,11 +16378,11 @@ void CDirectiveFile::initCreate(const std::wstring& fileName, int64_t memory)
 	updateSection(++Global.Section);
 }
 
-void CDirectiveFile::initCopy(const std::wstring& inputName, const std::wstring& outputName, int64_t memory)
+void CDirectiveFile::initCopy(const fs::path& inputName, const fs::path& outputName, int64_t memory)
 {
 	type = Type::Copy;
-	std::wstring fullInputName = getFullPathName(inputName);
-	std::wstring fullOutputName = getFullPathName(outputName);
+	fs::path fullInputName = getFullPathName(inputName);
+	fs::path fullOutputName = getFullPathName(outputName);
 
 	file = std::make_shared<GenericAssemblerFile>(fullOutputName,fullInputName,memory);
 	g_fileManager->addFile(file);
@@ -10261,8 +16396,17 @@ void CDirectiveFile::initClose()
 	updateSection(++Global.Section);
 }
 
-bool CDirectiveFile::Validate()
+bool CDirectiveFile::Validate(const ValidateState &state)
 {
+	if (state.noFileChange)
+	{
+		if (type == Type::Close)
+			Logger::queueError(Logger::Error, L"Cannot close file within %S", state.noFileChangeDirective);
+		else
+			Logger::queueError(Logger::Error, L"Cannot open new file within %S", state.noFileChangeDirective);
+		return false;
+	}
+
 	virtualAddress = g_fileManager->getVirtualAddress();
 	Arch->NextSection();
 
@@ -10309,14 +16453,14 @@ void CDirectiveFile::writeTempData(TempData& tempData) const
 	switch (type)
 	{
 	case Type::Open:
-		str = formatString(L".open \"%s\",0x%08X",file->getFileName(),file->getOriginalHeaderSize());
+		str = tfm::format(L".open \"%s\",0x%08X",file->getFileName().wstring(),file->getOriginalHeaderSize());
 		break;
 	case Type::Create:
-		str = formatString(L".create \"%s\",0x%08X",file->getFileName(),file->getOriginalHeaderSize());
+		str = tfm::format(L".create \"%s\",0x%08X",file->getFileName().wstring(),file->getOriginalHeaderSize());
 		break;
 	case Type::Copy:
-		str = formatString(L".open \"%s\",\"%s\",0x%08X",file->getOriginalFileName(),
-			file->getFileName(),file->getOriginalHeaderSize());
+		str = tfm::format(L".open \"%s\",\"%s\",0x%08X",file->getOriginalFileName().wstring(),
+			file->getFileName().wstring(),file->getOriginalHeaderSize());
 		break;
 	case Type::Close:
 		str = L".close";
@@ -10371,11 +16515,11 @@ void CDirectivePosition::exec() const
 	}
 }
 
-bool CDirectivePosition::Validate()
+bool CDirectivePosition::Validate(const ValidateState &state)
 {
 	virtualAddress = g_fileManager->getVirtualAddress();
 
-	if (expression.evaluateInteger(position) == false)
+	if (!expression.evaluateInteger(position))
 	{
 		Logger::queueError(Logger::FatalError,L"Invalid position");
 		return false;
@@ -10397,10 +16541,10 @@ void CDirectivePosition::writeTempData(TempData& tempData) const
 	switch (type)
 	{
 	case Physical:
-		tempData.writeLine(virtualAddress,formatString(L".orga 0x%08X",position));
+		tempData.writeLine(virtualAddress,tfm::format(L".orga 0x%08X",position));
 		break;
 	case Virtual:
-		tempData.writeLine(virtualAddress,formatString(L".org 0x%08X",position));
+		tempData.writeLine(virtualAddress,tfm::format(L".org 0x%08X",position));
 		break;
 	}
 }
@@ -10409,26 +16553,27 @@ void CDirectivePosition::writeTempData(TempData& tempData) const
 // CDirectiveIncbin
 //
 
-CDirectiveIncbin::CDirectiveIncbin(const std::wstring& fileName)
+CDirectiveIncbin::CDirectiveIncbin(const fs::path& fileName)
 	: size(0), start(0)
 {
 	this->fileName = getFullPathName(fileName);
 
-	if (fileExists(this->fileName) == false)
+	if (!fs::exists(this->fileName))
 	{
-		Logger::printError(Logger::FatalError,L"File %s not found",this->fileName);
+		Logger::printError(Logger::FatalError,L"File %s not found",this->fileName.wstring());
 	}
 
-	this->fileSize = ::fileSize(this->fileName);
+	std::error_code error;
+	this->fileSize = static_cast<int64_t>(fs::file_size(fileName, error));
 }
 
-bool CDirectiveIncbin::Validate()
+bool CDirectiveIncbin::Validate(const ValidateState &state)
 {
 	virtualAddress = g_fileManager->getVirtualAddress();
 
 	if (startExpression.isLoaded())
 	{
-		if (startExpression.evaluateInteger(start) == false)
+		if (!startExpression.evaluateInteger(start))
 		{
 			Logger::queueError(Logger::Error,L"Invalid position expression");
 			return false;
@@ -10445,7 +16590,7 @@ bool CDirectiveIncbin::Validate()
 
 	if (sizeExpression.isLoaded())
 	{
-		if (sizeExpression.evaluateInteger(size) == false)
+		if (!sizeExpression.evaluateInteger(size))
 		{
 			Logger::queueError(Logger::Error,L"Invalid size expression");
 			return false;
@@ -10472,7 +16617,7 @@ void CDirectiveIncbin::Encode() const
 		ByteArray data = ByteArray::fromFile(fileName,(long)start,size);
 		if ((int) data.size() != size)
 		{
-			Logger::printError(Logger::Error,L"Could not read file \"%s\"",fileName);
+			Logger::printError(Logger::Error,L"Could not read file \"%s\"",fileName.wstring());
 			return;
 		}
 		g_fileManager->write(data.data(),data.size());
@@ -10481,7 +16626,7 @@ void CDirectiveIncbin::Encode() const
 
 void CDirectiveIncbin::writeTempData(TempData& tempData) const
 {
-	tempData.writeLine(virtualAddress,formatString(L".incbin \"%s\"",fileName));
+	tempData.writeLine(virtualAddress,tfm::format(L".incbin \"%s\"",fileName.wstring()));
 }
 
 void CDirectiveIncbin::writeSymData(SymbolData& symData) const
@@ -10514,20 +16659,20 @@ CDirectiveAlignFill::CDirectiveAlignFill(Expression& value, Expression& fillValu
 	fillExpression = fillValue;
 }
 
-bool CDirectiveAlignFill::Validate()
+bool CDirectiveAlignFill::Validate(const ValidateState &state)
 {
 	virtualAddress = g_fileManager->getVirtualAddress();
 
 	if (valueExpression.isLoaded())
 	{
-		if (valueExpression.evaluateInteger(value) == false)
+		if (!valueExpression.evaluateInteger(value))
 		{
 			Logger::queueError(Logger::FatalError,L"Invalid %s",mode == Fill ? L"size" : L"alignment");
 			return false;
 		}
 	}
 
-	if (mode != Fill && isPowerOfTwo(value) == false)
+	if (mode != Fill && !isPowerOfTwo(value))
 	{
 		Logger::queueError(Logger::Error, L"Invalid alignment %d", value);
 		return false;
@@ -10552,7 +16697,7 @@ bool CDirectiveAlignFill::Validate()
 
 	if (fillExpression.isLoaded())
 	{
-		if (fillExpression.evaluateInteger(fillByte) == false)
+		if (!fillExpression.evaluateInteger(fillByte))
 		{
 			Logger::printError(Logger::FatalError,L"Invalid fill value");
 			return false;
@@ -10587,13 +16732,13 @@ void CDirectiveAlignFill::writeTempData(TempData& tempData) const
 	switch (mode)
 	{
 	case AlignVirtual:
-		tempData.writeLine(virtualAddress,formatString(L".align 0x%08X",value));
+		tempData.writeLine(virtualAddress,tfm::format(L".align 0x%08X",value));
 		break;
 	case AlignPhysical:
-		tempData.writeLine(virtualAddress, formatString(L".aligna 0x%08X", value));
+		tempData.writeLine(virtualAddress, tfm::format(L".aligna 0x%08X", value));
 		break;
 	case Fill:
-		tempData.writeLine(virtualAddress,formatString(L".fill 0x%08X,0x%02X",value,fillByte));
+		tempData.writeLine(virtualAddress,tfm::format(L".fill 0x%08X,0x%02X",value,fillByte));
 		break;
 	}
 }
@@ -10618,13 +16763,13 @@ void CDirectiveAlignFill::writeSymData(SymbolData& symData) const
 CDirectiveSkip::CDirectiveSkip(Expression& expression)
 	: expression(expression) {}
 
-bool CDirectiveSkip::Validate()
+bool CDirectiveSkip::Validate(const ValidateState &state)
 {
 	virtualAddress = g_fileManager->getVirtualAddress();
 
 	if (expression.isLoaded())
 	{
-		if (expression.evaluateInteger(value) == false)
+		if (!expression.evaluateInteger(value))
 		{
 			Logger::queueError(Logger::FatalError,L"Invalid skip length");
 			return false;
@@ -10645,7 +16790,7 @@ void CDirectiveSkip::Encode() const
 
 void CDirectiveSkip::writeTempData(TempData& tempData) const
 {
-	tempData.writeLine(virtualAddress,formatString(L".skip 0x%08X",value));
+	tempData.writeLine(virtualAddress,tfm::format(L".skip 0x%08X",value));
 }
 
 //
@@ -10669,11 +16814,11 @@ void CDirectiveHeaderSize::exec() const
 	file->seekPhysical(physicalAddress);
 }
 
-bool CDirectiveHeaderSize::Validate()
+bool CDirectiveHeaderSize::Validate(const ValidateState &state)
 {
 	virtualAddress = g_fileManager->getVirtualAddress();
 
-	if (expression.evaluateInteger(headerSize) == false)
+	if (!expression.evaluateInteger(headerSize))
 	{
 		Logger::queueError(Logger::FatalError,L"Invalid header size");
 		return false;
@@ -10690,7 +16835,7 @@ void CDirectiveHeaderSize::Encode() const
 
 void CDirectiveHeaderSize::writeTempData(TempData& tempData) const
 {
-	tempData.writeLine(virtualAddress,formatString(L".headersize %s0x%08X",
+	tempData.writeLine(virtualAddress,tfm::format(L".headersize %s0x%08X",
 		headerSize < 0 ? L"-" : L"", headerSize < 0 ? -headerSize : headerSize));
 }
 
@@ -10699,7 +16844,7 @@ void CDirectiveHeaderSize::writeTempData(TempData& tempData) const
 // DirectiveObjImport
 //
 
-DirectiveObjImport::DirectiveObjImport(const std::wstring& inputName)
+DirectiveObjImport::DirectiveObjImport(const fs::path& inputName)
 {
 	ctor = nullptr;
 	if (rel.init(inputName))
@@ -10708,7 +16853,7 @@ DirectiveObjImport::DirectiveObjImport(const std::wstring& inputName)
 	}
 }
 
-DirectiveObjImport::DirectiveObjImport(const std::wstring& inputName, const std::wstring& ctorName)
+DirectiveObjImport::DirectiveObjImport(const fs::path& inputName, const std::wstring& ctorName)
 {
 	if (rel.init(inputName))
 	{
@@ -10717,10 +16862,10 @@ DirectiveObjImport::DirectiveObjImport(const std::wstring& inputName, const std:
 	}
 }
 
-bool DirectiveObjImport::Validate()
+bool DirectiveObjImport::Validate(const ValidateState &state)
 {
 	bool result = false;
-	if (ctor != nullptr && ctor->Validate())
+	if (ctor != nullptr && ctor->Validate(state))
 		result = true;
 
 	int64_t memory = g_fileManager->getVirtualAddress();
@@ -10755,14 +16900,15 @@ void DirectiveObjImport::writeSymData(SymbolData& symData) const
 
 // file: Commands/CDirectiveMessage.h
 
+
 class CDirectiveMessage: public CAssemblerCommand
 {
 public:
 	enum class Type { Warning, Error, Notice };
 	CDirectiveMessage(Type type, Expression exp);
-	virtual bool Validate();
-	virtual void Encode() const {};
-	virtual void writeTempData(TempData& tempData) const { };
+	bool Validate(const ValidateState &state) override;
+	void Encode() const override {};
+	void writeTempData(TempData& tempData) const override { };
 private:
 	Type errorType;
 	Expression exp;
@@ -10772,15 +16918,16 @@ class CDirectiveSym: public CAssemblerCommand
 {
 public:
 	CDirectiveSym(bool enable) {enabled = enable; };
-	virtual bool Validate() { return false; };
-	virtual void Encode() const { };
-	virtual void writeTempData(TempData& tempData) const { };
-	virtual void writeSymData(SymbolData& symData) const { symData.setEnabled(enabled); }
+	bool Validate(const ValidateState &state) override { return false; }
+	void Encode() const override { };
+	void writeTempData(TempData& tempData) const override { };
+	void writeSymData(SymbolData& symData) const override;
 private:
 	bool enabled;
 };
 
 // file: Commands/CDirectiveMessage.cpp
+
 
 CDirectiveMessage::CDirectiveMessage(Type type, Expression exp)
 {
@@ -10788,10 +16935,10 @@ CDirectiveMessage::CDirectiveMessage(Type type, Expression exp)
 	this->exp = exp;
 }
 
-bool CDirectiveMessage::Validate()
+bool CDirectiveMessage::Validate(const ValidateState &state)
 {
 	std::wstring text;
-	if (exp.evaluateString(text,true) == false)
+	if (!exp.evaluateString(text,true))
 	{
 		Logger::queueError(Logger::Error,L"Invalid expression");
 		return false;
@@ -10812,6 +16959,11 @@ bool CDirectiveMessage::Validate()
 	return false;
 }
 
+void CDirectiveSym::writeSymData(SymbolData &symData) const
+{
+	symData.setEnabled(enabled);
+}
+
 // file: Commands/CommandSequence.cpp
 
 CommandSequence::CommandSequence()
@@ -10820,14 +16972,14 @@ CommandSequence::CommandSequence()
 
 }
 
-bool CommandSequence::Validate()
+bool CommandSequence::Validate(const ValidateState &state)
 {
 	bool result = false;
 
 	for (const std::unique_ptr<CAssemblerCommand>& cmd: commands)
 	{
 		cmd->applyFileInfo();
-		if (cmd->Validate())
+		if (cmd->Validate(state))
 			result = true;
 	}
 
@@ -10861,28 +17013,29 @@ void CommandSequence::writeSymData(SymbolData& symData) const
 
 // file: Parser/DirectivesParser.cpp
 
-#include <initializer_list>
+
 #include <algorithm>
+#include <initializer_list>
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveOpen(Parser& parser, int flags)
 {
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,2,3) == false)
+	if (!parser.parseExpressionList(list,2,3))
 		return nullptr;
 
 	int64_t memoryAddress;
 	std::wstring inputName, outputName;
 
-	if (list[0].evaluateString(inputName,false) == false)
+	if (!list[0].evaluateString(inputName,false))
 		return nullptr;
 
-	if (list.back().evaluateInteger(memoryAddress) == false)
+	if (!list.back().evaluateInteger(memoryAddress))
 		return nullptr;
 
-	auto file = ::make_unique<CDirectiveFile>();
+	auto file = std::make_unique<CDirectiveFile>();
 	if (list.size() == 3)
 	{
-		if (list[1].evaluateString(outputName,false) == false)
+		if (!list[1].evaluateString(outputName,false))
 			return nullptr;
 
 		file->initCopy(inputName,outputName,memoryAddress);
@@ -10896,26 +17049,26 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveOpen(Parser& parser, int flags)
 std::unique_ptr<CAssemblerCommand> parseDirectiveCreate(Parser& parser, int flags)
 {
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,2,2) == false)
+	if (!parser.parseExpressionList(list,2,2))
 		return nullptr;
 
 	int64_t memoryAddress;
 	std::wstring inputName, outputName;
 
-	if (list[0].evaluateString(inputName,false) == false)
+	if (!list[0].evaluateString(inputName,false))
 		return nullptr;
 
-	if (list.back().evaluateInteger(memoryAddress) == false)
+	if (!list.back().evaluateInteger(memoryAddress))
 		return nullptr;
 
-	auto file = ::make_unique<CDirectiveFile>();
+	auto file = std::make_unique<CDirectiveFile>();
 	file->initCreate(inputName,memoryAddress);
 	return file;
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveClose(Parser& parser, int flags)
 {
-	auto file = ::make_unique<CDirectiveFile>();
+	auto file = std::make_unique<CDirectiveFile>();
 	file->initClose();
 	return file;
 }
@@ -10923,14 +17076,14 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveClose(Parser& parser, int flags
 std::unique_ptr<CAssemblerCommand> parseDirectiveIncbin(Parser& parser, int flags)
 {
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,1,3) == false)
+	if (!parser.parseExpressionList(list,1,3))
 		return nullptr;
 
 	std::wstring fileName;
-	if (list[0].evaluateString(fileName,false) == false)
+	if (!list[0].evaluateString(fileName,false))
 		return nullptr;
 
-	auto incbin = ::make_unique<CDirectiveIncbin>(fileName);
+	auto incbin = std::make_unique<CDirectiveIncbin>(fileName);
 	if (list.size() >= 2)
 		incbin->setStart(list[1]);
 
@@ -10943,7 +17096,7 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveIncbin(Parser& parser, int flag
 std::unique_ptr<CAssemblerCommand> parseDirectivePosition(Parser& parser, int flags)
 {
 	Expression exp = parser.parseExpression();
-	if (exp.isLoaded() == false)
+	if (!exp.isLoaded())
 		return nullptr;
 
 	CDirectivePosition::Type type;
@@ -10959,7 +17112,7 @@ std::unique_ptr<CAssemblerCommand> parseDirectivePosition(Parser& parser, int fl
 		return nullptr;
 	}
 
-	return ::make_unique<CDirectivePosition>(exp,type);
+	return std::make_unique<CDirectivePosition>(exp,type);
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveAlignFill(Parser& parser, int flags)
@@ -10981,56 +17134,56 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveAlignFill(Parser& parser, int f
 	}
 
 	if (mode != CDirectiveAlignFill::Fill && parser.peekToken().type == TokenType::Separator)
-		return ::make_unique<CDirectiveAlignFill>(UINT64_C(4),mode);
+		return std::make_unique<CDirectiveAlignFill>(UINT64_C(4),mode);
 
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,1,2) == false)
+	if (!parser.parseExpressionList(list,1,2))
 		return nullptr;
 
 	if (list.size() == 2)
-		return ::make_unique<CDirectiveAlignFill>(list[0],list[1],mode);
+		return std::make_unique<CDirectiveAlignFill>(list[0],list[1],mode);
 	else
-		return ::make_unique<CDirectiveAlignFill>(list[0],mode);
+		return std::make_unique<CDirectiveAlignFill>(list[0],mode);
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveSkip(Parser& parser, int flags)
 {
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,1,1) == false)
+	if (!parser.parseExpressionList(list,1,1))
 		return nullptr;
 
-	return ::make_unique<CDirectiveSkip>(list[0]);
+	return std::make_unique<CDirectiveSkip>(list[0]);
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveHeaderSize(Parser& parser, int flags)
 {
 	Expression exp = parser.parseExpression();
-	if (exp.isLoaded() == false)
+	if (!exp.isLoaded())
 		return nullptr;
 
-	return ::make_unique<CDirectiveHeaderSize>(exp);
+	return std::make_unique<CDirectiveHeaderSize>(exp);
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveObjImport(Parser& parser, int flags)
 {
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,1,2) == false)
+	if (!parser.parseExpressionList(list,1,2))
 		return nullptr;
 
 	std::wstring fileName;
-	if (list[0].evaluateString(fileName,true) == false)
+	if (!list[0].evaluateString(fileName,true))
 		return nullptr;
 
 	if (list.size() == 2)
 	{
 		std::wstring ctorName;
-		if (list[1].evaluateIdentifier(ctorName) == false)
+		if (!list[1].evaluateIdentifier(ctorName))
 			return nullptr;
 
-		return ::make_unique<DirectiveObjImport>(fileName,ctorName);
+		return std::make_unique<DirectiveObjImport>(fileName,ctorName);
 	}
 
-	return ::make_unique<DirectiveObjImport>(fileName);
+	return std::make_unique<DirectiveObjImport>(fileName);
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveConditional(Parser& parser, int flags)
@@ -11046,10 +17199,10 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveConditional(Parser& parser, int
 	case DIRECTIVE_COND_IF:
 		type = ConditionType::IF;
 		exp = parser.parseExpression();
-		if (exp.isLoaded() == false)
+		if (!exp.isLoaded())
 		{
 			parser.printError(start,L"Invalid condition");
-			return ::make_unique<DummyCommand>();
+			return std::make_unique<DummyCommand>();
 		}
 
 		if (exp.isConstExpression())
@@ -11061,12 +17214,12 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveConditional(Parser& parser, int
 		break;
 	case DIRECTIVE_COND_IFDEF:
 		type = ConditionType::IFDEF;
-		if (parser.parseIdentifier(name) == false)
+		if (!parser.parseIdentifier(name))
 			return nullptr;
 		break;
 	case DIRECTIVE_COND_IFNDEF:
 		type = ConditionType::IFNDEF;
-		if (parser.parseIdentifier(name) == false)
+		if (!parser.parseIdentifier(name))
 			return nullptr;
 		break;
 	}
@@ -11136,16 +17289,16 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveConditional(Parser& parser, int
 		if (elseBlock != nullptr)
 			return elseBlock;
 		else
-			return ::make_unique<DummyCommand>();
+			return std::make_unique<DummyCommand>();
 	}
 
 	std::unique_ptr<CDirectiveConditional> cond;
 	if (exp.isLoaded())
-		cond = ::make_unique<CDirectiveConditional>(type,exp);
+		cond = std::make_unique<CDirectiveConditional>(type,exp);
 	else if (name.size() != 0)
-		cond = ::make_unique<CDirectiveConditional>(type,name);
+		cond = std::make_unique<CDirectiveConditional>(type,name);
 	else
-		cond = ::make_unique<CDirectiveConditional>(type);
+		cond = std::make_unique<CDirectiveConditional>(type);
 
 	cond->setContent(std::move(ifBlock),std::move(elseBlock));
 	return cond;
@@ -11156,11 +17309,11 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveTable(Parser& parser, int flags
 	const Token& start = parser.peekToken();
 
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,1,2) == false)
+	if (!parser.parseExpressionList(list,1,2))
 		return nullptr;
 
 	std::wstring fileName;
-	if (list[0].evaluateString(fileName,true) == false)
+	if (!list[0].evaluateString(fileName,true))
 	{
 		parser.printError(start,L"Invalid file name");
 		return nullptr;
@@ -11170,7 +17323,7 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveTable(Parser& parser, int flags
 	if (list.size() == 2)
 	{
 		std::wstring encodingName;
-		if (list[1].evaluateString(encodingName,true) == false)
+		if (!list[1].evaluateString(encodingName,true))
 		{
 			parser.printError(start,L"Invalid encoding name");
 			return nullptr;
@@ -11179,7 +17332,7 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveTable(Parser& parser, int flags
 		encoding = getEncodingFromString(encodingName);
 	}
 
-	return ::make_unique<TableCommand>(fileName,encoding);
+	return std::make_unique<TableCommand>(fileName,encoding);
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveData(Parser& parser, int flags)
@@ -11192,10 +17345,10 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveData(Parser& parser, int flags)
 	}
 
 	std::vector<Expression> list;
-	if (parser.parseExpressionList(list,1,-1) == false)
+	if (!parser.parseExpressionList(list,1,-1))
 		return nullptr;
 
-	auto data = ::make_unique<CDirectiveData>();
+	auto data = std::make_unique<CDirectiveData>();
 	switch (flags & DIRECTIVE_USERMASK)
 	{
 	case DIRECTIVE_DATA_8:
@@ -11239,19 +17392,19 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveMipsArch(Parser& parser, int fl
 	{
 	case DIRECTIVE_MIPS_PSX:
 		Mips.SetVersion(MARCH_PSX);
-		return ::make_unique<ArchitectureCommand>(L".psx", L"");
+		return std::make_unique<ArchitectureCommand>(L".psx", L"");
 	case DIRECTIVE_MIPS_PS2:
 		Mips.SetVersion(MARCH_PS2);
-		return ::make_unique<ArchitectureCommand>(L".ps2", L"");
+		return std::make_unique<ArchitectureCommand>(L".ps2", L"");
 	case DIRECTIVE_MIPS_PSP:
 		Mips.SetVersion(MARCH_PSP);
-		return ::make_unique<ArchitectureCommand>(L".psp", L"");
+		return std::make_unique<ArchitectureCommand>(L".psp", L"");
 	case DIRECTIVE_MIPS_N64:
 		Mips.SetVersion(MARCH_N64);
-		return ::make_unique<ArchitectureCommand>(L".n64", L"");
+		return std::make_unique<ArchitectureCommand>(L".n64", L"");
 	case DIRECTIVE_MIPS_RSP:
 		Mips.SetVersion(MARCH_RSP);
-		return ::make_unique<ArchitectureCommand>(L".rsp", L"");
+		return std::make_unique<ArchitectureCommand>(L".rsp", L"");
 	}
 
 	return nullptr;
@@ -11267,40 +17420,78 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveArmArch(Parser& parser, int fla
 	case DIRECTIVE_ARM_GBA:
 		Arm.SetThumbMode(true);
 		Arm.setVersion(AARCH_GBA);
-		return ::make_unique<ArchitectureCommand>(L".gba\n.thumb", L".thumb");
+		return std::make_unique<ArchitectureCommand>(L".gba\n.thumb", L".thumb");
 	case DIRECTIVE_ARM_NDS:
 		Arm.SetThumbMode(false);
+
 		Arm.setVersion(AARCH_NDS);
-		return ::make_unique<ArchitectureCommand>(L".nds\n.arm", L".arm");
+		return std::make_unique<ArchitectureCommand>(L".nds\n.arm", L".arm");
 	case DIRECTIVE_ARM_3DS:
 		Arm.SetThumbMode(false);
 		Arm.setVersion(AARCH_3DS);
-		return ::make_unique<ArchitectureCommand>(L".3ds\n.arm", L".arm");
+		return std::make_unique<ArchitectureCommand>(L".3ds\n.arm", L".arm");
 	case DIRECTIVE_ARM_BIG:
 		Arm.SetThumbMode(false);
 		Arm.setVersion(AARCH_BIG);
-		return ::make_unique<ArchitectureCommand>(L".arm.big\n.arm", L".arm");
+		return std::make_unique<ArchitectureCommand>(L".arm.big\n.arm", L".arm");
 	case DIRECTIVE_ARM_LITTLE:
 		Arm.SetThumbMode(false);
 		Arm.setVersion(AARCH_LITTLE);
-		return ::make_unique<ArchitectureCommand>(L".arm.little\n.arm", L".arm");
+		return std::make_unique<ArchitectureCommand>(L".arm.little\n.arm", L".arm");
 	}
 #endif
-
 	return nullptr;
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveArea(Parser& parser, int flags)
 {
 	std::vector<Expression> parameters;
-	if (parser.parseExpressionList(parameters,1,2) == false)
+	if (!parser.parseExpressionList(parameters,1,2))
 		return nullptr;
 
-	auto area = ::make_unique<CDirectiveArea>(parameters[0]);
+	bool shared = (flags & DIRECTIVE_AREA_SHARED) != 0;
+	auto area = std::make_unique<CDirectiveArea>(shared, parameters[0]);
 	if (parameters.size() == 2)
 		area->setFillExpression(parameters[1]);
 
-	std::unique_ptr<CAssemblerCommand> content = parser.parseCommandSequence(L'.', {L".endarea"});
+	std::unique_ptr<CAssemblerCommand> content = parser.parseCommandSequence(L'.', { L".endarea", L".endregion" });
+	parser.eatToken();
+
+	area->setContent(std::move(content));
+	return area;
+}
+
+std::unique_ptr<CAssemblerCommand> parseDirectiveDefineArea(Parser& parser, int flags)
+{
+	std::vector<Expression> parameters;
+	if (!parser.parseExpressionList(parameters,2,3))
+		return nullptr;
+
+	bool shared = (flags & DIRECTIVE_AREA_SHARED) != 0;
+	auto area = std::make_unique<CDirectiveArea>(shared, parameters[1]);
+	area->setPositionExpression(parameters[0]);
+	if (parameters.size() == 3)
+		area->setFillExpression(parameters[2]);
+
+	return area;
+}
+
+std::unique_ptr<CAssemblerCommand> parseDirectiveAutoRegion(Parser& parser, int flags)
+{
+	std::vector<Expression> parameters;
+	if (parser.peekToken().type != TokenType::Separator)
+	{
+		if (!parser.parseExpressionList(parameters, 0, 2))
+			return nullptr;
+	}
+
+	auto area = std::make_unique<CDirectiveAutoRegion>();
+	if (parameters.size() == 1)
+		area->setMinRangeExpression(parameters[0]);
+	else if (parameters.size() == 2)
+		area->setRangeExpressions(parameters[0], parameters[1]);
+
+	std::unique_ptr<CAssemblerCommand> content = parser.parseCommandSequence(L'.', {L".endautoregion"});
 	parser.eatToken();
 
 	area->setContent(std::move(content));
@@ -11320,11 +17511,11 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveErrorWarning(Parser& parser, in
 	if (stringValue == L"on")
 	{
 		Logger::setErrorOnWarning(true);
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 	} else if (stringValue == L"off")
 	{
 		Logger::setErrorOnWarning(false);
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 	}
 
 	return nullptr;
@@ -11343,11 +17534,11 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveRelativeInclude(Parser& parser,
 	if (stringValue == L"on")
 	{
 		Global.relativeInclude = true;
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 	} else if (stringValue == L"off")
 	{
 		Global.relativeInclude = false;
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 	}
 
 	return nullptr;
@@ -11366,11 +17557,11 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveNocash(Parser& parser, int flag
 	if (stringValue == L"on")
 	{
 		Global.nocash = true;
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 	} else if (stringValue == L"off")
 	{
 		Global.nocash = false;
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 	}
 
 	return nullptr;
@@ -11387,9 +17578,9 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveSym(Parser& parser, int flags)
 	std::transform(stringValue.begin(),stringValue.end(),stringValue.begin(),::towlower);
 
 	if (stringValue == L"on")
-		return ::make_unique<CDirectiveSym>(true);
+		return std::make_unique<CDirectiveSym>(true);
 	else if (stringValue == L"off")
-		return ::make_unique<CDirectiveSym>(false);
+		return std::make_unique<CDirectiveSym>(false);
 	else
 		return nullptr;
 }
@@ -11404,17 +17595,17 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveDefineLabel(Parser& parser, int
 		return nullptr;
 
 	Expression value = parser.parseExpression();
-	if (value.isLoaded() == false)
+	if (!value.isLoaded())
 		return nullptr;
 
 	const std::wstring stringValue = tok.getStringValue();
-	if (Global.symbolTable.isValidSymbolName(stringValue) == false)
+	if (!Global.symbolTable.isValidSymbolName(stringValue))
 	{
 		parser.printError(tok,L"Invalid label name \"%s\"",stringValue);
 		return nullptr;
 	}
 
-	return ::make_unique<CAssemblerLabel>(stringValue,tok.getOriginalText(),value);
+	return std::make_unique<CAssemblerLabel>(stringValue,tok.getOriginalText(),value);
 }
 
 std::unique_ptr<CAssemblerCommand> parseDirectiveFunction(Parser& parser, int flags)
@@ -11429,7 +17620,7 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveFunction(Parser& parser, int fl
 		return nullptr;
 	}
 
-	auto func = ::make_unique<CDirectiveFunction>(tok.getStringValue(),tok.getOriginalText());
+	auto func = std::make_unique<CDirectiveFunction>(tok.getStringValue(),tok.getOriginalText());
 	std::unique_ptr<CAssemblerCommand> seq = parser.parseCommandSequence(L'.', {L".endfunc",L".endfunction",L".func",L".function"});
 
 	const std::wstring stringValue = parser.peekToken().getStringValue();
@@ -11455,11 +17646,11 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveMessage(Parser& parser, int fla
 	switch (flags)
 	{
 	case DIRECTIVE_MSG_WARNING:
-		return ::make_unique<CDirectiveMessage>(CDirectiveMessage::Type::Warning,exp);
+		return std::make_unique<CDirectiveMessage>(CDirectiveMessage::Type::Warning,exp);
 	case DIRECTIVE_MSG_ERROR:
-		return ::make_unique<CDirectiveMessage>(CDirectiveMessage::Type::Error,exp);
+		return std::make_unique<CDirectiveMessage>(CDirectiveMessage::Type::Error,exp);
 	case DIRECTIVE_MSG_NOTICE:
-		return ::make_unique<CDirectiveMessage>(CDirectiveMessage::Type::Notice,exp);
+		return std::make_unique<CDirectiveMessage>(CDirectiveMessage::Type::Notice,exp);
 	}
 
 	return nullptr;
@@ -11470,40 +17661,40 @@ std::unique_ptr<CAssemblerCommand> parseDirectiveInclude(Parser& parser, int fla
 	const Token& start = parser.peekToken();
 
 	std::vector<Expression> parameters;
-	if (parser.parseExpressionList(parameters,1,2) == false)
+	if (!parser.parseExpressionList(parameters,1,2))
 		return nullptr;
 
-	std::wstring fileName;
-	if (parameters[0].evaluateString(fileName,true) == false)
+	std::wstring fileNameParameter;
+	if (!parameters[0].evaluateString(fileNameParameter,true))
 		return nullptr;
 
-	fileName = getFullPathName(fileName);
+	auto fileName = getFullPathName(fileNameParameter);
 
 	TextFile::Encoding encoding = TextFile::GUESS;
 	if (parameters.size() == 2)
 	{
 		std::wstring encodingName;
-		if (parameters[1].evaluateString(encodingName,true) == false
-			&& parameters[1].evaluateIdentifier(encodingName) == false)
+		if (!parameters[1].evaluateString(encodingName,true)
+			&& !parameters[1].evaluateIdentifier(encodingName))
 			return nullptr;
 
 		encoding = getEncodingFromString(encodingName);
 	}
 
 	// don't include the file if it's inside a false block
-	if (parser.isInsideTrueBlock() == false)
-		return ::make_unique<DummyCommand>();
+	if (!parser.isInsideTrueBlock())
+		return std::make_unique<DummyCommand>();
 
-	if (fileExists(fileName) == false)
+	if (!fs::exists(fileName))
 	{
-		parser.printError(start,L"Included file \"%s\" does not exist",fileName);
+		parser.printError(start,L"Included file \"%s\" does not exist",fileName.wstring());
 		return nullptr;
 	}
 
 	TextFile f;
-	if (f.open(fileName,TextFile::Read,encoding) == false)
+	if (!f.open(fileName,TextFile::Read,encoding))
 	{
-		parser.printError(start,L"Could not open included file \"%s\"",fileName);
+		parser.printError(start,L"Could not open included file \"%s\"",fileName.wstring());
 		return nullptr;
 	}
 
@@ -11584,6 +17775,9 @@ const DirectiveMap directives = {
 	{ L".arm.little",		{ &parseDirectiveArmArch,			DIRECTIVE_ARM_LITTLE } },
 
 	{ L".area",				{ &parseDirectiveArea,				0 } },
+	{ L".autoregion",		{ &parseDirectiveAutoRegion,		0 } },
+	{ L".region",			{ &parseDirectiveArea,				DIRECTIVE_AREA_SHARED } },
+	{ L".defineregion",		{ &parseDirectiveDefineArea,		DIRECTIVE_AREA_SHARED } },
 
 	{ L".importobj",		{ &parseDirectiveObjImport,			0 } },
 	{ L".importlib",		{ &parseDirectiveObjImport,			0 } },
@@ -12095,6 +18289,7 @@ Expression parseExpression(Tokenizer& tokenizer, bool inUnknownOrFalseBlock)
 
 // file: Parser/Parser.cpp
 
+
 inline bool isPartOfList(const std::wstring& value, const std::initializer_list<const wchar_t*>& terminators)
 {
 	for (const wchar_t* term: terminators)
@@ -12122,6 +18317,14 @@ void Parser::pushConditionalResult(ConditionalResult cond)
 	conditionStack.push_back(info);
 }
 
+void Parser::printError(const Token &token, const std::wstring &text)
+{
+	errorLine = token.line;
+	Global.FileInfo.LineNumber = (int) token.line;
+	Logger::printError(Logger::Error, text);
+	error = true;
+}
+
 Expression Parser::parseExpression()
 {
 	return ::parseExpression(*getTokenizer(), !isInsideTrueBlock() || isInsideUnknownBlock());
@@ -12138,7 +18341,7 @@ bool Parser::parseExpressionList(std::vector<Expression>& list, int min, int max
 	Expression exp = parseExpression();
 	list.push_back(exp);
 
-	if (exp.isLoaded() == false)
+	if (!exp.isLoaded())
 	{
 		printError(start,L"Parameter failure");
 		getTokenizer()->skipLookahead();
@@ -12152,7 +18355,7 @@ bool Parser::parseExpressionList(std::vector<Expression>& list, int min, int max
 		exp = parseExpression();
 		list.push_back(exp);
 
-		if (exp.isLoaded() == false)
+		if (!exp.isLoaded())
 		{
 			printError(start,L"Parameter failure");
 			getTokenizer()->skipLookahead();
@@ -12187,10 +18390,10 @@ bool Parser::parseIdentifier(std::wstring& dest)
 
 std::unique_ptr<CAssemblerCommand> Parser::parseCommandSequence(wchar_t indicator, const std::initializer_list<const wchar_t*> terminators)
 {
-	auto sequence = ::make_unique<CommandSequence>();
+	auto sequence = std::make_unique<CommandSequence>();
 
 	bool foundTermination = false;
-	while (atEnd() == false)
+	while (!atEnd())
 	{
 		const Token &next = peekToken();
 
@@ -12207,7 +18410,7 @@ std::unique_ptr<CAssemblerCommand> Parser::parseCommandSequence(wchar_t indicato
 		}
 
 		bool foundSomething = false;
-		while (checkEquLabel() || checkMacroDefinition())
+		while (checkEquLabel() || checkMacroDefinition() || checkExpFuncDefinition())
 		{
 			// do nothing, just parse all the equs and macros there are
 			if (hasError())
@@ -12222,7 +18425,7 @@ std::unique_ptr<CAssemblerCommand> Parser::parseCommandSequence(wchar_t indicato
 		std::unique_ptr<CAssemblerCommand> cmd = parseCommand();
 
 		// omit commands inside blocks that are trivially false
-		if (isInsideTrueBlock() == false)
+		if (!isInsideTrueBlock())
 		{
 			continue;
 		}
@@ -12249,12 +18452,12 @@ std::unique_ptr<CAssemblerCommand> Parser::parseCommandSequence(wchar_t indicato
 std::unique_ptr<CAssemblerCommand> Parser::parseFile(TextFile& file, bool virtualFile)
 {
 	FileTokenizer tokenizer;
-	if (tokenizer.init(&file) == false)
+	if (!tokenizer.init(&file))
 		return nullptr;
 
 	std::unique_ptr<CAssemblerCommand> result = parse(&tokenizer,virtualFile,file.getFileName());
 
-	if (file.isFromMemory() == false)
+	if (!file.isFromMemory())
 		Global.FileInfo.TotalLineCount += file.getNumLines();
 
 	return result;
@@ -12306,11 +18509,11 @@ std::unique_ptr<CAssemblerCommand> Parser::parseDirective(const DirectiveMap &di
 
 		if (directive.flags & DIRECTIVE_DISABLED)
 			continue;
-		if ((directive.flags & DIRECTIVE_NOCASHOFF) && Global.nocash == true)
+		if ((directive.flags & DIRECTIVE_NOCASHOFF) && Global.nocash)
 			continue;
-		if ((directive.flags & DIRECTIVE_NOCASHON) && Global.nocash == false)
+		if ((directive.flags & DIRECTIVE_NOCASHON) && !Global.nocash)
 			continue;
-		if ((directive.flags & DIRECTIVE_NOTINMEMORY) && Global.memoryMode == true)
+		if ((directive.flags & DIRECTIVE_NOTINMEMORY) && Global.memoryMode)
 			continue;
 
 		if (directive.flags & DIRECTIVE_MIPSRESETDELAY)
@@ -12320,7 +18523,7 @@ std::unique_ptr<CAssemblerCommand> Parser::parseDirective(const DirectiveMap &di
 		std::unique_ptr<CAssemblerCommand> result = directive.function(*this,directive.flags);
 		if (result == nullptr)
 		{
-			if (hasError() == false)
+			if (!hasError())
 				printError(tok,L"Directive parameter failure");
 			return nullptr;
 		} else if (!(directive.flags & DIRECTIVE_MANUALSEPARATOR) && nextToken().type != TokenType::Separator)
@@ -12348,7 +18551,7 @@ bool Parser::matchToken(TokenType type, bool optional)
 	return nextToken().type == type;
 }
 
-std::unique_ptr<CAssemblerCommand> Parser::parse(Tokenizer* tokenizer, bool virtualFile, const std::wstring& name)
+std::unique_ptr<CAssemblerCommand> Parser::parse(Tokenizer* tokenizer, bool virtualFile, const fs::path& name)
 {
 	if (entries.size() >= 150)
 	{
@@ -12360,10 +18563,10 @@ std::unique_ptr<CAssemblerCommand> Parser::parse(Tokenizer* tokenizer, bool virt
 	entry.tokenizer = tokenizer;
 	entry.virtualFile = virtualFile;
 
-	if (virtualFile == false && name.empty() == false)
+	if (!virtualFile && !name.empty())
 	{
-		entry.fileNum = (int) Global.FileInfo.FileList.size();
-		Global.FileInfo.FileList.push_back(name);
+		entry.fileNum = (int) Global.fileList.size();
+		Global.fileList.add(name);
 	} else {
 		entry.fileNum = -1;
 	}
@@ -12386,7 +18589,7 @@ void Parser::addEquation(const Token& startToken, const std::wstring& name, cons
 	tok.init(&f);
 
 	TokenizerPosition start = tok.getPosition();
-	while (tok.atEnd() == false && tok.peekToken().type != TokenType::Separator)
+	while (!tok.atEnd() && tok.peekToken().type != TokenType::Separator)
 	{
 		const Token& token = tok.nextToken();
 		if (token.type == TokenType::Identifier && token.getStringValue() == name)
@@ -12433,7 +18636,7 @@ bool Parser::checkEquLabel()
 			eatTokens(pos+2);
 
 			// skip the equ if it's inside a false conditional block
-			if (isInsideTrueBlock() == false)
+			if (!isInsideTrueBlock())
 				return true;
 
 			// equs can't be inside blocks whose condition can only be
@@ -12451,7 +18654,7 @@ bool Parser::checkEquLabel()
 				return true;
 			}
 
-			if (Global.symbolTable.isValidSymbolName(name) == false)
+			if (!Global.symbolTable.isValidSymbolName(name))
 			{
 				printError(start,L"Invalid equation name \"%s\"",name);
 				return true;
@@ -12469,6 +18672,104 @@ bool Parser::checkEquLabel()
 	}
 
 	return false;
+}
+
+bool Parser::parseFunctionDeclaration(std::wstring& name, std::vector<std::wstring>& parameters)
+{
+	const Token& first = peekToken();
+	if (first.type != TokenType::Identifier)
+		return false;
+
+	name = nextToken().getStringValue();
+
+	if (nextToken().type != TokenType::LParen)
+		return false;
+
+	parameters.clear();
+	while (!atEnd() && peekToken().type != TokenType::RParen)
+	{
+		if (!parameters.empty() && peekToken().type == TokenType::Comma)
+			eatToken();
+
+		const Token& token = nextToken();
+		if (token.type != TokenType::Identifier)
+			return false;
+
+		parameters.emplace_back(token.getStringValue());
+	}
+
+	return !atEnd() && nextToken().type == TokenType::RParen;
+}
+
+bool Parser::checkExpFuncDefinition()
+{
+	const Token& first = peekToken();
+	if (first.type != TokenType::Identifier)
+		return false;
+
+	if (!first.stringValueStartsWith(L'.') || first.getStringValue() != L".expfunc")
+		return false;
+
+	eatToken();
+
+	UserExpressionFunction func;
+
+	// load declarationn
+	if (!parseFunctionDeclaration(func.name, func.parameters))
+	{
+		printError(first, L"Invalid expression function declaration");
+		return false;
+	}
+
+	if (nextToken().type != TokenType::Comma)
+	{
+		printError(first, L"Invalid expression function declaration");
+		return false;
+	}
+
+	// load definition
+	TokenizerPosition start = getTokenizer()->getPosition();
+
+	Expression exp = parseExpression();
+	if (!exp.isLoaded())
+	{
+		printError(first, L"Invalid expression function declaration");
+		return false;
+	}
+
+	TokenizerPosition end = getTokenizer()->getPosition();
+	func.content = getTokenizer()->getTokens(start,end);
+
+	// checks
+
+	// Expression functions have to be defined at parse time, so they can't be defined in blocks
+	// with non-trivial conditions
+	if (isInsideUnknownBlock())
+	{
+		printError(first, L"Expression function definition not allowed inside of block with non-trivial condition");
+		return false;
+	}
+
+	// if we are in a known false block, don't define the function
+	if (!isInsideTrueBlock())
+		return true;
+
+	if(nextToken().type != TokenType::Separator)
+	{
+		printError(first, L".expfunc directive not terminated");
+		return false;
+	}
+
+	// duplicate check
+	if (UserFunctions::instance().findFunction(func.name))
+	{
+		printError(first, L"Expression function \"%s\" already declared", func.name);
+		return false;
+	}
+
+	// register function
+	UserFunctions::instance().addFunction(func);
+	return true;
 }
 
 bool Parser::checkMacroDefinition()
@@ -12497,21 +18798,21 @@ bool Parser::checkMacroDefinition()
 	}
 
 	std::vector<Expression> parameters;
-	if (parseExpressionList(parameters,1,-1) == false)
+	if (!parseExpressionList(parameters,1,-1))
 		return false;
 
 	ParserMacro macro;
 	macro.counter = 0;
 
 	// load name
-	if (parameters[0].evaluateIdentifier(macro.name) == false)
+	if (!parameters[0].evaluateIdentifier(macro.name))
 		return false;
 
 	// load parameters
 	for (size_t i = 1; i < parameters.size(); i++)
 	{
 		std::wstring name;
-		if (parameters[i].evaluateIdentifier(name) == false)
+		if (!parameters[i].evaluateIdentifier(name))
 			return false;
 
 		macro.parameters.push_back(name);
@@ -12527,7 +18828,7 @@ bool Parser::checkMacroDefinition()
 
 	TokenizerPosition start = getTokenizer()->getPosition();
 	bool valid = false;
-	while (atEnd() == false)
+	while (!atEnd())
 	{
 		const Token& tok = nextToken();
 		if (tok.type == TokenType::Identifier && tok.getStringValue() == L".endmacro")
@@ -12557,7 +18858,7 @@ bool Parser::checkMacroDefinition()
 	}
 
 	// no .endmacro, not valid
-	if (valid == false)
+	if (!valid)
 	{
 		printError(first, L"Macro \"%s\" not terminated", macro.name);
 		return true;
@@ -12575,6 +18876,68 @@ bool Parser::checkMacroDefinition()
 
 	macros[macro.name] = macro;
 	return true;
+}
+
+std::optional<std::vector<Token>> Parser::extractMacroParameter(const Token &macroStart)
+{
+	TokenizerPosition startPos = getTokenizer()->getPosition();
+
+	// Find the end of the parameter. The parameter may contain expressions with function calls,
+	// so keep track of the current parenthesis depth level
+	int parenCount = 0;
+	int braceCount = 0;
+	int bracketCount = 0;
+
+	while (peekToken().type != TokenType::Separator)
+	{
+		// if the next token is a comma, only exit the loop if parentheses are balanced
+		auto type = peekToken().type;
+		if (type == TokenType::Comma && parenCount == 0 && braceCount == 0 && bracketCount == 0)
+			break;
+
+		// keep track of parenthesis depth
+		switch (type)
+		{
+		case TokenType::LParen:
+			++parenCount;
+			break;
+		case TokenType::RParen:
+			--parenCount;
+			break;
+		case TokenType::LBrace:
+			++braceCount;
+			break;
+		case TokenType::RBrace:
+			--braceCount;
+			break;
+		case TokenType::LBrack:
+			++bracketCount;
+			break;
+		case TokenType::RBrack:
+			--bracketCount;
+			break;
+		default:
+			break;
+		}
+
+		eatToken();
+	}
+
+	if (parenCount != 0)
+	{
+		printError(macroStart, L"Unbalanced parentheses in macro parameter");
+		return std::nullopt;
+	}
+
+	TokenizerPosition endPos = getTokenizer()->getPosition();
+	std::vector<Token> tokens = getTokenizer()->getTokens(startPos,endPos);
+	if (tokens.size() == 0)
+	{
+		printError(macroStart, L"Empty macro argument");
+		return std::nullopt;
+	}
+
+	return tokens;
 }
 
 std::unique_ptr<CAssemblerCommand> Parser::parseMacroCall()
@@ -12612,23 +18975,16 @@ std::unique_ptr<CAssemblerCommand> Parser::parseMacroCall()
 			}
 		}
 
-		TokenizerPosition startPos = getTokenizer()->getPosition();
-		Expression exp = parseExpression();
-		if (exp.isLoaded() == false)
-		{
-			printError(start,L"Invalid macro argument expression");
+		auto tokens = extractMacroParameter(start);
+		if (!tokens)
 			return nullptr;
-		}
-
-		TokenizerPosition endPos = getTokenizer()->getPosition();
-		std::vector<Token> tokens = getTokenizer()->getTokens(startPos,endPos);
 
 		// remember any single identifier parameters for the label replacement
-		if (tokens.size() == 1 && tokens[0].type == TokenType::Identifier)
-			identifierParameters.insert(tokens[0].getStringValue());
+		if (tokens->size() == 1 && tokens->front().type == TokenType::Identifier)
+			identifierParameters.insert(tokens->front().getStringValue());
 
 		// give them as a replacement to new tokenizer
-		macroTokenizer.registerReplacement(macro.parameters[i],tokens);
+		macroTokenizer.registerReplacement(macro.parameters[i], *tokens);
 	}
 
 	if (peekToken().type == TokenType::Comma)
@@ -12636,9 +18992,12 @@ std::unique_ptr<CAssemblerCommand> Parser::parseMacroCall()
 		size_t count = macro.parameters.size();
 		while (peekToken().type == TokenType::Comma)
 		{
+			// skip comma
 			eatToken();
-			parseExpression();
-			count++;
+
+			// skip parameter value
+			extractMacroParameter(start);
+			++count;
 		}
 
 		printError(start,L"Too many macro arguments (%d vs %d)",count,macro.parameters.size());
@@ -12653,13 +19012,13 @@ std::unique_ptr<CAssemblerCommand> Parser::parseMacroCall()
 
 	// skip macro instantiation in known false blocks
 	if (!isInsideUnknownBlock() && !isInsideTrueBlock())
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 
 	// a macro is fully parsed once when it's loaded
 	// to gather all labels. it's not necessary to
 	// instantiate other macros at that time
 	if (initializingMacro)
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 
 	// the first time a macro is instantiated, it needs to be analyzed
 	// for labels
@@ -12690,11 +19049,11 @@ std::unique_ptr<CAssemblerCommand> Parser::parseMacroCall()
 		// otherwise make sure the name is unique
 		std::wstring fullName;
 		if (Global.symbolTable.isLocalSymbol(label))
-			fullName = formatString(L"@@%s_%s_%08X",macro.name,label.substr(2),macro.counter);
+			fullName = tfm::format(L"@@%s_%s_%08X",macro.name,label.substr(2),macro.counter);
 		else if (Global.symbolTable.isStaticSymbol(label))
-			fullName = formatString(L"@%s_%s_%08X",macro.name,label.substr(1),macro.counter);
+			fullName = tfm::format(L"@%s_%s_%08X",macro.name,label.substr(1),macro.counter);
 		else
-			fullName = formatString(L"%s_%s_%08X",macro.name,label,macro.counter);
+			fullName = tfm::format(L"%s_%s_%08X",macro.name,label,macro.counter);
 
 		macroTokenizer.registerReplacement(label,fullName);
 	}
@@ -12721,13 +19080,13 @@ std::unique_ptr<CAssemblerCommand> Parser::parseLabel()
 		if (initializingMacro)
 			macroLabels.insert(name);
 
-		if (Global.symbolTable.isValidSymbolName(name) == false)
+		if (!Global.symbolTable.isValidSymbolName(name))
 		{
 			printError(start,L"Invalid label name \"%s\"",name);
 			return nullptr;
 		}
 
-		return ::make_unique<CAssemblerLabel>(name,start.getOriginalText());
+		return std::make_unique<CAssemblerLabel>(name,start.getOriginalText());
 	}
 
 	return nullptr;
@@ -12739,7 +19098,7 @@ std::unique_ptr<CAssemblerCommand> Parser::handleError()
 	while (!atEnd() && nextToken().type != TokenType::Separator);
 
 	clearError();
-	return ::make_unique<InvalidCommand>();
+	return std::make_unique<InvalidCommand>();
 }
 
 
@@ -12756,7 +19115,7 @@ void Parser::updateFileInfo()
 	{
 		size_t index = i-1;
 
-		if (entries[index].virtualFile == false && entries[index].fileNum != -1)
+		if (!entries[index].virtualFile && entries[index].fileNum != -1)
 		{
 			Global.FileInfo.FileNum = entries[index].fileNum;
 
@@ -12781,7 +19140,7 @@ std::unique_ptr<CAssemblerCommand> Parser::parseCommand()
 	updateFileInfo();
 
 	if (atEnd())
-		return ::make_unique<DummyCommand>();
+		return std::make_unique<DummyCommand>();
 
 	if ((command = parseLabel()) != nullptr)
 		return command;
@@ -12872,8 +19231,9 @@ bool TokenSequenceParser::parse(Parser& parser, int& result)
 }
 
 // file: Parser/Tokenizer.cpp
-#include <algorithm>
 
+
+#include <algorithm>
 
 //
 // Tokenizer
@@ -12893,7 +19253,7 @@ bool Tokenizer::processElement(TokenList::iterator& it)
 	if (it == tokens.end())
 		return false;
 
-	while ((*it).checked == false)
+	while (!(*it).checked)
 	{
 		bool replaced = false;
 		if ((*it).type == TokenType::Identifier)
@@ -12957,7 +19317,7 @@ bool Tokenizer::processElement(TokenList::iterator& it)
 			}
 		}
 
-		if (replaced == false)
+		if (!replaced)
 			(*it).checked = true;
 	}
 
@@ -12966,7 +19326,7 @@ bool Tokenizer::processElement(TokenList::iterator& it)
 
 const Token& Tokenizer::nextToken()
 {
-	if (processElement(position.it) == false)
+	if (!processElement(position.it))
 		return invalidToken;
 
 	return *position.it++;
@@ -12977,13 +19337,13 @@ const Token& Tokenizer::peekToken(int ahead)
 	auto it = position.it;
 	for (int i = 0; i < ahead; i++)
 	{
-		if (processElement(it) == false)
+		if (!processElement(it))
 			return invalidToken;
 
 		it++;
 	}
 
-	if (processElement(it) == false)
+	if (!processElement(it))
 		return invalidToken;
 
 	return *it;
@@ -12993,7 +19353,7 @@ void Tokenizer::eatTokens(int num)
 {
 	for (int i = 0; i < num; i++)
 	{
-		if (processElement(position.it) == false)
+		if (!processElement(position.it))
 			break;
 		position.it++;
 	}
@@ -13034,6 +19394,48 @@ void Tokenizer::registerReplacement(const std::wstring& identifier, const std::w
 	tok.type = TokenType::Identifier;
 	tok.setStringValue(lowerCase);
 	tok.setOriginalText(newValue);
+
+	Replacement replacement;
+	replacement.identifier = identifier;
+	replacement.value.push_back(tok);
+
+	replacements.push_back(replacement);
+}
+
+void Tokenizer::registerReplacementString(const std::wstring& identifier, const std::wstring& newValue)
+{
+	Token tok;
+	tok.type = TokenType::String;
+	tok.setStringValue(newValue);
+	tok.setOriginalText(newValue);
+
+	Replacement replacement;
+	replacement.identifier = identifier;
+	replacement.value.push_back(tok);
+
+	replacements.push_back(replacement);
+}
+
+void Tokenizer::registerReplacementInteger(const std::wstring& identifier, int64_t newValue)
+{
+	Token tok;
+	tok.type = TokenType::Integer;
+	tok.intValue = newValue;
+	tok.setOriginalText(tfm::format(L"%d", newValue).c_str());
+
+	Replacement replacement;
+	replacement.identifier = identifier;
+	replacement.value.push_back(tok);
+
+	replacements.push_back(replacement);
+}
+
+void Tokenizer::registerReplacementFloat(const std::wstring& identifier, double newValue)
+{
+	Token tok;
+	tok.type = TokenType::Float;
+	tok.floatValue = newValue;
+	tok.setOriginalText(tfm::format(L"%g", newValue).c_str());
 
 	Replacement replacement;
 	replacement.identifier = identifier;
@@ -13096,17 +19498,11 @@ inline bool isContinuation(const std::wstring& text, size_t pos)
 }
 
 inline bool isBlockComment(const std::wstring& text, size_t pos){
-	if (pos+1 < text.size() && text[pos+0] == '/' && text[pos+1] == '*')
-		return true;
-
-	return false;
+	return pos+1 < text.size() && text[pos+0] == '/' && text[pos+1] == '*';
 }
 
 inline bool isBlockCommentEnd(const std::wstring& text, size_t pos){
-	if (pos+1 < text.size() && text[pos+0] == '*' && text[pos+1] == '/')
-		return true;
-
-	return false;
+	return pos+1 < text.size() && text[pos+0] == '*' && text[pos+1] == '/';
 }
 
 void FileTokenizer::skipWhitespace()
@@ -13452,7 +19848,7 @@ Token FileTokenizer::loadToken()
 		if (!isFloat)
 		{
 			int64_t value;
-			if (convertInteger(start,end,value) == false)
+			if (!convertInteger(start,end,value))
 			{
 				createTokenCurrentString(TokenType::NumberString,end-start);
 				return std::move(token);
@@ -13461,13 +19857,13 @@ Token FileTokenizer::loadToken()
 			createToken(TokenType::Integer,end-start,value);
 		} else { // isFloat
 			double value;
-			if (isValid == false)
+			if (!isValid)
 			{
 				createToken(TokenType::Invalid,end-start,L"Invalid floating point number");
 				return std::move(token);
 			}
 
-			if (convertFloat(start,end,value) == false)
+			if (!convertFloat(start,end,value))
 			{
 				createTokenCurrentString(TokenType::NumberString,end-start);
 				return std::move(token);
@@ -13489,7 +19885,7 @@ Token FileTokenizer::loadToken()
 
 	if (pos == linePos)
 	{
-		std::wstring text = formatString(L"Invalid input '%c'",currentLine[pos]);
+		std::wstring text = tfm::format(L"Invalid input '%c'",currentLine[pos]);
 		createToken(TokenType::Invalid,1,text);
 		return std::move(token);
 	}
@@ -13514,6 +19910,11 @@ Token FileTokenizer::loadToken()
 	}
 
 	return std::move(token);
+}
+
+bool FileTokenizer::isInputAtEnd()
+{
+	return linePos >= currentLine.size() && input->atEnd();
 }
 
 bool FileTokenizer::init(TextFile* input)
@@ -13547,7 +19948,7 @@ bool FileTokenizer::init(TextFile* input)
 				addSeparator = false;
 			} else if(linePos < currentLine.size())
 			{
-				addToken(std::move(loadToken()));
+				addToken(loadToken());
 			}
 
 			if (linePos >= currentLine.size())
@@ -13575,6 +19976,9 @@ bool FileTokenizer::init(TextFile* input)
 }
 
 // file: Util/ByteArray.cpp
+
+
+#include <cstring>
 
 ByteArray::ByteArray()
 {
@@ -13710,45 +20114,42 @@ ByteArray ByteArray::mid(size_t start, ssize_t length)
 	return ret;
 }
 
-ByteArray ByteArray::fromFile(const std::wstring& fileName, long start, size_t size)
+ByteArray ByteArray::fromFile(const fs::path& fileName, unsigned long start, size_t size)
 {
-	ByteArray ret;
+	fs::ifstream stream(fileName, fs::fstream::in | fs::fstream::binary);
+	if (!stream.is_open())
+		return {};
 
-	FILE* input = openFile(fileName,OpenFileMode::ReadBinary);
-	if (input == nullptr)
-		return ret;
-
-	fseek(input,0,SEEK_END);
-	long fileSize = ftell(input);
-
+	auto fileSize = fs::file_size(fileName);
 	if (start >= fileSize)
-	{
-		fclose(input);
-		return ret;
-	}
+		return {};
 
 	if (size == 0 || start+(long)size > fileSize)
 		size = fileSize-start;
 
-	fseek(input,start,SEEK_SET);
+	stream.seekg(start);
 
+	ByteArray ret;
 	ret.grow(size);
-	ret.size_ = fread(ret.data(),1,size,input);
-	fclose(input);
+
+	stream.read(reinterpret_cast<char *>(ret.data()), size);
+	ret.size_ = stream.gcount();
 
 	return ret;
 }
 
-bool ByteArray::toFile(const std::wstring& fileName)
+bool ByteArray::toFile(const fs::path& fileName)
 {
-	FILE* output = openFile(fileName,OpenFileMode::WriteBinary);
-	if (output == nullptr) return false;
-	size_t length = fwrite(data_,1,size_,output);
-	fclose(output);
-	return length == size_;
+	fs::ofstream stream(fileName, fs::fstream::out | fs::fstream::binary | fs::fstream::trunc);
+	if (!stream.is_open())
+		return {};
+
+	stream.write(reinterpret_cast<const char *>(data_), size_);
+	return !stream.fail();
 }
 
 // file: Util/CRC.cpp
+
 #include <stdio.h>
 
 const unsigned short Crc16Table[] = /* CRC lookup table */
@@ -13855,6 +20256,7 @@ unsigned int getChecksum(unsigned char* Source, size_t len)
 }
 
 // file: Util/EncodingTable.cpp
+
 
 #define MAXHEXLENGTH 32
 
@@ -13974,12 +20376,12 @@ int parseHexString(std::wstring& hex, unsigned char* dest)
 	return (int) hex.size()/2;
 }
 
-bool EncodingTable::load(const std::wstring& fileName, TextFile::Encoding encoding)
+bool EncodingTable::load(const fs::path& fileName, TextFile::Encoding encoding)
 {
 	unsigned char hexBuffer[MAXHEXLENGTH];
 
 	TextFile input;
-	if (input.open(fileName,TextFile::Read,encoding) == false)
+	if (!input.open(fileName,TextFile::Read,encoding))
 		return false;
 
 	hexData.clear();
@@ -14085,7 +20487,7 @@ ByteArray EncodingTable::encodeString(const std::wstring& str, bool writeTermina
 	while (pos < str.size())
 	{
 		size_t index;
-		if (lookup.findLongestPrefix(str.c_str()+pos,index) == false)
+		if (!lookup.findLongestPrefix(str.c_str()+pos,index))
 		{
 			// error
 			return ByteArray();
@@ -14126,6 +20528,10 @@ ByteArray EncodingTable::encodeTermination()
 }
 
 // file: Util/FileClasses.cpp
+
+
+#include <cassert>
+#include <cstring>
 
 const wchar_t SjisToUnicodeTable1[] =
 {
@@ -14739,88 +21145,10 @@ wchar_t sjisToUnicode(unsigned short SjisCharacter)
 	}
 }
 
-BinaryFile::BinaryFile()
-{
-	handle = nullptr;
-}
-
-BinaryFile::~BinaryFile()
-{
-	close();
-}
-
-bool BinaryFile::open(const std::wstring& fileName, Mode mode)
-{
-	setFileName(fileName);
-	return open(mode);
-}
-
-bool BinaryFile::open(Mode mode)
-{
-	if (isOpen())
-		close();
-
-	this->mode = mode;
-
-	// open all files as binary due to unicode
-	switch (mode)
-	{
-	case Read:
-		handle = openFile(fileName,OpenFileMode::ReadBinary);
-		break;
-	case Write:
-		handle = openFile(fileName,OpenFileMode::WriteBinary);
-		break;
-	case ReadWrite:
-		handle = openFile(fileName,OpenFileMode::ReadWriteBinary);
-		break;
-	default:
-		return false;
-	}
-
-	if (handle == nullptr)
-		return false;
-
-	if (mode != Write)
-	{
-		fseek(handle,0,SEEK_END);
-		size_ = ftell(handle);
-		fseek(handle,0,SEEK_SET);
-	}
-
-	return true;
-}
-
-void BinaryFile::close()
-{
-	if (isOpen())
-	{
-		fclose(handle);
-		handle = nullptr;
-	}
-}
-
-size_t BinaryFile::read(void* dest, size_t length)
-{
-	if (isOpen() == false || mode == Write)
-		return 0;
-
-	return fread(dest,1,length,handle);
-}
-
-size_t BinaryFile::write(void* source, size_t length)
-{
-	if (isOpen() == false || mode == Read)
-		return 0;
-
-	return fwrite(source,1,length,handle);
-}
-
 const size_t TEXTFILE_BUF_MAX_SIZE = 4096;
 
 TextFile::TextFile()
 {
-	handle = nullptr;
 	recursion = false;
 	errorRetrieved = false;
 	fromMemory = false;
@@ -14844,7 +21172,7 @@ void TextFile::openMemory(const std::wstring& content)
 	lineCount = 0;
 }
 
-bool TextFile::open(const std::wstring& fileName, Mode mode, Encoding defaultEncoding)
+bool TextFile::open(const fs::path& fileName, Mode mode, Encoding defaultEncoding)
 {
 	setFileName(fileName);
 	return open(mode,defaultEncoding);
@@ -14867,11 +21195,15 @@ bool TextFile::open(Mode mode, Encoding defaultEncoding)
 	switch (mode)
 	{
 	case Read:
-		handle = openFile(fileName,OpenFileMode::ReadBinary);
+		stream.open(fileName, fs::fstream::in | fs::fstream::binary);
+
+		if (!stream.is_open())
+			return false;
 		break;
 	case Write:
-		handle = openFile(fileName,OpenFileMode::WriteBinary);
-		if (handle == nullptr)
+		stream.open(fileName, fs::fstream::out | fs::fstream::binary | fs::fstream::trunc);
+
+		if (!stream.is_open())
 			return false;
 
 		buf.resize(TEXTFILE_BUF_MAX_SIZE);
@@ -14881,57 +21213,51 @@ bool TextFile::open(Mode mode, Encoding defaultEncoding)
 			writeCharacter(0xFEFF);
 		}
 		break;
-	default:
-		return false;
 	}
 
-	if (handle == nullptr)
-		return false;
-
 	// detect encoding
-	unsigned short num;
+	unsigned char numBuffer[3] = {0};
 	contentPos = 0;
 
 	if (mode == Read)
 	{
-		fseek(handle,0,SEEK_END);
-		size_ = ftell(handle);
-		fseek(handle,0,SEEK_SET);
+		size_ = fs::file_size(fileName);
 
-		if (fread(&num,2,1,handle) == 1)
+		stream.read(reinterpret_cast<char *>(numBuffer), 3);
+		switch (numBuffer[0] | (numBuffer[1] << 8))
 		{
-			switch (num)
+		case 0xFFFE:
+			encoding = UTF16BE;
+			stream.seekg(2);
+			contentPos = 2;
+			break;
+		case 0xFEFF:
+			encoding = UTF16LE;
+			stream.seekg(2);
+			contentPos = 2;
+			break;
+		case 0xBBEF:
+			if (numBuffer[2] == 0xBF)
 			{
-			case 0xFFFE:
-				encoding = UTF16BE;
-				contentPos += 2;
-				break;
-			case 0xFEFF:
-				encoding = UTF16LE;
-				contentPos += 2;
-				break;
-			case 0xBBEF:
-				if (fgetc(handle) == 0xBF)
-				{
-					encoding = UTF8;
-					contentPos += 3;
-					break;
-				} // fallthrough
-			default:
-				if (defaultEncoding == GUESS)
-				{
-					encoding = UTF8;
-					guessedEncoding = true;
-				}
-				fseek(handle,0,SEEK_SET);
+				encoding = UTF8;
+				contentPos = 3;
 				break;
 			}
-		} else {
+			[[fallthrough]];
+		default:
 			if (defaultEncoding == GUESS)
 			{
 				encoding = UTF8;
 				guessedEncoding = true;
 			}
+			stream.seekg(0);
+			break;
+		}
+	} else {
+		if (defaultEncoding == GUESS)
+		{
+			encoding = UTF8;
+			guessedEncoding = true;
 		}
 	}
 
@@ -14943,8 +21269,7 @@ void TextFile::close()
 	if (isOpen() && !fromMemory)
 	{
 		bufDrainWrite();
-		fclose(handle);
-		handle = nullptr;
+		stream.close();
 	}
 	bufPos = 0;
 }
@@ -14959,7 +21284,7 @@ void TextFile::seek(long pos)
 	if (fromMemory)
 		contentPos = pos;
 	else
-		fseek(handle,pos,SEEK_SET);
+		stream.seekg(pos);
 }
 
 void TextFile::bufFillRead()
@@ -14967,15 +21292,14 @@ void TextFile::bufFillRead()
 	assert(mode == Read);
 
 	buf.resize(TEXTFILE_BUF_MAX_SIZE);
-	size_t read = fread(&buf[0], 1, TEXTFILE_BUF_MAX_SIZE, handle);
-	buf.resize(read);
-
+	stream.read(&buf[0], TEXTFILE_BUF_MAX_SIZE);
+	buf.resize(stream.gcount());
 	bufPos = 0;
 }
 
 wchar_t TextFile::readCharacter()
 {
-	wchar_t value;
+	wchar_t value = 0;
 
 	switch (encoding)
 	{
@@ -14995,7 +21319,7 @@ wchar_t TextFile::readCharacter()
 				value &= 0x0F;
 			} else if (value > 0x7F)
 			{
-				errorText = formatString(L"One or more invalid UTF-8 characters in this file");
+				errorText = tfm::format(L"One or more invalid UTF-8 characters in this file");
 			}
 
 			for (int i = 0; i < extraBytes; i++)
@@ -15005,7 +21329,7 @@ wchar_t TextFile::readCharacter()
 
 				if ((b & 0xC0) != 0x80)
 				{
-					errorText = formatString(L"One or more invalid UTF-8 characters in this file");
+					errorText = tfm::format(L"One or more invalid UTF-8 characters in this file");
 				}
 
 				value = (value << 6) | (b & 0x3F);
@@ -15037,7 +21361,7 @@ wchar_t TextFile::readCharacter()
 			value = sjisToUnicode(sjis);
 			if (value == (wchar_t)-1)
 			{
-				errorText = formatString(L"One or more invalid Shift-JIS characters in this file");
+				errorText = tfm::format(L"One or more invalid Shift-JIS characters in this file");
 			}
 		}
 		break;
@@ -15045,13 +21369,14 @@ wchar_t TextFile::readCharacter()
 		value = bufGetChar();
 		contentPos++;
 		break;
+
 	case GUESS:
-		errorText = formatString(L"Cannot read from GUESS encoding");
+		errorText = tfm::format(L"Cannot read from GUESS encoding");
 		break;
 	}
 
 	// convert \r\n to \n
-	if (value == L'\r' && recursion == false && atEnd() == false)
+	if (value == L'\r' && !recursion && !atEnd())
 	{
 		recursion = true;
 		long pos = tell();
@@ -15083,9 +21408,9 @@ std::wstring TextFile::readLine()
 	return result;
 }
 
-StringList TextFile::readAll()
+std::vector<std::wstring> TextFile::readAll()
 {
-	StringList result;
+	std::vector<std::wstring> result;
 	while (!atEnd())
 	{
 		result.push_back(readLine());
@@ -15102,7 +21427,7 @@ void TextFile::bufPut(const void *p, const size_t len)
 	{
 		// Lots of data.  Let's write directly.
 		bufDrainWrite();
-		fwrite(p, 1, len, handle);
+		stream.write(reinterpret_cast<const char*>(p), len);
 	}
 	else
 	{
@@ -15126,7 +21451,7 @@ void TextFile::bufPut(const char c)
 
 void TextFile::bufDrainWrite()
 {
-	fwrite(&buf[0], 1, bufPos, handle);
+	stream.write(buf.c_str(), bufPos);
 	bufPos = 0;
 }
 
@@ -15212,7 +21537,7 @@ void TextFile::writeLine(const std::string& line)
 	writeLine(line.c_str());
 }
 
-void TextFile::writeLines(StringList& list)
+void TextFile::writeLines(std::vector<std::wstring>& list)
 {
 	for (size_t i = 0; i < list.size(); i++)
 	{
@@ -15240,9 +21565,12 @@ const EncodingValue encodingValues[] = {
 
 TextFile::Encoding getEncodingFromString(const std::wstring& str)
 {
+	auto lowerCase = str;
+	std::transform(lowerCase.begin(), lowerCase.end(), lowerCase.begin(), &::towlower);
+
 	for (size_t i = 0; i < sizeof(encodingValues)/sizeof(EncodingValue); i++)
 	{
-		if (str.compare(encodingValues[i].name) == 0)
+		if (lowerCase.compare(encodingValues[i].name) == 0)
 			return encodingValues[i].value;
 	}
 
@@ -15250,18 +21578,8 @@ TextFile::Encoding getEncodingFromString(const std::wstring& str)
 }
 
 // file: Util/Util.cpp
-#include <sys/stat.h>
-#ifdef _WIN32
-#include <windows.h>
-#include <shlwapi.h>
-#if defined(WINAPI_FAMILY) && defined(WINAPI_FAMILY_PARTITION)
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP) && WINAPI_FAMILY != WINAPI_FAMILY_DESKTOP_APP
-#define ARMIPS_WINDOWS_UWP
-#endif
-#endif
-#else
-#include <unistd.h>
-#endif
+
+#include <sstream>
 
 std::wstring convertUtf8ToWString(const char* source)
 {
@@ -15467,9 +21785,9 @@ int64_t getDoubleBits(double value)
 	return u.i;
 }
 
-StringList getStringListFromArray(wchar_t** source, int count)
+std::vector<std::wstring> getStringListFromArray(wchar_t** source, int count)
 {
-	StringList result;
+	std::vector<std::wstring> result;
 	for (int i = 0; i < count; i++)
 	{
 		result.push_back(std::wstring(source[i]));
@@ -15478,9 +21796,9 @@ StringList getStringListFromArray(wchar_t** source, int count)
 	return result;
 }
 
-StringList splitString(const std::wstring& str, const wchar_t delim, bool skipEmpty)
+std::vector<std::wstring> splitString(const std::wstring& str, const wchar_t delim, bool skipEmpty)
 {
-	StringList result;
+	std::vector<std::wstring> result;
 	std::wstringstream stream(str);
 	std::wstring arg;
 	while (std::getline(stream,arg,delim))
@@ -15492,136 +21810,6 @@ StringList splitString(const std::wstring& str, const wchar_t delim, bool skipEm
 	return result;
 }
 
-int64_t fileSize(const std::wstring& fileName)
-{
-#ifdef _WIN32
-	WIN32_FILE_ATTRIBUTE_DATA attr;
-	if (!GetFileAttributesEx(fileName.c_str(),GetFileExInfoStandard,&attr)
-		|| (attr.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-		return 0;
-	return ((int64_t) attr.nFileSizeHigh << 32) | (int64_t) attr.nFileSizeLow;
-#else
-	std::string utf8 = convertWStringToUtf8(fileName);
-	struct stat fileStat;
-	int err = stat(utf8.c_str(),&fileStat);
-	if (0 != err)
-		return 0;
-	return fileStat.st_size;
-#endif
-}
-
-bool fileExists(const std::wstring& strFilename)
-{
-#ifdef _WIN32
-#ifdef ARMIPS_WINDOWS_UWP
-	return GetFileAttributes(strFilename.c_str()) != INVALID_FILE_ATTRIBUTES;
-#else
-	int OldMode = SetErrorMode(SEM_FAILCRITICALERRORS);
-	bool success = GetFileAttributes(strFilename.c_str()) != INVALID_FILE_ATTRIBUTES;
-	SetErrorMode(OldMode);
-	return success;
-#endif
-#else
-	std::string utf8 = convertWStringToUtf8(strFilename);
-	struct stat stFileInfo;
-	int intStat = stat(utf8.c_str(),&stFileInfo);
-	return intStat == 0;
-#endif
-}
-
-bool copyFile(const std::wstring& existingFile, const std::wstring& newFile)
-{
-#ifdef _WIN32
-	return CopyFileW(existingFile.c_str(),newFile.c_str(),false) != FALSE;
-#else
-	unsigned char buffer[BUFSIZ];
-	bool error = false;
-
-	std::string existingUtf8 = convertWStringToUtf8(existingFile);
-	std::string newUtf8 = convertWStringToUtf8(newFile);
-
-	FILE* input = fopen(existingUtf8.c_str(),"rb");
-	FILE* output = fopen(newUtf8.c_str(),"wb");
-
-	if (input == nullptr || output == nullptr)
-		return false;
-
-	size_t n;
-	while ((n = fread(buffer,1,BUFSIZ,input)) > 0)
-	{
-		if (fwrite(buffer,1,n,output) != n)
-			error = true;
-	}
-
-	fclose(input);
-	fclose(output);
-	return !error;
-#endif
-}
-
-bool deleteFile(const std::wstring& fileName)
-{
-#ifdef _WIN32
-	return DeleteFileW(fileName.c_str()) != FALSE;
-#else
-	std::string utf8 = convertWStringToUtf8(fileName);
-	return unlink(utf8.c_str()) == 0;
-#endif
-}
-
-FILE* openFile(const std::wstring& fileName, OpenFileMode mode)
-{
-#ifdef _WIN32
-	switch (mode)
-	{
-	case OpenFileMode::ReadBinary:
-		return _wfopen(fileName.c_str(),L"rb");
-	case OpenFileMode::WriteBinary:
-		return _wfopen(fileName.c_str(),L"wb");
-	case OpenFileMode::ReadWriteBinary:
-		return _wfopen(fileName.c_str(),L"rb+");
-	}
-#else
-	std::string nameUtf8 = convertWStringToUtf8(fileName);
-
-	switch (mode)
-	{
-	case OpenFileMode::ReadBinary:
-		return fopen(nameUtf8.c_str(),"rb");
-	case OpenFileMode::WriteBinary:
-		return fopen(nameUtf8.c_str(),"wb");
-	case OpenFileMode::ReadWriteBinary:
-		return fopen(nameUtf8.c_str(),"rb+");
-	}
-#endif
-
-	return nullptr;
-}
-
-std::wstring getCurrentDirectory()
-{
-#ifdef _WIN32
-	wchar_t dir[MAX_PATH];
-	_wgetcwd(dir,MAX_PATH-1);
-	return dir;
-#else
-	char* dir = getcwd(nullptr,0);
-	std::wstring result = convertUtf8ToWString(dir);
-	free(dir);
-	return result;
-#endif
-}
-
-bool changeDirectory(const std::wstring& dir)
-{
-#ifdef _WIN32
-	return _wchdir(dir.c_str()) == 0;
-#else
-	std::string utf8 = convertWStringToUtf8(dir);
-	return chdir(utf8.c_str()) == 0;
-#endif
-}
-
 std::wstring toWLowercase(const std::string& str)
 {
 	std::wstring result;
@@ -15631,14 +21819,6 @@ std::wstring toWLowercase(const std::string& str)
 	}
 
 	return result;
-}
-
-std::wstring getFileNameFromPath(const std::wstring& path)
-{
-	size_t n = path.find_last_of(L"/\\");
-	if (n == path.npos)
-		return path;
-	return path.substr(n);
 }
 
 size_t replaceAll(std::wstring& str, const wchar_t* oldValue,const std::wstring& newValue)
@@ -15668,20 +21848,13 @@ bool startsWith(const std::wstring& str, const wchar_t* value, size_t stringPos)
 	return *value == 0;
 }
 
-bool isAbsolutePath(const std::wstring& path)
-{
-#ifdef _WIN32
-	return path.size() > 2 && (path[1] == ':' || (path[0] == '\\' && path[1] == '\\'));
-#else
-	return path.size() >= 1 && path[0] == '/';
-#endif
-}
-
 // file: Main/CommandLineInterface.h
 
-int runFromCommandLine(const StringList& arguments, ArmipsArguments settings = {});
+
+int runFromCommandLine(const std::vector<std::wstring>& arguments, ArmipsArguments settings = {});
 
 // file: Main/CommandLineInterface.cpp
+
 
 static void printUsage(std::wstring executableName)
 {
@@ -15698,12 +21871,13 @@ static void printUsage(std::wstring executableName)
 	Logger::printLine(L" -strequ <NAME> <VAL>      Equivalent to \'<NAME> equ \"<VAL>\"\' in code");
 	Logger::printLine(L" -definelabel <NAME> <VAL> Equivalent to \'.definelabel <NAME>, <VAL>\' in code");
 	Logger::printLine(L" -erroronwarning           Treat all warnings like errors");
+	Logger::printLine(L" -stat                     Show area usage statistics");
 	Logger::printLine(L"");
 	Logger::printLine(L"File arguments:");
 	Logger::printLine(L" <FILE>                    Main assembly code file");
 }
 
-static bool parseArguments(const StringList& arguments, ArmipsArguments& settings)
+static bool parseArguments(const std::vector<std::wstring>& arguments, ArmipsArguments& settings)
 {
 	size_t argpos = 1;
 	bool readflags = true;
@@ -15736,6 +21910,11 @@ static bool parseArguments(const StringList& arguments, ArmipsArguments& setting
 			else if (arguments[argpos] == L"-erroronwarning")
 			{
 				settings.errorOnWarning = true;
+				argpos += 1;
+			}
+			else if (arguments[argpos] == L"-stat")
+			{
+				settings.showStats = true;
 				argpos += 1;
 			}
 			else if (arguments[argpos] == L"-equ" && argpos + 2 < arguments.size())
@@ -15784,7 +21963,7 @@ static bool parseArguments(const StringList& arguments, ArmipsArguments& setting
 					return false;
 				}
 
-				def.value = formatString(L"\"%s\"", arguments[argpos + 2]);
+				def.value = tfm::format(L"\"%s\"", arguments[argpos + 2]);
 				settings.equList.push_back(def);
 				argpos += 3;
 			}
@@ -15795,7 +21974,10 @@ static bool parseArguments(const StringList& arguments, ArmipsArguments& setting
 			}
 			else if (arguments[argpos] == L"-root" && argpos + 1 < arguments.size())
 			{
-				if(!changeDirectory(arguments[argpos + 1]))
+				std::error_code errorCode;
+				fs::current_path(arguments[argpos + 1], errorCode);
+
+				if (errorCode)
 				{
 					Logger::printError(Logger::Error, L"Could not open directory \"%s\"", arguments[argpos + 1]);
 					return false;
@@ -15843,7 +22025,7 @@ static bool parseArguments(const StringList& arguments, ArmipsArguments& setting
 		}
 		else {
 			// only allow one input filename
-			if (settings.inputFileName == L"")
+			if (settings.inputFileName.empty())
 			{
 				settings.inputFileName = arguments[argpos];
 				argpos++;
@@ -15857,7 +22039,7 @@ static bool parseArguments(const StringList& arguments, ArmipsArguments& setting
 	}
 
 	// ensure input file was specified
-	if (settings.inputFileName == L"")
+	if (settings.inputFileName.empty())
 	{
 		if (arguments.size() > 1)
 			Logger::printError(Logger::Error, L"Missing input assembly file\n");
@@ -15867,20 +22049,20 @@ static bool parseArguments(const StringList& arguments, ArmipsArguments& setting
 	}
 
 	// turn input filename into an absolute path
-	if (settings.useAbsoluteFileNames && isAbsolutePath(settings.inputFileName) == false)
-		settings.inputFileName = formatString(L"%s/%s", getCurrentDirectory(), settings.inputFileName);
+	if (settings.useAbsoluteFileNames)
+		settings.inputFileName = fs::absolute(settings.inputFileName).lexically_normal();
 
-	if (fileExists(settings.inputFileName) == false)
+	if (!fs::exists(settings.inputFileName))
 	{
-		Logger::printError(Logger::Error, L"File \"%s\" not found", settings.inputFileName);
+		Logger::printError(Logger::Error, L"File \"%s\" not found", settings.inputFileName.wstring());
 		return false;
 	}
 	return true;
 }
 
-int runFromCommandLine(const StringList& arguments, ArmipsArguments settings)
+int runFromCommandLine(const std::vector<std::wstring>& arguments, ArmipsArguments settings)
 {
-	if (parseArguments(arguments, settings) == false)
+	if (!parseArguments(arguments, settings))
 	{
 		if (arguments.size() > 1 && !settings.silent)
 			Logger::printLine(L"Cannot parse arguments; aborting.");
@@ -15888,7 +22070,7 @@ int runFromCommandLine(const StringList& arguments, ArmipsArguments settings)
 		return 1;
 	}
 
-	if (runArmips(settings) == false)
+	if (!runArmips(settings))
 	{
 		if (!settings.silent)
 			Logger::printLine(L"Aborting.");
@@ -15900,19 +22082,24 @@ int runFromCommandLine(const StringList& arguments, ArmipsArguments settings)
 }
 
 // file: Core/ELF/ElfFile.cpp
-#include <vector>
-#include <algorithm>
 
-#ifndef _WIN32
-#include <strings.h>
-#define _stricmp strcasecmp
-#endif
+
+#include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <vector>
 
 static bool stringEqualInsensitive(const std::string& a, const std::string& b)
 {
 	if (a.size() != b.size())
 		return false;
-	return _stricmp(a.c_str(),b.c_str()) == 0;
+
+	auto compare = [](char c1, char c2)
+	{
+		return std::tolower(c1) == std::tolower(c2);
+	};
+
+	return std::equal(a.begin(), a.end(), b.begin(), compare);
 }
 
 bool compareSection(ElfSection* a, ElfSection* b)
@@ -15931,7 +22118,7 @@ void ElfSection::setOwner(ElfSegment* segment)
 	owner = segment;
 }
 
-void ElfSection::writeHeader(ByteArray& data, int pos, Endianness endianness)
+void ElfSection::writeHeader(ByteArray& data, size_t pos, Endianness endianness)
 {
 	data.replaceDoubleWord(pos + 0x00, header.sh_name, endianness);
 	data.replaceDoubleWord(pos + 0x04, header.sh_type, endianness);
@@ -16042,7 +22229,7 @@ void ElfSegment::writeData(ByteArray& output)
 	output.append(data);
 }
 
-void ElfSegment::writeHeader(ByteArray& data, int pos, Endianness endianness)
+void ElfSegment::writeHeader(ByteArray& data, size_t pos, Endianness endianness)
 {
 	data.replaceDoubleWord(pos + 0x00, header.p_type, endianness);
 	data.replaceDoubleWord(pos + 0x04, header.p_offset, endianness);
@@ -16064,7 +22251,7 @@ int ElfSegment::findSection(const std::string& name)
 	for (size_t i = 0; i < sections.size(); i++)
 	{
 		if (stringEqualInsensitive(name,sections[i]->getName()))
-			return i;
+			return (int)i;
 	}
 
 	return -1;
@@ -16173,7 +22360,7 @@ int ElfFile::findSegmentlessSection(const std::string& name)
 	for (size_t i = 0; i < segmentlessSections.size(); i++)
 	{
 		if (stringEqualInsensitive(name,segmentlessSections[i]->getName()))
-			return i;
+			return (int)i;
 	}
 
 	return -1;
@@ -16198,7 +22385,7 @@ void ElfFile::loadElfHeader()
 	fileHeader.e_shstrndx = fileData.getWord(0x32, endianness);
 }
 
-void ElfFile::writeHeader(ByteArray& data, int pos, Endianness endianness)
+void ElfFile::writeHeader(ByteArray& data, size_t pos, Endianness endianness)
 {
 	memcpy(&fileData[0], fileHeader.e_ident, sizeof(fileHeader.e_ident));
 	data.replaceWord(pos + 0x10, fileHeader.e_type, endianness);
@@ -16216,7 +22403,7 @@ void ElfFile::writeHeader(ByteArray& data, int pos, Endianness endianness)
 	data.replaceWord(pos + 0x32, fileHeader.e_shstrndx, endianness);
 }
 
-void ElfFile::loadProgramHeader(Elf32_Phdr& header, ByteArray& data, int pos)
+void ElfFile::loadProgramHeader(Elf32_Phdr& header, ByteArray& data, size_t pos)
 {
 	Endianness endianness = getEndianness();
 	header.p_type   = data.getDoubleWord(pos + 0x00, endianness);
@@ -16229,7 +22416,7 @@ void ElfFile::loadProgramHeader(Elf32_Phdr& header, ByteArray& data, int pos)
 	header.p_align  = data.getDoubleWord(pos + 0x1C, endianness);
 }
 
-void ElfFile::loadSectionHeader(Elf32_Shdr& header, ByteArray& data, int pos)
+void ElfFile::loadSectionHeader(Elf32_Shdr& header, ByteArray& data, size_t pos)
 {
 	Endianness endianness = getEndianness();
 	header.sh_name      = data.getDoubleWord(pos + 0x00, endianness);
@@ -16244,7 +22431,7 @@ void ElfFile::loadSectionHeader(Elf32_Shdr& header, ByteArray& data, int pos)
 	header.sh_entsize   = data.getDoubleWord(pos + 0x24, endianness);
 }
 
-bool ElfFile::load(const std::wstring& fileName, bool sort)
+bool ElfFile::load(const fs::path& fileName, bool sort)
 {
 	ByteArray data = ByteArray::fromFile(fileName);
 	if (data.size() == 0)
@@ -16263,7 +22450,7 @@ bool ElfFile::load(ByteArray& data, bool sort)
 	// load segments
 	for (size_t i = 0; i < fileHeader.e_phnum; i++)
 	{
-		int pos = fileHeader.e_phoff+i*fileHeader.e_phentsize;
+		size_t pos = fileHeader.e_phoff+i*fileHeader.e_phentsize;
 
 		Elf32_Phdr sectionHeader;
 		loadProgramHeader(sectionHeader, fileData, pos);
@@ -16276,7 +22463,7 @@ bool ElfFile::load(ByteArray& data, bool sort)
 	// load sections and assign them to segments
 	for (int i = 0; i < fileHeader.e_shnum; i++)
 	{
-		int pos = fileHeader.e_shoff+i*fileHeader.e_shentsize;
+		size_t pos = fileHeader.e_shoff+i*fileHeader.e_shentsize;
 
 		Elf32_Shdr sectionHeader;
 		loadSectionHeader(sectionHeader, fileData, pos);
@@ -16338,7 +22525,7 @@ bool ElfFile::load(ByteArray& data, bool sort)
 	return true;
 }
 
-void ElfFile::save(const std::wstring&fileName)
+void ElfFile::save(const fs::path& fileName)
 {
 	fileData.clear();
 
@@ -16379,13 +22566,13 @@ void ElfFile::save(const std::wstring&fileName)
 	writeHeader(fileData, 0, endianness);
 	for (size_t i = 0; i < segments.size(); i++)
 	{
-		int pos = fileHeader.e_phoff+i*fileHeader.e_phentsize;
+		size_t pos = fileHeader.e_phoff+i*fileHeader.e_phentsize;
 		segments[i]->writeHeader(fileData, pos, endianness);
 	}
 
 	for (size_t i = 0; i < sections.size(); i++)
 	{
-		int pos = fileHeader.e_shoff+i*fileHeader.e_shentsize;
+		size_t pos = fileHeader.e_shoff+i*fileHeader.e_shentsize;
 		sections[i]->writeHeader(fileData, pos, endianness);
 	}
 
@@ -16406,7 +22593,7 @@ bool ElfFile::getSymbol(Elf32_Sym& symbol, size_t index)
 		return false;
 
 	ByteArray &data = symTab->getData();
-	int pos = index*sizeof(Elf32_Sym);
+	size_t pos = index*sizeof(Elf32_Sym);
 	Endianness endianness = getEndianness();
 	symbol.st_name  = data.getDoubleWord(pos + 0x00, endianness);
 	symbol.st_value = data.getDoubleWord(pos + 0x04, endianness);
@@ -16428,6 +22615,9 @@ const char* ElfFile::getStrTableString(size_t pos)
 
 // file: Core/ELF/ElfRelocator.cpp
 
+
+#include <cstring>
+
 struct ArFileHeader
 {
 	char fileName[16];
@@ -16445,7 +22635,7 @@ struct ArFileEntry
 	ByteArray data;
 };
 
-std::vector<ArFileEntry> loadArArchive(const std::wstring& inputName)
+std::vector<ArFileEntry> loadArArchive(const fs::path& inputName)
 {
 	ByteArray input = ByteArray::fromFile(inputName);
 	std::vector<ArFileEntry> result;
@@ -16456,7 +22646,7 @@ std::vector<ArFileEntry> loadArArchive(const std::wstring& inputName)
 			return result;
 
 		ArFileEntry entry;
-		entry.name = getFileNameFromPath(inputName);
+		entry.name = inputName.filename().wstring();
 		entry.data = input;
 		result.push_back(entry);
 		return result;
@@ -16493,7 +22683,7 @@ std::vector<ArFileEntry> loadArArchive(const std::wstring& inputName)
 					if (i > 0 && fileName[i-1] == '/')
 						i--;
 					fileName[i] = 0;
-					break;;
+					break;
 				}
 
 				fileName[i] = header->fileName[i];
@@ -16513,7 +22703,7 @@ std::vector<ArFileEntry> loadArArchive(const std::wstring& inputName)
 	return result;
 }
 
-bool ElfRelocator::init(const std::wstring& inputName)
+bool ElfRelocator::init(const fs::path& inputName)
 {
 	relocator = Arch->getElfRelocator();
 	if (relocator == nullptr)
@@ -16534,7 +22724,7 @@ bool ElfRelocator::init(const std::wstring& inputName)
 		ElfRelocatorFile file;
 
 		ElfFile* elf = new ElfFile();
-		if (elf->load(entry.data,false) == false)
+		if (!elf->load(entry.data,false))
 		{
 			Logger::printError(Logger::Error,L"Could not load object file %s",entry.name);
 			return false;
@@ -16690,7 +22880,7 @@ std::unique_ptr<CAssemblerCommand> ElfRelocator::generateCtor(const std::wstring
 {
 	std::unique_ptr<CAssemblerCommand> content = relocator->generateCtorStub(ctors);
 
-	auto func = ::make_unique<CDirectiveFunction>(ctorName,ctorName);
+	auto func = std::make_unique<CDirectiveFunction>(ctorName,ctorName);
 	func->setContent(std::move(content));
 	return func;
 }
@@ -16792,7 +22982,7 @@ bool ElfRelocator::relocateFile(ElfRelocatorFile& file, int64_t& relocationAddre
 						error = true;
 						continue;
 					}
-					if (label->isDefined() == false)
+					if (!label->isDefined())
 					{
 						Logger::queueError(Logger::Error,L"Undefined external symbol %s in file %s",symName,file.name);
 						error = true;
@@ -16888,7 +23078,7 @@ bool ElfRelocator::relocate(int64_t& memoryAddress)
 
 	for (ElfRelocatorFile& file: files)
 	{
-		if (relocateFile(file,memoryAddress) == false)
+		if (!relocateFile(file,memoryAddress))
 			error = true;
 	}
 
@@ -16922,13 +23112,20 @@ void ElfRelocator::writeSymbols(SymbolData& symData) const
 	}
 }
 
+std::unique_ptr<CAssemblerCommand> IElfRelocator::generateCtorStub(std::vector<ElfRelocatorCtor> &ctors)
+{
+	return nullptr;
+}
+
 // file: Core/Assembler.cpp
+
+
 #include <thread>
 
 void AddFileName(const std::wstring& FileName)
 {
-	Global.FileInfo.FileNum = (int) Global.FileInfo.FileList.size();
-	Global.FileInfo.FileList.push_back(FileName);
+	Global.FileInfo.FileNum = (int) Global.fileList.size();
+	Global.fileList.add(FileName);
 	Global.FileInfo.LineNumber = 0;
 }
 
@@ -16941,30 +23138,30 @@ bool encodeAssembly(std::unique_ptr<CAssemblerCommand> content, SymbolData& symD
 #endif
 	Mips.Pass2();
 
-	int validationPasses = 0;
+	ValidateState validation;
 	do	// loop until everything is constant
 	{
-		Global.validationPasses = validationPasses;
 		Logger::clearQueue();
 		Revalidate = false;
 
-		if (validationPasses >= 100)
+		if (validation.passes >= 100)
 		{
 			Logger::queueError(Logger::Error,L"Stuck in infinite validation loop");
 			break;
 		}
 
 		g_fileManager->reset();
+		Allocations::clearSubAreas();
 
 #ifdef _DEBUG
 		if (!Logger::isSilent())
-			printf("Validate %d...\n",validationPasses);
+			printf("Validate %d...\n",validation.passes);
 #endif
 
 		if (Global.memoryMode)
 			g_fileManager->openFile(Global.memoryFile,true);
 
-		Revalidate = content->Validate();
+		Revalidate = content->Validate(validation);
 
 #ifdef ARMIPS_ARM
 		Arm.Revalidate();
@@ -16974,11 +23171,13 @@ bool encodeAssembly(std::unique_ptr<CAssemblerCommand> content, SymbolData& symD
 		if (Global.memoryMode)
 			g_fileManager->closeFile();
 
-		validationPasses++;
-	} while (Revalidate == true);
+		validation.passes++;
+	} while (Revalidate);
+
+	Allocations::validateOverlap();
 
 	Logger::printQueue();
-	if (Logger::hasError() == true)
+	if (Logger::hasError())
 	{
 		return false;
 	}
@@ -17033,25 +23232,41 @@ bool encodeAssembly(std::unique_ptr<CAssemblerCommand> content, SymbolData& symD
 	return true;
 }
 
+static void printStats(const AllocationStats &stats)
+{
+	Logger::printLine(L"Total areas and regions: %lld / %lld", stats.totalUsage, stats.totalSize);
+	Logger::printLine(L"Total regions: %lld / %lld", stats.sharedUsage, stats.sharedSize);
+	Logger::printLine(L"Largest area or region: 0x%08llX, %lld / %lld", stats.largestPosition, stats.largestUsage, stats.largestSize);
+
+	int64_t startFreePosition = stats.largestFreePosition + stats.largestFreeUsage;
+	Logger::printLine(L"Most free area or region: 0x%08llX, %lld / %lld (free at 0x%08llX)", stats.largestFreePosition, stats.largestFreeUsage, stats.largestFreeSize, startFreePosition);
+	int64_t startSharedFreePosition = stats.sharedFreePosition + stats.sharedFreeUsage;
+	Logger::printLine(L"Most free region: 0x%08llX, %lld / %lld (free at 0x%08llX)", stats.sharedFreePosition, stats.sharedFreeUsage, stats.sharedFreeSize, startSharedFreePosition);
+
+	if (stats.totalPoolSize != 0)
+	{
+		Logger::printLine(L"Total pool size: %lld", stats.totalPoolSize);
+		Logger::printLine(L"Largest pool: 0x%08llX, %lld", stats.largestPoolPosition, stats.largestPoolSize);
+	}
+}
+
 bool runArmips(ArmipsArguments& settings)
 {
 	// initialize and reset global data
 	Global.Section = 0;
 	Global.nocash = false;
-	Global.FileInfo.FileCount = 0;
 	Global.FileInfo.TotalLineCount = 0;
 	Global.relativeInclude = false;
-	Global.validationPasses = 0;
 	Global.multiThreading = true;
 	Arch = &InvalidArchitecture;
 
 	Tokenizer::clearEquValues();
 	Logger::clear();
+	Allocations::clear();
 	Global.Table.clear();
 	Global.symbolTable.clear();
 
-	Global.FileInfo.FileList.clear();
-	Global.FileInfo.FileCount = 0;
+	Global.fileList.clear();
 	Global.FileInfo.TotalLineCount = 0;
 	Global.FileInfo.LineNumber = 0;
 	Global.FileInfo.FileNum = 0;
@@ -17095,7 +23310,7 @@ bool runArmips(ArmipsArguments& settings)
 	{
 	case ArmipsMode::FILE:
 		Global.memoryMode = false;
-		if (input.open(settings.inputFileName,TextFile::Read) == false)
+		if (!input.open(settings.inputFileName,TextFile::Read))
 		{
 			Logger::printError(Logger::Error,L"Could not open file");
 			return false;
@@ -17112,7 +23327,7 @@ bool runArmips(ArmipsArguments& settings)
 	Logger::printQueue();
 
 	bool result = !Logger::hasError();
-	if (result == true && content != nullptr)
+	if (result && content != nullptr)
 		result = encodeAssembly(std::move(content), symData, tempData);
 
 	if (g_fileManager->hasOpenFile())
@@ -17125,15 +23340,20 @@ bool runArmips(ArmipsArguments& settings)
 	// return errors
 	if (settings.errorsResult != nullptr)
 	{
-		StringList errors = Logger::getErrors();
+		std::vector<std::wstring> errors = Logger::getErrors();
 		for (size_t i = 0; i < errors.size(); i++)
 			settings.errorsResult->push_back(errors[i]);
 	}
+
+	if (settings.showStats)
+		printStats(Allocations::collectStats());
 
 	return result;
 }
 
 // file: Core/Common.cpp
+
+
 #include <sys/stat.h>
 
 FileManager fileManager;
@@ -17142,34 +23362,79 @@ FileManager* g_fileManager = &fileManager;
 tGlobal Global;
 CArchitecture* Arch;
 
-std::wstring getFolderNameFromPath(const std::wstring& src)
+void FileList::add(const fs::path &path)
 {
-#ifdef _WIN32
-	size_t s = src.find_last_of(L"\\/");
-#else
-	size_t s = src.rfind(L"/");
-#endif
-	if (s == std::wstring::npos)
-	{
-		return L".";
-	}
-
-	return src.substr(0,s);
+	_entries.emplace_back(path);
 }
 
-std::wstring getFullPathName(const std::wstring& path)
+const fs::path &FileList::path(int fileIndex) const
 {
-	if (Global.relativeInclude == true)
+	return _entries[size_t(fileIndex)].path();
+}
+
+const fs::path &FileList::relative_path(int fileIndex) const
+{
+	return _entries[size_t(fileIndex)].relativePath();
+}
+
+const std::wstring &FileList::wstring(int fileIndex) const
+{
+	return _entries[size_t(fileIndex)].wstring();
+}
+
+const std::wstring &FileList::relativeWstring(int fileIndex) const
+{
+	return _entries[size_t(fileIndex)].relativeWstring();
+}
+
+size_t FileList::size() const
+{
+	return _entries.size();
+}
+
+void FileList::clear()
+{
+	_entries.clear();
+}
+
+FileList::Entry::Entry(const fs::path &path) :
+	_path(path),
+	_relativePath(path.lexically_proximate(fs::current_path())),
+	_string(_path.wstring()),
+	_relativeString(_relativePath.generic_wstring())
+{
+}
+
+const fs::path &FileList::Entry::path() const
+{
+	return _path;
+}
+
+const fs::path &FileList::Entry::relativePath() const
+{
+	return _relativePath;
+}
+
+const std::wstring &FileList::Entry::wstring() const
+{
+	return _string;
+}
+
+const std::wstring &FileList::Entry::relativeWstring() const
+{
+	return _relativeString;
+}
+
+fs::path getFullPathName(const fs::path& path)
+{
+	if (Global.relativeInclude && !path.is_absolute())
 	{
-		if (isAbsolutePath(path))
-		{
-			return path;
-		} else {
-			std::wstring source = Global.FileInfo.FileList[Global.FileInfo.FileNum];
-			return getFolderNameFromPath(source) + L"/" + path;
-		}
-	} else {
-		return path;
+		const fs::path &source = Global.fileList.path(Global.FileInfo.FileNum);
+		return fs::absolute(source.parent_path() / path).lexically_normal();
+	}
+	else
+	{
+		return fs::absolute(path).lexically_normal();
 	}
 }
 
@@ -17191,6 +23456,20 @@ bool isPowerOfTwo(int64_t n)
 }
 
 // file: Core/Expression.cpp
+
+
+namespace
+{
+	std::wstring to_wstring(int64_t value)
+	{
+		return tfm::format(L"%d", value);
+	}
+
+	std::wstring to_wstring(double value)
+	{
+		return tfm::format(L"%#.17g", value);
+	}
+}
 
 enum class ExpressionValueCombination
 {
@@ -17817,6 +24096,71 @@ ExpressionValue ExpressionInternal::executeFunctionCall()
 	if (expFuncIt != archExpressionFunctions.end())
 		return executeExpressionFunctionCall(expFuncIt->second);
 
+	// try user defined expression functions
+	auto *userFunc = UserFunctions::instance().findFunction(strValue);
+	if (userFunc)
+	{
+		if (!checkParameterCount(userFunc->parameters.size(), userFunc->parameters.size()))
+			return {};
+
+		// evaluate parameters
+		std::vector<ExpressionValue> params;
+		params.reserve(childrenCount);
+
+		for (size_t i = 0; i < childrenCount; i++)
+		{
+			ExpressionValue result = children[i]->evaluate();
+			if (!result.isValid())
+			{
+				Logger::queueError(Logger::Error,L"%s: Invalid parameter %d", strValue, i+1);
+				return result;
+			}
+
+			params.push_back(result);
+		}
+
+		// instantiate
+		TokenStreamTokenizer tok;
+		tok.init(userFunc->content);
+
+		for (size_t i = 0; i < childrenCount; ++i)
+		{
+			const auto &paramName = userFunc->parameters[i];
+			const auto &paramValue = params[i];
+
+			switch (paramValue.type)
+			{
+			case ExpressionValueType::Float:
+				tok.registerReplacementFloat(paramName, paramValue.floatValue);
+				break;
+			case ExpressionValueType::String:
+				tok.registerReplacementString(paramName, paramValue.strValue);
+				break;
+			case ExpressionValueType::Integer:
+				tok.registerReplacementInteger(paramName, paramValue.intValue);
+				break;
+			case ExpressionValueType::Invalid: // will not occur, invalid results are caught above
+				break;
+			}
+		}
+
+		Expression result = parseExpression(tok, false);
+		if (!result.isLoaded())
+		{
+			Logger::queueError(Logger::Error,L"%s: Failed to parse user function expression", strValue);
+			return {};
+		}
+
+		if (!tok.atEnd())
+		{
+			Logger::queueError(Logger::Error,L"%s: Unconsumed tokens after parsing user function expresion", strValue);
+			return {};
+		}
+
+		// evaluate expression
+		return result.evaluate();
+	}
+
 	// error
 	Logger::queueError(Logger::Error, L"Unknown function \"%s\"", strValue);
 	return {};
@@ -17873,7 +24217,7 @@ bool ExpressionInternal::simplify(bool inUnknownOrFalseBlock)
 	case OperatorType::ToString:
 		return false;
 	case OperatorType::FunctionCall:
-		if (isExpressionFunctionSafe(strValue, inUnknownOrFalseBlock) == false)
+		if (!isExpressionFunctionSafe(strValue, inUnknownOrFalseBlock))
 			return false;
 		break;
 	default:
@@ -17884,7 +24228,7 @@ bool ExpressionInternal::simplify(bool inUnknownOrFalseBlock)
 	bool canSimplify = true;
 	for (size_t i = 0; i < childrenCount; i++)
 	{
-		if (children[i] != nullptr && children[i]->simplify(inUnknownOrFalseBlock) == false)
+		if (children[i] != nullptr && !children[i]->simplify(inUnknownOrFalseBlock))
 			canSimplify = false;
 	}
 
@@ -18038,7 +24382,7 @@ static std::wstring escapeString(const std::wstring& text)
 	replaceAll(result,LR"(\)",LR"(\\)");
 	replaceAll(result,LR"(")",LR"(\")");
 
-	return formatString(LR"("%s")",text);
+	return tfm::format(LR"("%s")",text);
 }
 
 std::wstring ExpressionInternal::formatFunctionCall()
@@ -18060,9 +24404,9 @@ std::wstring ExpressionInternal::toString()
 	switch (type)
 	{
 	case OperatorType::Integer:
-		return formatString(L"%d",intValue);
+		return tfm::format(L"%d",intValue);
 	case OperatorType::Float:
-		return formatString(L"%g",floatValue);
+		return tfm::format(L"%g",floatValue);
 	case OperatorType::Identifier:
 		return strValue;
 	case OperatorType::String:
@@ -18070,51 +24414,51 @@ std::wstring ExpressionInternal::toString()
 	case OperatorType::MemoryPos:
 		return L".";
 	case OperatorType::Add:
-		return formatString(L"(%s + %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s + %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Sub:
-		return formatString(L"(%s - %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s - %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Mult:
-		return formatString(L"(%s * %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s * %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Div:
-		return formatString(L"(%s / %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s / %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Mod:
-		return formatString(L"(%s %% %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s %% %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Neg:
-		return formatString(L"(-%s)",children[0]->toString());
+		return tfm::format(L"(-%s)",children[0]->toString());
 	case OperatorType::LogNot:
-		return formatString(L"(!%s)",children[0]->toString());
+		return tfm::format(L"(!%s)",children[0]->toString());
 	case OperatorType::BitNot:
-		return formatString(L"(~%s)",children[0]->toString());
+		return tfm::format(L"(~%s)",children[0]->toString());
 	case OperatorType::LeftShift:
-		return formatString(L"(%s << %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s << %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::RightShift:
-		return formatString(L"(%s >> %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s >> %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Less:
-		return formatString(L"(%s < %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s < %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Greater:
-		return formatString(L"(%s > %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s > %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::LessEqual:
-		return formatString(L"(%s <= %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s <= %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::GreaterEqual:
-		return formatString(L"(%s >= %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s >= %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Equal:
-		return formatString(L"(%s == %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s == %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::NotEqual:
-		return formatString(L"(%s != %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s != %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::BitAnd:
-		return formatString(L"(%s & %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s & %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::BitOr:
-		return formatString(L"(%s | %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s | %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::LogAnd:
-		return formatString(L"(%s && %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s && %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::LogOr:
-		return formatString(L"(%s || %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s || %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::Xor:
-		return formatString(L"(%s ^ %s)",children[0]->toString(),children[1]->toString());
+		return tfm::format(L"(%s ^ %s)",children[0]->toString(),children[1]->toString());
 	case OperatorType::TertiaryIf:
-		return formatString(L"(%s ? %s : %s)",children[0]->toString(),children[1]->toString(),children[2]->toString());
+		return tfm::format(L"(%s ? %s : %s)",children[0]->toString(),children[1]->toString(),children[2]->toString());
 	case OperatorType::ToString:
-		return formatString(L"(%c%s)",L'\U000000B0',children[0]->toString());
+		return tfm::format(L"(%c%s)",L'\U000000B0',children[0]->toString());
 	case OperatorType::FunctionCall:
 		return formatFunctionCall();
 	default:
@@ -18154,6 +24498,45 @@ void Expression::replaceMemoryPos(const std::wstring& identifierName)
 		expression->replaceMemoryPos(identifierName);
 }
 
+bool Expression::evaluateString(std::wstring &dest, bool convert)
+{
+	if (expression == nullptr)
+		return false;
+
+	ExpressionValue value = expression->evaluate();
+	if (convert && value.isInt())
+	{
+		dest = to_wstring(value.intValue);
+		return true;
+	}
+
+	if (convert && value.isFloat())
+	{
+		dest = to_wstring(value.floatValue);
+		return true;
+	}
+
+	if (!value.isString())
+		return false;
+
+	dest = value.strValue;
+	return true;
+}
+
+bool Expression::evaluateIdentifier(std::wstring &dest)
+{
+	if (expression == nullptr || !expression->isIdentifier())
+		return false;
+
+	dest = expression->getStringValue();
+	return true;
+}
+
+std::wstring Expression::toString()
+{
+	return expression != nullptr ? expression->toString() : L"";
+}
+
 Expression createConstExpression(int64_t value)
 {
 	Expression exp;
@@ -18163,8 +24546,26 @@ Expression createConstExpression(int64_t value)
 }
 
 // file: Core/ExpressionFunctions.cpp
+
+
+#include <cmath>
+
 #if ARMIPS_REGEXP
 #include <regex>
+#endif
+
+#if defined(__clang__)
+#if __has_feature(cxx_exceptions)
+#define ARMIPS_EXCEPTIONS 1
+#else
+#define ARMIPS_EXCEPTIONS 0
+#endif
+#elif defined(_MSC_VER) && defined(_CPPUNWIND)
+#define ARMIPS_EXCEPTIONS 1
+#elif defined(__EXCEPTIONS) || defined(__cpp_exceptions)
+#define ARMIPS_EXCEPTIONS 1
+#else
+#define ARMIPS_EXCEPTIONS 0
 #endif
 
 bool getExpFuncParameter(const std::vector<ExpressionValue>& parameters, size_t index, int64_t& dest,
@@ -18173,7 +24574,7 @@ bool getExpFuncParameter(const std::vector<ExpressionValue>& parameters, size_t 
 	if (optional && index >= parameters.size())
 		return true;
 
-	if (index >= parameters.size() || parameters[index].isInt() == false)
+	if (index >= parameters.size() || !parameters[index].isInt())
 	{
 		Logger::queueError(Logger::Error,L"Invalid parameter %d for %s: expecting integer",index+1,funcName);
 		return false;
@@ -18189,7 +24590,7 @@ bool getExpFuncParameter(const std::vector<ExpressionValue>& parameters, size_t 
 	if (optional && index >= parameters.size())
 		return true;
 
-	if (index >= parameters.size() || parameters[index].isString() == false)
+	if (index >= parameters.size() || !parameters[index].isString())
 	{
 		Logger::queueError(Logger::Error,L"Invalid parameter %d for %s: expecting string",index+1,funcName);
 		return false;
@@ -18239,7 +24640,7 @@ ExpressionValue expFuncOutputName(const std::wstring& funcName, const std::vecto
 		return ExpressionValue();
 	}
 
-	std::wstring value = file->getFileName();
+	std::wstring value = file->getFileName().wstring();
 	return ExpressionValue(value);
 }
 
@@ -18248,8 +24649,8 @@ ExpressionValue expFuncFileExists(const std::wstring& funcName, const std::vecto
 	const std::wstring* fileName;
 	GET_PARAM(parameters,0,fileName);
 
-	std::wstring fullName = getFullPathName(*fileName);
-	return ExpressionValue(fileExists(fullName) ? INT64_C(1) : INT64_C(0));
+	auto fullName = getFullPathName(*fileName);
+	return ExpressionValue(fs::exists(fullName) ? INT64_C(1) : INT64_C(0));
 }
 
 ExpressionValue expFuncFileSize(const std::wstring& funcName, const std::vector<ExpressionValue>& parameters)
@@ -18257,8 +24658,10 @@ ExpressionValue expFuncFileSize(const std::wstring& funcName, const std::vector<
 	const std::wstring* fileName;
 	GET_PARAM(parameters,0,fileName);
 
-	std::wstring fullName = getFullPathName(*fileName);
-	return ExpressionValue((int64_t) fileSize(fullName));
+	auto fullName = getFullPathName(*fileName);
+
+	std::error_code error;
+	return ExpressionValue(static_cast<int64_t>(fs::file_size(fullName, error)));
 }
 
 ExpressionValue expFuncToString(const std::wstring& funcName, const std::vector<ExpressionValue>& parameters)
@@ -18271,10 +24674,10 @@ ExpressionValue expFuncToString(const std::wstring& funcName, const std::vector<
 		result.strValue = parameters[0].strValue;
 		break;
 	case ExpressionValueType::Integer:
-		result.strValue = formatString(L"%d",parameters[0].intValue);
+		result.strValue = tfm::format(L"%d",parameters[0].intValue);
 		break;
 	case ExpressionValueType::Float:
-		result.strValue = formatString(L"%#.17g",parameters[0].floatValue);
+		result.strValue = tfm::format(L"%#.17g",parameters[0].floatValue);
 		break;
 	default:
 		return result;
@@ -18290,7 +24693,7 @@ ExpressionValue expFuncToHex(const std::wstring& funcName, const std::vector<Exp
 	GET_PARAM(parameters,0,value);
 	GET_OPTIONAL_PARAM(parameters,1,digits,8);
 
-	return ExpressionValue(formatString(L"%0*X",digits,value));
+	return ExpressionValue(tfm::format(L"%0*X",digits,value));
 }
 
 ExpressionValue expFuncInt(const std::wstring& funcName, const std::vector<ExpressionValue>& parameters)
@@ -18571,7 +24974,7 @@ ExpressionValue expFuncRegExExtract(const std::wstring& funcName, const std::vec
 		std::wregex regex(*regexString);
 		std::wsmatch result;
 		bool found = std::regex_search(*source,result,regex);
-		if (found == false || (size_t)matchIndex >= result.size())
+		if (!found || (size_t)matchIndex >= result.size())
 		{
 			Logger::queueError(Logger::Error,L"Capture group index %d does not exist",matchIndex);
 			return ExpressionValue();
@@ -18626,19 +25029,26 @@ ExpressionValue expFuncRead(const std::wstring& funcName, const std::vector<Expr
 	GET_PARAM(parameters,0,fileName);
 	GET_OPTIONAL_PARAM(parameters,1,pos,0);
 
-	std::wstring fullName = getFullPathName(*fileName);
+	auto fullName = getFullPathName(*fileName);
 
-	BinaryFile file;
-	if (file.open(fullName,BinaryFile::Read) == false)
+	fs::ifstream file(fullName, fs::ifstream::in | fs::ifstream::binary);
+	if (!file.is_open())
 	{
-		Logger::queueError(Logger::Error,L"Could not open %s",*fileName);
+		Logger::queueError(Logger::Error, L"Could not open %s",*fileName);
 		return ExpressionValue();
 	}
 
-	file.setPos(pos);
+	file.seekg(pos);
+	if (file.eof() || file.fail())
+	{
+		Logger::queueError(Logger::Error, L"Invalid offset 0x%08X of %s", pos, *fileName);
+		return ExpressionValue();
+	}
 
 	T buffer;
-	if (file.read(&buffer, sizeof(T)) != sizeof(T))
+	file.read(reinterpret_cast<char*>(&buffer), sizeof(T));
+
+	if (file.fail())
 	{
 		Logger::queueError(Logger::Error, L"Failed to read %d byte(s) from offset 0x%08X of %s", sizeof(T), pos, *fileName);
 		return ExpressionValue();
@@ -18657,37 +25067,60 @@ ExpressionValue expFuncReadAscii(const std::wstring& funcName, const std::vector
 	GET_OPTIONAL_PARAM(parameters,1,start,0);
 	GET_OPTIONAL_PARAM(parameters,2,length,0);
 
-	std::wstring fullName = getFullPathName(*fileName);
+	auto fullName = getFullPathName(*fileName);
 
-	int64_t totalSize = fileSize(fullName);
+	std::error_code error;
+	int64_t totalSize = static_cast<int64_t>(fs::file_size(fullName, error));
+
 	if (length == 0 || start+length > totalSize)
 		length = totalSize-start;
 
-	BinaryFile file;
-	if (file.open(fullName,BinaryFile::Read) == false)
+	fs::ifstream file(fullName, fs::ifstream::in | fs::ifstream::binary);
+	if (!file.is_open())
 	{
-		Logger::queueError(Logger::Error,L"Could not open %s",fileName);
+		Logger::queueError(Logger::Error, L"Could not open %s",*fileName);
 		return ExpressionValue();
 	}
 
-	file.setPos((long)start);
-
-	unsigned char* buffer = new unsigned char[length];
-	file.read(buffer,(size_t)length);
-
-	std::wstring result;
-	for (size_t i = 0; i < (size_t) length; i++)
+	file.seekg(start);
+	if (file.eof() || file.fail())
 	{
-		if (buffer[i] < 0x20 || buffer[i] > 0x7F)
+		Logger::queueError(Logger::Error, L"Invalid offset 0x%08X of %s", start, *fileName);
+		return ExpressionValue();
+	}
+
+	char buffer[1024];
+	bool stringTerminated = false;
+	std::wstring result;
+
+	for (int64_t progress = 0; !stringTerminated && progress < length; progress += (int64_t) sizeof(buffer))
+	{
+		auto bytesToRead = (size_t) std::min((int64_t) sizeof(buffer), length - progress);
+
+		file.read(buffer, bytesToRead);
+		if (file.fail())
 		{
-			Logger::printError(Logger::Warning,L"%s: Non-ASCII character",funcName);
+			Logger::queueError(Logger::Error, L"Failed to read %d byte(s) from offset 0x%08X of %s", bytesToRead, *fileName);
 			return ExpressionValue();
 		}
 
-		result += (wchar_t) buffer[i];
-	}
+		for (auto i = 0; i < file.gcount(); i++)
+		{
+			if (buffer[i] == 0x00)
+			{
+				stringTerminated = true;
+				break;
+			}
 
-	delete[] buffer;
+			if (buffer[i] < 0x20)
+			{
+				Logger::printError(Logger::Warning, L"%s: Non-ASCII character", funcName);
+				return ExpressionValue();
+			}
+
+			result += (wchar_t) buffer[i];
+		}
+	}
 
 	return ExpressionValue(result);
 }
@@ -18825,6 +25258,7 @@ extern const ExpressionLabelFunctionMap expressionLabelFunctions =
 
 // file: Core/FileManager.cpp
 
+
 inline uint64_t swapEndianness64(uint64_t value)
 {
 	return ((value & 0xFF) << 56) | ((value & 0xFF00) << 40) | ((value & 0xFF0000) << 24) | ((value & 0xFF000000) << 8) |
@@ -18843,16 +25277,16 @@ inline uint16_t swapEndianness16(uint16_t value)
 }
 
 
-GenericAssemblerFile::GenericAssemblerFile(const std::wstring& fileName, int64_t headerSize, bool overwrite)
+GenericAssemblerFile::GenericAssemblerFile(const fs::path& fileName, int64_t headerSize, bool overwrite)
 {
 	this->fileName = fileName;
 	this->headerSize = headerSize;
 	this->originalHeaderSize = headerSize;
 	this->seekPhysical(0);
-	mode = overwrite == true ? Create : Open;
+	mode = overwrite ? Create : Open;
 }
 
-GenericAssemblerFile::GenericAssemblerFile(const std::wstring& fileName, const std::wstring& originalFileName, int64_t headerSize)
+GenericAssemblerFile::GenericAssemblerFile(const fs::path& fileName, const fs::path& originalFileName, int64_t headerSize)
 {
 	this->fileName = fileName;
 	this->originalName = originalFileName;
@@ -18864,126 +25298,123 @@ GenericAssemblerFile::GenericAssemblerFile(const std::wstring& fileName, const s
 
 bool GenericAssemblerFile::open(bool onlyCheck)
 {
+	std::error_code errorCode;
+
 	headerSize = originalHeaderSize;
 	virtualAddress = headerSize;
 
-	if (onlyCheck == false)
+	auto flagsOpenExisting = fs::ofstream::in | fs::ofstream::out | fs::ofstream::binary;
+	auto flagsOverwrite = fs::ofstream::out | fs::ofstream::trunc | fs::ofstream::binary;
+
+	if (!onlyCheck)
 	{
 		// actually open the file
-		bool success;
 		switch (mode)
 		{
 		case Open:
-			success = handle.open(fileName,BinaryFile::ReadWrite);
-			if (success == false)
+			stream.open(fileName, flagsOpenExisting);
+			if (!stream.is_open())
 			{
-				Logger::printError(Logger::FatalError,L"Could not open file %s",fileName);
+				Logger::printError(Logger::FatalError,L"Could not open file %s",fileName.wstring());
 				return false;
 			}
 			return true;
 
 		case Create:
-			success = handle.open(fileName,BinaryFile::Write);
-			if (success == false)
+			stream.open(fileName, flagsOverwrite);
+			if (!stream.is_open())
 			{
-				Logger::printError(Logger::FatalError,L"Could not create file %s",fileName);
+				Logger::printError(Logger::FatalError,L"Could not create file %s",fileName.wstring());
 				return false;
 			}
 			return true;
 
 		case Copy:
-			success = copyFile(originalName,fileName);
-			if (success == false)
+			if (!fs::copy_file(originalName, fileName, fs::copy_options::overwrite_existing, errorCode))
 			{
-				Logger::printError(Logger::FatalError,L"Could not copy file %s",originalName);
+				Logger::printError(Logger::FatalError,L"Could not copy file %s",originalName.wstring());
 				return false;
 			}
 
-			success = handle.open(fileName,BinaryFile::ReadWrite);
-			if (success == false)
+			stream.open(fileName, flagsOpenExisting);
+			if (!stream.is_open())
 			{
-				Logger::printError(Logger::FatalError,L"Could not create file %s",fileName);
+				Logger::printError(Logger::FatalError,L"Could not create file %s",fileName.wstring());
 				return false;
 			}
 			return true;
-
-		default:
-			return false;
 		}
 	}
 
 	// else only check if it can be done, don't actually do it permanently
-	bool success, exists;
-	BinaryFile temp;
+	bool exists = false;
+	fs::ofstream temp;
 	switch (mode)
 	{
 	case Open:
-		success = temp.open(fileName,BinaryFile::ReadWrite);
-		if (success == false)
+		temp.open(fileName, flagsOpenExisting);
+		if (!temp.is_open())
 		{
-			Logger::queueError(Logger::FatalError,L"Could not open file %s",fileName);
+			Logger::queueError(Logger::FatalError,L"Could not open file %s",fileName.wstring());
 			return false;
 		}
 		temp.close();
 		return true;
 
 	case Create:
-		// if it exists, check if you can open it with read/write access
-		// otherwise open it with write access and remove it afterwards
-		exists = fileExists(fileName);
-		success = temp.open(fileName,exists ? BinaryFile::ReadWrite : BinaryFile::Write);
-		if (success == false)
+		// open file with writee access. if it didn't exist before, remove it afterwards
+		exists = fs::exists(fileName);
+
+		temp.open(fileName, exists ? flagsOpenExisting : flagsOverwrite);
+		if (!temp.is_open())
 		{
-			Logger::queueError(Logger::FatalError,L"Could not create file %s",fileName);
+			Logger::queueError(Logger::FatalError,L"Could not create file %s",fileName.wstring());
 			return false;
 		}
 		temp.close();
 
-		if (exists == false)
-			deleteFile(fileName);
+		if (!exists)
+			fs::remove(fileName, errorCode);
 
 		return true;
 
 	case Copy:
 		// check original file
-		success = temp.open(originalName,BinaryFile::ReadWrite);
-		if (success == false)
+		temp.open(originalName, flagsOpenExisting);
+		if (!temp.is_open())
 		{
-			Logger::queueError(Logger::FatalError,L"Could not open file %s",originalName);
+			Logger::queueError(Logger::FatalError,L"Could not open file %s",originalName.wstring());
 			return false;
 		}
 		temp.close();
 
 		// check new file, same as create
-		exists = fileExists(fileName);
-		success = temp.open(fileName,exists ? BinaryFile::ReadWrite : BinaryFile::Write);
-		if (success == false)
+		exists = fs::exists(fileName);
+
+		temp.open(fileName, exists ? flagsOpenExisting : flagsOverwrite);
+		if (!temp.is_open())
 		{
-			Logger::queueError(Logger::FatalError,L"Could not create file %s",fileName);
+			Logger::queueError(Logger::FatalError,L"Could not create file %s",fileName.wstring());
 			return false;
 		}
 		temp.close();
 
-		if (exists == false)
-			deleteFile(fileName);
-
+		if (!exists)
+			fs::remove(fileName, errorCode);
 		return true;
-
-	default:
-		return false;
-	};
+	}
 
 	return false;
 }
 
 bool GenericAssemblerFile::write(void* data, size_t length)
 {
-	if (isOpen() == false)
+	if (!isOpen())
 		return false;
 
-	size_t len = handle.write(data,length);
-	virtualAddress += len;
-	return len == length;
+	stream.write(reinterpret_cast<const char *>( data ), length);
+	virtualAddress += length;
+	return !stream.fail();
 }
 
 bool GenericAssemblerFile::seekVirtual(int64_t virtualAddress)
@@ -19000,7 +25431,7 @@ bool GenericAssemblerFile::seekVirtual(int64_t virtualAddress)
 	int64_t physicalAddress = virtualAddress-headerSize;
 
 	if (isOpen())
-		handle.setPos((long)physicalAddress);
+		stream.seekp(physicalAddress);
 
 	return true;
 }
@@ -19018,7 +25449,7 @@ bool GenericAssemblerFile::seekPhysical(int64_t physicalAddress)
 	virtualAddress = physicalAddress+headerSize;
 
 	if (isOpen())
-		handle.setPos((long)physicalAddress);
+		stream.seekp(physicalAddress);
 
 	return true;
 }
@@ -19100,10 +25531,10 @@ void FileManager::closeFile()
 
 bool FileManager::write(void* data, size_t length)
 {
-	if (checkActiveFile() == false)
+	if (!checkActiveFile())
 		return false;
 
-	if (activeFile->isOpen() == false)
+	if (!activeFile->isOpen())
 	{
 		Logger::queueError(Logger::Error,L"No file opened");
 		return false;
@@ -19164,7 +25595,7 @@ int64_t FileManager::getHeaderSize()
 
 bool FileManager::seekVirtual(int64_t virtualAddress)
 {
-	if (checkActiveFile() == false)
+	if (!checkActiveFile())
 		return false;
 
 	bool result = activeFile->seekVirtual(virtualAddress);
@@ -19180,21 +25611,32 @@ bool FileManager::seekVirtual(int64_t virtualAddress)
 
 bool FileManager::seekPhysical(int64_t virtualAddress)
 {
-	if (checkActiveFile() == false)
+	if (!checkActiveFile())
 		return false;
 	return activeFile->seekPhysical(virtualAddress);
 }
 
 bool FileManager::advanceMemory(size_t bytes)
 {
-	if (checkActiveFile() == false)
+	if (!checkActiveFile())
 		return false;
 
 	int64_t pos = activeFile->getVirtualAddress();
 	return activeFile->seekVirtual(pos+bytes);
 }
 
+int64_t FileManager::getOpenFileID()
+{
+	if (!checkActiveFile())
+		return 0;
+
+	static_assert(sizeof(int64_t) >= sizeof(intptr_t), "Assumes pointers are <= 64 bit");
+	return (int64_t)(intptr_t)activeFile.get();
+}
+
 // file: Core/Misc.cpp
+
+
 #include <iostream>
 
 #ifdef _WIN32
@@ -19213,22 +25655,22 @@ std::wstring Logger::formatError(ErrorType type, const wchar_t* text)
 {
 	std::wstring position;
 
-	if (Global.memoryMode == false && Global.FileInfo.FileList.size() > 0)
+	if (!Global.memoryMode && Global.fileList.size() > 0)
 	{
-		std::wstring& fileName = Global.FileInfo.FileList[Global.FileInfo.FileNum];
-		position = formatString(L"%s(%d) ",fileName,Global.FileInfo.LineNumber);
+		const auto& fileName = Global.fileList.relativeWstring(Global.FileInfo.FileNum);
+		position = tfm::format(L"%s(%d) ", fileName, Global.FileInfo.LineNumber);
 	}
 
 	switch (type)
 	{
 	case Warning:
-		return formatString(L"%swarning: %s",position,text);
+		return tfm::format(L"%swarning: %s",position,text);
 	case Error:
-		return formatString(L"%serror: %s",position,text);
+		return tfm::format(L"%serror: %s",position,text);
 	case FatalError:
-		return formatString(L"%sfatal error: %s",position,text);
+		return tfm::format(L"%sfatal error: %s",position,text);
 	case Notice:
-		return formatString(L"%snotice: %s",position,text);
+		return tfm::format(L"%snotice: %s",position,text);
 	}
 
 	return L"";
@@ -19367,15 +25809,15 @@ void Logger::printQueue()
 
 void TempData::start()
 {
-	if (file.getFileName().empty() == false)
+	if (!file.getFileName().empty())
 	{
-		if (file.open(TextFile::Write) == false)
+		if (!file.open(TextFile::Write))
 		{
-			Logger::printError(Logger::Error,L"Could not open temp file %s.",file.getFileName());
+			Logger::printError(Logger::Error,L"Could not open temp file %s.",file.getFileName().wstring());
 			return;
 		}
 
-		size_t fileCount = Global.FileInfo.FileList.size();
+		size_t fileCount = Global.fileList.size();
 		size_t lineCount = Global.FileInfo.TotalLineCount;
 		size_t labelCount = Global.symbolTable.getLabelCount();
 		size_t equCount = Global.symbolTable.getEquationCount();
@@ -19386,7 +25828,7 @@ void TempData::start()
 		file.writeFormat(L"; %d %S\n\n",equCount,equCount == 1 ? "equation" : "equations");
 		for (size_t i = 0; i < fileCount; i++)
 		{
-			file.writeFormat(L"; %S\n",Global.FileInfo.FileList[i]);
+			file.writeFormat(L"; %S\n",Global.fileList.wstring(i));
 		}
 		file.writeLine("");
 	}
@@ -19408,14 +25850,16 @@ void TempData::writeLine(int64_t memoryAddress, const std::wstring& text)
 		while (str.size() < 70)
 			str += ' ';
 
-		str += formatString(L"; %S line %d",
-			Global.FileInfo.FileList[Global.FileInfo.FileNum],Global.FileInfo.LineNumber);
+		str += tfm::format(L"; %S line %d",
+			Global.fileList.wstring(Global.FileInfo.FileNum),Global.FileInfo.LineNumber);
 
 		file.writeLine(str);
 	}
 }
 
 // file: Core/SymbolData.cpp
+
+
 #include <algorithm>
 
 SymbolData::SymbolData()
@@ -19477,7 +25921,7 @@ void SymbolData::writeNocashSym()
 			entry.address = sym.address;
 
 			if (size != 0 && nocashSymVersion >= 2)
-				entry.text = formatString(L"%s,%08X",sym.name,size);
+				entry.text = tfm::format(L"%s,%08X",sym.name,size);
 			else
 				entry.text = sym.name;
 
@@ -19495,19 +25939,19 @@ void SymbolData::writeNocashSym()
 			switch (data.type)
 			{
 			case Data8:
-				entry.text = formatString(L".byt:%04X",data.size);
+				entry.text = tfm::format(L".byt:%04X",data.size);
 				break;
 			case Data16:
-				entry.text = formatString(L".wrd:%04X",data.size);
+				entry.text = tfm::format(L".wrd:%04X",data.size);
 				break;
 			case Data32:
-				entry.text = formatString(L".dbl:%04X",data.size);
+				entry.text = tfm::format(L".dbl:%04X",data.size);
 				break;
 			case Data64:
-				entry.text = formatString(L".dbl:%04X",data.size);
+				entry.text = tfm::format(L".dbl:%04X",data.size);
 				break;
 			case DataAscii:
-				entry.text = formatString(L".asc:%04X",data.size);
+				entry.text = tfm::format(L".asc:%04X",data.size);
 				break;
 			}
 
@@ -19518,9 +25962,9 @@ void SymbolData::writeNocashSym()
 	std::sort(entries.begin(),entries.end());
 
 	TextFile file;
-	if (file.open(nocashSymFileName,TextFile::Write,TextFile::ASCII) == false)
+	if (!file.open(nocashSymFileName,TextFile::Write,TextFile::ASCII))
 	{
-		Logger::printError(Logger::Error,L"Could not open sym file %s.",file.getFileName());
+		Logger::printError(Logger::Error,L"Could not open sym file %s.",file.getFileName().wstring());
 		return;
 	}
 	file.writeLine(L"00000000 0");
@@ -19587,7 +26031,7 @@ void SymbolData::startModule(AssemblerFile* file)
 	{
 		if (modules[i].file == file)
 		{
-			currentModule = i;
+			currentModule = (int)i;
 			return;
 		}
 	}
@@ -19595,7 +26039,7 @@ void SymbolData::startModule(AssemblerFile* file)
 	SymDataModule module;
 	module.file = file;
 	modules.push_back(module);
-	currentModule = modules.size()-1;
+	currentModule = (int)modules.size()-1;
 }
 
 void SymbolData::endModule(AssemblerFile* file)
@@ -19625,7 +26069,7 @@ void SymbolData::startFunction(int64_t address)
 		endFunction(address);
 	}
 
-	currentFunction = modules[currentModule].functions.size();
+	currentFunction = (int)modules[currentModule].functions.size();
 
 	SymDataFunction func;
 	func.address = address;
@@ -19647,6 +26091,7 @@ void SymbolData::endFunction(int64_t address)
 }
 
 // file: Core/SymbolTable.cpp
+
 
 const wchar_t validSymbolCharacters[] = L"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.";
 
@@ -19697,7 +26142,7 @@ void SymbolTable::setFileSectionValues(const std::wstring& symbol, int& file, in
 
 std::shared_ptr<Label> SymbolTable::getLabel(const std::wstring& symbol, int file, int section)
 {
-	if (isValidSymbolName(symbol) == false)
+	if (!isValidSymbolName(symbol))
 		return nullptr;
 
 	int actualSection = section;
@@ -19729,7 +26174,7 @@ std::shared_ptr<Label> SymbolTable::getLabel(const std::wstring& symbol, int fil
 
 bool SymbolTable::symbolExists(const std::wstring& symbol, int file, int section)
 {
-	if (isValidSymbolName(symbol) == false)
+	if (!isValidSymbolName(symbol))
 		return false;
 
 	setFileSectionValues(symbol,file,section);
@@ -19778,7 +26223,7 @@ bool SymbolTable::isValidSymbolCharacter(wchar_t character, bool first)
 
 bool SymbolTable::addEquation(const std::wstring& name, int file, int section, size_t referenceIndex)
 {
-	if (isValidSymbolName(name) == false)
+	if (!isValidSymbolName(name))
 		return false;
 
 	if (symbolExists(name,file,section))
@@ -19810,7 +26255,7 @@ bool SymbolTable::findEquation(const std::wstring& name, int file, int section, 
 // TODO: better
 std::wstring SymbolTable::getUniqueLabelName(bool local)
 {
-	std::wstring name = formatString(L"__armips_label_%08x__",uniqueCount++);
+	std::wstring name = tfm::format(L"__armips_label_%08x__",uniqueCount++);
 	if (local)
 		name = L"@@" + name;
 
@@ -19831,7 +26276,7 @@ void SymbolTable::addLabels(const std::vector<LabelDefinition>& labels)
 
 		label->setOriginalName(def.originalName);
 
-		if (isLocalSymbol(def.name) == false)
+		if (!isLocalSymbol(def.name))
 			Global.Section++;
 
 		label->setDefined(true);
@@ -19846,7 +26291,7 @@ int SymbolTable::findSection(int64_t address)
 
 	for (auto& lab: labels)
 	{
-		int diff = address-lab->getValue();
+		int64_t diff = address-lab->getValue();
 		if (diff >= 0 && diff < smallestDiff)
 		{
 			smallestDiff = diff;
@@ -19858,6 +26303,8 @@ int SymbolTable::findSection(int64_t address)
 }
 
 // file: Main/main.cpp
+
+#include <clocale>
 
 int wmain(int argc, wchar_t* argv[])
 {
@@ -19872,7 +26319,7 @@ int wmain(int argc, wchar_t* argv[])
 		return !runTests(argv[1], argv[0]);
 #endif
 
-	StringList arguments = getStringListFromArray(argv,argc);
+	std::vector<std::wstring> arguments = getStringListFromArray(argv,argc);
 
 	return runFromCommandLine(arguments);
 }
