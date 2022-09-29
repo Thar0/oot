@@ -1,71 +1,75 @@
 .rsp
+#include "rsp.inc"
+#include "rsp.h"
+#include "rdp.h"
+#include "sptask.h"
 
 .create CODE_FILE, 0x04001000
 
 entry:
-    j       lbl_04001064
-     addi   $1, $zero, 0xFC0
+    j       start
+     addi   $1, $zero, OSTask_addr
 
-lbl_04001008:
-    lw      $2, 0x10($1)
-    addi    $3, $zero, 0xF80-1
-    addi    $7, $zero, 0x1080
+load_ucode_text_and_enter:
+    lw      $2, OS_TASK_OFF_UCODE($1)
+    addi    $3, $zero, (IMEM_SIZE - (RSPBOOT_ENTRYPOINT - IMEM_START))-1
+    addi    $7, $zero, RSPBOOT_ENTRYPOINT
     mtc0    $7, SP_MEM_ADDR
     mtc0    $2, SP_DRAM_ADDR
     mtc0    $3, SP_RD_LEN
-lbl_04001020:
+@@while_dma_busy:
     mfc0    $4, SP_DMA_BUSY
-    bnez    $4, lbl_04001020
+    bnez    $4, @@while_dma_busy
      nop
-    jal     lbl_0400103C
+    jal     check_yield
      nop
     jr      $7
      mtc0   $zero, SP_SEMAPHORE
 
-lbl_0400103C:
+check_yield:
     mfc0    $8, SP_STATUS
-    andi    $8, $8, 0x80
-    bnez    $8, lbl_04001050
+    andi    $8, $8, SP_STATUS_YIELD
+    bnez    $8, yield_break
      nop
     jr      $ra
-lbl_04001050:
+yield_break:
      mtc0   $zero, SP_SEMAPHORE
-    li      $8, 0x5200
+    li      $8, (SP_SET_SIG2 | SP_SET_SIG1 | SP_CLR_SIG0)
     mtc0    $8, SP_STATUS
     break
     nop
 
-lbl_04001064:
-    lw      $2, 4($1)
-    andi    $2, $2, 0x2
-    beqz    $2, lbl_0400108C
+start:
+    lw      $2, OS_TASK_OFF_FLAGS($1)
+    andi    $2, $2, OS_TASK_DP_WAIT
+    beqz    $2, load_ucode_data
      nop
-    jal     lbl_0400103C
+    jal     check_yield
      nop
     mfc0    $2, DPC_STATUS
-    andi    $2, $2, 0x100
-    bgtz    $2, lbl_0400103C
+    andi    $2, $2, DPC_STATUS_DMA_BUSY
+    bgtz    $2, check_yield
      nop
-lbl_0400108C:
-    lw      $2, 0x18($1)
-    lw      $3, 0x1C($1)
-lbl_04001094:
+load_ucode_data:
+    lw      $2, OS_TASK_OFF_UDATA($1)
+    lw      $3, OS_TASK_OFF_UDATA_SZ($1)
     addi    $3, $3, -1
-lbl_04001098:
+@@while_dma_full:
     mfc0    $30, SP_DMA_FULL
-    bnez    $30, lbl_04001098
+    bnez    $30, @@while_dma_full
      nop
     mtc0    $zero, SP_MEM_ADDR
     mtc0    $2, SP_DRAM_ADDR
     mtc0    $3, SP_RD_LEN
-lbl_040010b0:
+@@while_dma_busy:
     mfc0    $4, SP_DMA_BUSY
-    bnez    $4, lbl_040010b0
+    bnez    $4, @@while_dma_busy
      nop
-    jal     lbl_0400103C
+    jal     check_yield
      nop
-    j       lbl_04001008
+    j       load_ucode_text_and_enter
      nop
-    nop
+
+.align 8
 
 .close

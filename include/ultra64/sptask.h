@@ -1,8 +1,6 @@
 #ifndef ULTRA64_SPTASK_H
 #define ULTRA64_SPTASK_H
 
-#include "ultratypes.h"
-
 /* Task Types */
 #define M_NULTASK   0
 #define M_GFXTASK   1
@@ -27,6 +25,10 @@
 #define OS_TASK_USR3          0x0080
 
 #define OS_YIELD_DATA_SIZE 0xC00
+
+#ifdef _LANGUAGE_C
+
+#include "ultratypes.h"
 
 typedef struct {
     /* 0x00 */ u32 type;
@@ -64,5 +66,7 @@ typedef u32 OSYieldResult;
 #define osSpTaskStart(p) \
     osSpTaskLoad(p);     \
     osSpTaskStartGo(p);
+
+#endif
 
 #endif
