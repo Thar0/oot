@@ -32,7 +32,7 @@ distclean: clean
 
 .PHONY: all clean distclean
 
-armips_SOURCES     := armips.cpp
+armips_SOURCES       := armips.cpp
 elf2rom_SOURCES      := elf2rom.c elf32.c n64chksum.c util.c
 makeromfs_SOURCES    := makeromfs.c n64chksum.c util.c
 mkdmadata_SOURCES    := mkdmadata.c spec.c util.c
@@ -41,7 +41,7 @@ reloc_prereq_SOURCES := reloc_prereq.c spec.c util.c
 vtxdis_SOURCES       := vtxdis.c
 
 armips: CC := $(CXX)
-armips_CFLAGS := -std=c++11 -fno-exceptions -fno-rtti -pipe -Wno-unused-parameter -Wno-maybe-uninitialized
+armips_CFLAGS := -std=c++17 -s -fno-rtti -pipe -Wno-unused-parameter
 armips_LDFLAGS := -pthread
 
 define COMPILE

@@ -498,11 +498,18 @@ RSP_TEXT_SECTION := .text
 RSP_DATA_SECTION := .rodata
 build/rsp/gspF3DZEX2_NoN_PosLight_fifo.o: RSP_TEXT_SECTION := .rodata
 
-build/rsp/%.o: rsp/%.s
+build/rsp/%.S: rsp/%.s
 # preprocess
 	$(CPP) $(CPPFLAGS) -D_LANGUAGE_ASSEMBLY -I include -I include/ultra64 -I rsp $< $(@:.o=.S)
-# assemble to .text and .data binaries
-	$(ARMIPS) -strequ CODE_FILE $(@:.o=.text.bin) -strequ DATA_FILE $(@:.o=.data.bin) $(@:.o=.S)
+
+build/rsp/%.text.bin build/rsp/%.data.bin: build/rsp/%.S
+# assemble to code and data binaries
+	$(ARMIPS) -strequ CODE_FILE $(<:.S=.text.bin) -strequ DATA_FILE $(<:.S=.data.bin) $<
+# create an empty file if armips did not error but one of the files was not created
+	touch $(<:.S=.text.bin)
+	touch $(<:.S=.data.bin)
+
+build/rsp/%.o: build/rsp/%.text.bin build/rsp/%.data.bin
 # make elf file with dummy section
 	echo \0 > $@
 	$(OBJCOPY) -I binary -O elf32-big --rename-section .data=.temp $@
