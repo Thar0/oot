@@ -1,8 +1,6 @@
 #ifndef MATH_H
 #define MATH_H
 
-#include "ultra64/ultratypes.h"
-
 #define M_PI 3.14159265358979323846f
 #define M_SQRT2 1.41421356237309504880f
 #define MAXFLOAT 3.40282347e+38f

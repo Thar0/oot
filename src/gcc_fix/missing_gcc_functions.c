@@ -10,7 +10,7 @@
 // Self-hosted libc memory functions, gcc assumes these exist even in a freestanding
 // environment and there is no way to tell it otherwise.
 
-int memcmp(void* s1, const void* s2, size_t n) {
+int memcmp(const void* s1, const void* s2, size_t n) {
     u8* m1 = (u8*)s1;
     u8* m2 = (u8*)s2;
     u32 i;
@@ -35,6 +35,27 @@ void* memset(void* str, s32 c, size_t n) {
     }
 
     return str;
+}
+
+void* memmove(void* dest, const void* src, size_t len) {
+    u8* d = dest;
+    const u8* s = src;
+
+    if (d == s) {
+        return dest;
+    }
+    if (d < s) {
+        while (len--) {
+            *d++ = *s++;
+        }
+    } else {
+        d += len - 1;
+        s += len - 1;
+        while (len--) {
+            *d-- = *s--;
+        }
+    }
+    return dest;
 }
 
 // Conversions involving 64-bit integer types required by the O32 MIPS ABI.
