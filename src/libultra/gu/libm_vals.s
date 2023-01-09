@@ -1,9 +1,8 @@
 #include "ultra64/asm.h"
 
-.section .rodata
+.rdata
 
-.balign 16
-
+.align 2
 DATA(__libm_qnan_f)
     .word 0x7F810000
 ENDDATA(__libm_qnan_f)

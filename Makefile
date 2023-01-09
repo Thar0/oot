@@ -14,8 +14,11 @@ NON_MATCHING ?= 0
 ORIG_COMPILER ?= 0
 # If COMPILER is "gcc", compile with GCC instead of IDO.
 COMPILER ?= ido
+# If OBJ_DUMP is 1, produce additional debugging files such as objdump output or raw binaries for assets
+OBJ_DUMP ?= 0
 
 CFLAGS ?=
+CCASFLAGS ?=
 CPPFLAGS ?=
 
 # ORIG_COMPILER cannot be combined with a non-IDO compiler. Check for this case and error out if found.
@@ -27,6 +30,7 @@ endif
 
 ifeq ($(COMPILER),gcc)
   CFLAGS += -DCOMPILER_GCC
+  CCASFLAGS += -DCOMPILER_GCC
   CPPFLAGS += -DCOMPILER_GCC
   NON_MATCHING := 1
 endif
@@ -37,6 +41,7 @@ MIPS_BINUTILS_PREFIX ?= mips-linux-gnu-
 
 ifeq ($(NON_MATCHING),1)
   CFLAGS += -DNON_MATCHING -DAVOID_UB
+  CCASFLAGS += -DNON_MATCHING -DAVOID_UB
   CPPFLAGS += -DNON_MATCHING -DAVOID_UB
   COMPARE := 0
 endif
@@ -70,10 +75,12 @@ endif
 # Detect compiler and set variables appropriately.
 ifeq ($(COMPILER),gcc)
   CC       := $(MIPS_BINUTILS_PREFIX)gcc
-else 
+  CCAS     := $(CC) -x assembler-with-cpp
+else
 ifeq ($(COMPILER),ido)
   CC       := tools/ido_recomp/$(DETECTED_OS)/7.1/cc
   CC_OLD   := tools/ido_recomp/$(DETECTED_OS)/5.3/cc
+  CCAS     := $(CC_OLD)
 else
 $(error Unsupported compiler. Please use either ido or gcc as the COMPILER variable.)
 endif
@@ -87,14 +94,16 @@ ifeq ($(ORIG_COMPILER),1)
       $(error Please install qemu-irix package or set QEMU_IRIX env var to the full qemu-irix binary path)
     endif
   endif
-  CC        = $(QEMU_IRIX) -L tools/ido7.1_compiler tools/ido7.1_compiler/usr/bin/cc
-  CC_OLD    = $(QEMU_IRIX) -L tools/ido5.3_compiler tools/ido5.3_compiler/usr/bin/cc
+  CC       := $(QEMU_IRIX) -L tools/ido7.1_compiler tools/ido7.1_compiler/usr/bin/cc
+  CC_OLD   := $(QEMU_IRIX) -L tools/ido5.3_compiler tools/ido5.3_compiler/usr/bin/cc
+  CCAS     := $(CC)
 endif
 
 AS         := $(MIPS_BINUTILS_PREFIX)as
 LD         := $(MIPS_BINUTILS_PREFIX)ld
 OBJCOPY    := $(MIPS_BINUTILS_PREFIX)objcopy
 OBJDUMP    := $(MIPS_BINUTILS_PREFIX)objdump
+STRIP      := $(MIPS_BINUTILS_PREFIX)strip
 EMULATOR = mupen64plus
 EMU_FLAGS = --noosd
 
@@ -110,6 +119,15 @@ ELF2ROM    := tools/elf2rom
 ZAPD       := tools/ZAPD/ZAPD.out
 FADO       := tools/fado/fado.elf
 
+# Extra debugging steps
+ifeq ($(OBJ_DUMP),1)
+  OBJ_DUMP = @$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(@:.o=.s)
+  OBJ_COPY = @$(OBJCOPY) -O binary $@ $(@:.o=.bin)
+else
+  OBJ_DUMP = @:
+  OBJ_COPY = @:
+endif
+
 ifeq ($(COMPILER),gcc)
   OPTFLAGS := -Os -ffast-math -fno-unsafe-math-optimizations
 else
@@ -120,10 +138,12 @@ ASFLAGS := -march=vr4300 -32 -no-pad-sections -Iinclude
 
 ifeq ($(COMPILER),gcc)
   CFLAGS += -G 0 -nostdinc $(INC) -march=vr4300 -mfix4300 -mabi=32 -mno-abicalls -mdivide-breaks -fno-zero-initialized-in-bss -fno-toplevel-reorder -ffreestanding -fno-common -fno-merge-constants -mno-explicit-relocs -mno-split-addresses $(CHECK_WARNINGS) -funsigned-char
+  CCASFLAGS += -G 0 -nostdinc $(INC) -march=vr4300 -mfix4300 -mabi=32 -mno-abicalls -Wa,-no-pad-sections
   MIPS_VERSION := -mips3
-else 
+else
   # we support Microsoft extensions such as anonymous structs, which the compiler does support but warns for their usage. Surpress the warnings with -woff.
   CFLAGS += -G 0 -non_shared -fullwarn -verbose -Xcpluscomm $(INC) -Wab,-r4300_mul -woff 516,649,838,712
+  CCASFLAGS += -G 0 -non_shared -fullwarn -verbose -Xcpluscomm $(INC) -Wab,-r4300_mul -woff 516,649,838,712 -o32
   MIPS_VERSION := -mips2
 endif
 
@@ -190,6 +210,7 @@ TEXTURE_FILES_OUT := $(foreach f,$(TEXTURE_FILES_PNG:.png=.inc.c),build/$f) \
 $(shell mkdir -p build/baserom build/assets/text $(foreach dir,$(SRC_DIRS) $(UNDECOMPILED_DATA_DIRS) $(ASSET_BIN_DIRS),build/$(dir)))
 
 ifeq ($(COMPILER),ido)
+build/src/boot/mio0.o: OPTFLAGS := -O1
 build/src/code/fault.o: CFLAGS += -trapuv
 build/src/code/fault.o: OPTFLAGS := -O2 -g3
 build/src/code/fault_drawer.o: CFLAGS += -trapuv
@@ -206,6 +227,7 @@ build/src/code/code_800EC960.o: CFLAGS += -signed
 build/src/code/code_800F7260.o: CFLAGS += -use_readwrite_const
 build/src/code/code_800F9280.o: CFLAGS += -use_readwrite_const
 
+build/src/libultra/os/exceptasm.o: MIPS_VERSION := -mips3 -32
 build/src/libultra/libc/absf.o: OPTFLAGS := -O2 -g3
 build/src/libultra/libc/sqrt.o: OPTFLAGS := -O2 -g3
 build/src/libultra/libc/ll.o: OPTFLAGS := -O1
@@ -318,10 +340,37 @@ build/assets/text/staff_message_data_static.o: build/assets/text/message_data_st
 
 build/assets/%.o: assets/%.c
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
-	$(OBJCOPY) -O binary $@ $@.bin
+	$(OBJ_COPY)
+
+ifeq ($(COMPILER),ido)
+build/src/makerom/%.o: src/makerom/%.s
+	$(CPP) $(CPPFLAGS) $(MIPS_BUILTIN_DEFS) $(INC) $< | $(AS) $(ASFLAGS) -o $@
+endif
+	$(OBJ_DUMP)
 
 build/src/%.o: src/%.s
-	$(CPP) $(CPPFLAGS) -Iinclude $< | $(AS) $(ASFLAGS) -o $@
+ifeq ($(COMPILER),ido)
+	$(CCAS) -c $(CCASFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $(@:.o=.tmp.o) $<
+# IDO generates bad symbol tables, fix the symbol table with strip..
+	$(STRIP) $(@:.o=.tmp.o) -N dummy-symbol-name
+# but strip doesn't know about file-relative offsets in .mdebug and doesn't relocate them, ld will
+# segfault unless .mdebug is removed
+	$(OBJCOPY) --remove-section .mdebug $(@:.o=.tmp.o) $@
+else
+	$(CCAS) -v -c $(CCASFLAGS) $(MIPS_VERSION) -o $@ $<
+endif
+	$(OBJ_DUMP)
+
+build/src/libultra/os/exceptasm.o: src/libultra/os/exceptasm.s
+ifeq ($(COMPILER),ido)
+	$(CCAS) -c $(CCASFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $(@:.o=.tmp.o) $<
+	$(STRIP) $(@:.o=.tmp.o) -N dummy-symbol-name
+	$(OBJCOPY) --remove-section .mdebug $(@:.o=.tmp.o) $@
+	python3 tools/set_o32abi_bit.py $@
+else
+	$(CCAS) -c $(CCASFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
+endif
+	$(OBJ_DUMP)
 
 build/dmadata_table_spec.h: build/$(SPEC)
 	$(MKDMADATA) $< $@
@@ -332,19 +381,19 @@ build/src/dmadata/dmadata.o: build/dmadata_table_spec.h
 build/src/%.o: src/%.c
 	$(CC_CHECK) $<
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
-	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(@:.o=.s)
+	$(OBJ_DUMP)
 
 build/src/libultra/libc/ll.o: src/libultra/libc/ll.c
 	$(CC_CHECK) $<
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
 	python3 tools/set_o32abi_bit.py $@
-	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(@:.o=.s)
+	$(OBJ_DUMP)
 
 build/src/libultra/libc/llcvt.o: src/libultra/libc/llcvt.c
 	$(CC_CHECK) $<
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $@ $<
 	python3 tools/set_o32abi_bit.py $@
-	@$(OBJDUMP) $(OBJDUMP_FLAGS) $@ > $(@:.o=.s)
+	$(OBJ_DUMP)
 
 build/src/overlays/%_reloc.o: build/$(SPEC)
 	$(FADO) $$(tools/reloc_prereq $< $(notdir $*)) -n $(notdir $*) -o $(@:.o=.s) -M $(@:.o=.d)

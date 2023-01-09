@@ -1,14 +1,11 @@
 #include "ultra64/asm.h"
+#include "ultra64/regdef.h"
 #include "ultra64/R4300.h"
 
-.set noreorder
-
-.section .text
-
-.balign 16
+.text
 
 LEAF(__osGetSR)
-    mfc0    $v0, C0_SR
-    jr      $ra
-     nop
+    MFC0(   v0, C0_SR)
+    nop
+    jr      ra
 END(__osGetSR)
