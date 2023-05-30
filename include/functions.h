@@ -1143,18 +1143,19 @@ void SkinMatrix_SetTranslateRotateZYX(MtxF* dest, s16 rotX, s16 rotY, s16 rotZ, 
                                       f32 translateZ);
 Mtx* SkinMatrix_MtxFToNewMtx(GraphicsContext* gfxCtx, MtxF* src);
 void SkinMatrix_SetRotateAxis(MtxF* mf, s16 angle, f32 axisX, f32 axisY, f32 axisZ);
-void Sram_InitNewSave(void);
-void Sram_InitDebugSave(void);
-void Sram_OpenSave(SramContext* sramCtx);
+void Sram_InitNewSave(Save* save, s32 fileNum);
+void Sram_InitDebugSave(Save* save, s32 fileNum);
+void Sram_OpenSave(FileSelectState* fileSelect);
 void Sram_WriteSave(SramContext* sramCtx);
 void Sram_VerifyAndLoadAllSaves(FileSelectState* fileSelect, SramContext* sramCtx);
 void Sram_InitSave(FileSelectState* fileSelect, SramContext* sramCtx);
 void Sram_EraseSave(FileSelectState* fileSelect, SramContext* sramCtx);
 void Sram_CopySave(FileSelectState* fileSelect, SramContext* sramCtx);
-void Sram_WriteSramHeader(SramContext* sramCtx);
+void Sram_WriteOptions(SramContext* sramCtx);
+void Sram_ReadOptions(SramContext* sramCtx);
 void Sram_InitSram(GameState* gameState, SramContext* sramCtx);
-void Sram_Alloc(GameState* gameState, SramContext* sramCtx);
-void Sram_Init(PlayState* play, SramContext* sramCtx);
+void Sram_AllocWriteBuf(GameState* gameState, SramContext* sramCtx);
+void Sram_AllocReadBuf(GameState* gameState, SramContext* sramCtx);
 void SsSram_Init(s32 addr, u8 handleType, u8 handleDomain, u8 handleLatency, u8 handlePageSize, u8 handleRelDuration,
                  u8 handlePulse, u32 handleSpeed);
 void SsSram_Dma(void* dramAddr, size_t size, s32 direction);

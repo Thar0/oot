@@ -5,17 +5,6 @@
 #include "ultra64.h"
 #include "global.h"
 
-
-#define GET_NEWF(sramCtx, slotNum, index) (sramCtx->readBuff[gSramSlotOffsets[slotNum] + offsetof(SaveContext, save.info.playerData.newf[index])])
-
-#define SLOT_OCCUPIED(sramCtx, slotNum) \
-    ((GET_NEWF(sramCtx, slotNum, 0) == 'Z') || \
-     (GET_NEWF(sramCtx, slotNum, 1) == 'E') || \
-     (GET_NEWF(sramCtx, slotNum, 2) == 'L') || \
-     (GET_NEWF(sramCtx, slotNum, 3) == 'D') || \
-     (GET_NEWF(sramCtx, slotNum, 4) == 'A') || \
-     (GET_NEWF(sramCtx, slotNum, 5) == 'Z'))
-
 // Init mode: Initial setup as the file select is starting up, fades and slides in various menu elements
 // Config mode: Handles the bulk of the file select, various configuration tasks like picking a file, copy/erase, and the options menu
 // Select mode: Displays the selected file with various details about it, and allows the player to confirm and open it
@@ -61,10 +50,12 @@ typedef enum {
     /* 32 */ CM_ROTATE_TO_NAME_ENTRY,
     /* 33 */ CM_NAME_ENTRY,
     /* 34 */ CM_START_NAME_ENTRY,
+             CM_NAME_ENTRY_WAIT_FLASH,
     /* 35 */ CM_NAME_ENTRY_TO_MAIN,
     /* 36 */ CM_MAIN_TO_OPTIONS,
     /* 37 */ CM_OPTIONS_MENU,
     /* 38 */ CM_START_OPTIONS,
+             CM_OPTIONS_WAIT_FLASH,
     /* 39 */ CM_OPTIONS_TO_MAIN,
     /* 40 */ CM_UNUSED_DELAY
 } ConfigMode;

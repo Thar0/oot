@@ -361,21 +361,23 @@ void Fault_Sleep(u32 msec) {
     Fault_SleepImpl(msec);
 }
 
-#ifndef AVOID_UB
-void PadMgr_RequestPadData(Input* inputs, s32 gameRequest);
-#endif
+void PadMgr_RequestPadData(PadMgr* padMgr, Input* inputs, s32 gameRequest);
 
 void Fault_PadCallback(Input* inputs) {
     //! @bug This function is not called correctly, it is missing a leading PadMgr* argument. This
     //! renders the crash screen unusable.
     //! In Majora's Mask, PadMgr functions were changed to not require this argument, and this was
     //! likely just not addressed when backporting.
+
+    PadMgr_RequestPadData(&gPadMgr, inputs, false);
+/*
 #ifndef AVOID_UB
     PadMgr_RequestPadData(inputs, false);
 #else
     // Guarantee crashing behavior: false -> NULL, previous value in a2 is more often non-zero than zero
     PadMgr_RequestPadData((PadMgr*)inputs, NULL, true);
 #endif
+*/
 }
 
 void Fault_UpdatePadImpl(void) {
@@ -1197,7 +1199,7 @@ void Fault_ThreadEntry(void* arg) {
             }
 
             faultedThread = __osGetCurrFaultedThread();
-            osSyncPrintf("__osGetCurrFaultedThread()=%08x\n", faultedThread);
+            osSyncPrintf("__osGetCurrFaultedThread()=%08x @ %08x\n", faultedThread, faultedThread->context.pc);
 
             if (faultedThread == NULL) {
                 faultedThread = Fault_FindFaultedThread();
@@ -1222,7 +1224,7 @@ void Fault_ThreadEntry(void* arg) {
         } else {
             // Draw error bar signifying the crash screen is available
             Fault_DrawCornerRec(GPACK_RGBA5551(255, 0, 0, 1));
-            Fault_WaitForButtonCombo();
+            // Fault_WaitForButtonCombo();
         }
 
         // Set auto-scrolling and default colors
@@ -1278,6 +1280,7 @@ void Fault_Init(void) {
     sFaultInstance->padCallback = Fault_PadCallback;
     sFaultInstance->clients = NULL;
     sFaultInstance->autoScroll = false;
+    sFaultInstance->fb = 0xA0700000;
     gFaultMgr.faultHandlerEnabled = true;
     osCreateMesgQueue(&sFaultInstance->queue, &sFaultInstance->msg, 1);
     StackCheck_Init(&sFaultThreadInfo, sFaultStack, STACK_TOP(sFaultStack), 0, 0x100, "fault");

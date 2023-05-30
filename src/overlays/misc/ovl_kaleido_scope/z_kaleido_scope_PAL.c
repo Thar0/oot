@@ -5,6 +5,9 @@
 #include "assets/textures/icon_item_ger_static/icon_item_ger_static.h"
 #include "assets/textures/icon_item_fra_static/icon_item_fra_static.h"
 #include "assets/textures/icon_item_gameover_static/icon_item_gameover_static.h"
+#include "assets_custom/textures/icon_item_nes_static/icon_item_nes_static_mod.h"
+#include "assets_custom/textures/icon_item_ger_static/icon_item_ger_static_mod.h"
+#include "assets_custom/textures/icon_item_fra_static/icon_item_fra_static_mod.h"
 #include "terminal.h"
 
 static void* sEquipmentFRATexs[] = {
@@ -344,6 +347,12 @@ static void* sContinuePromptTexs[] = {
     gContinuePlayingENGTex,
     gContinuePlayingGERTex,
     gContinuePlayingFRATex,
+};
+
+static void* sPleaseWaitPromptTexs[] = {
+    gPausePleaseWaitENGTex,
+    gPausePleaseWaitGERTex,
+    gPausePleaseWaitFRATex,
 };
 
 static void* sPromptChoiceTexs[][2] = {
@@ -959,8 +968,13 @@ void KaleidoScope_DrawPages(PlayState* play, GraphicsContext* gfxCtx) {
 
         gSPVertex(POLY_OPA_DISP++, &pauseCtx->saveVtx[60], 32, 0);
 
-        if (((pauseCtx->state == PAUSE_STATE_SAVE_PROMPT) && (pauseCtx->unk_1EC < 4)) ||
-            (pauseCtx->state == PAUSE_STATE_14)) {
+        if (pauseCtx->state == PAUSE_STATE_SAVE_PROMPT && pauseCtx->unk_1EC == 3) {
+            gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+            gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 194, 217, 102, VREG(84));
+            POLY_OPA_DISP =
+                KaleidoScope_QuadTextureIA8(POLY_OPA_DISP, sPleaseWaitPromptTexs[gSaveContext.language], 152, 16, 0);
+        } else if (((pauseCtx->state == PAUSE_STATE_SAVE_PROMPT) && (pauseCtx->unk_1EC < 3)) ||
+                   (pauseCtx->state == PAUSE_STATE_14)) {
             POLY_OPA_DISP =
                 KaleidoScope_QuadTextureIA8(POLY_OPA_DISP, sSavePromptTexs[gSaveContext.language], 152, 16, 0);
 
@@ -984,8 +998,12 @@ void KaleidoScope_DrawPages(PlayState* play, GraphicsContext* gfxCtx) {
             POLY_OPA_DISP =
                 KaleidoScope_QuadTextureIA8(POLY_OPA_DISP, sPromptChoiceTexs[gSaveContext.language][1], 48, 16, 16);
         } else if ((pauseCtx->state != PAUSE_STATE_SAVE_PROMPT) || (pauseCtx->unk_1EC < 4)) {
-            if ((pauseCtx->state != PAUSE_STATE_15) &&
-                ((pauseCtx->state == PAUSE_STATE_16) || (pauseCtx->state == PAUSE_STATE_17))) {
+            if (pauseCtx->state == PAUSE_STATE_15) {
+                gDPSetCombineMode(POLY_OPA_DISP++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+                gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 194, 217, 102, VREG(84));
+                POLY_OPA_DISP = KaleidoScope_QuadTextureIA8(POLY_OPA_DISP, sPleaseWaitPromptTexs[gSaveContext.language],
+                                                            152, 16, 0);
+            } else if ((pauseCtx->state == PAUSE_STATE_16) || (pauseCtx->state == PAUSE_STATE_17)) {
                 POLY_OPA_DISP =
                     KaleidoScope_QuadTextureIA8(POLY_OPA_DISP, sContinuePromptTexs[gSaveContext.language], 152, 16, 0);
 
@@ -3221,7 +3239,9 @@ void KaleidoScope_Update(PlayState* play) {
                             Play_SaveSceneFlags(play);
                             gSaveContext.save.info.playerData.savedSceneId = play->sceneId;
                             Sram_WriteSave(&play->sramCtx);
-                            pauseCtx->unk_1EC = 4;
+                            pauseCtx->unk_1EC = 3;
+                            VREG(84) = 30;
+                            VREG(85) = 1;
                             D_8082B25C = 3;
                         }
                     } else if (CHECK_BTN_ALL(input->press.button, BTN_START) ||
@@ -3235,6 +3255,23 @@ void KaleidoScope_Update(PlayState* play) {
                             gSaveContext.buttonStatus[3] = BTN_ENABLED;
                         gSaveContext.hudVisibilityMode = HUD_VISIBILITY_NO_CHANGE;
                         Interface_ChangeHudVisibilityMode(HUD_VISIBILITY_ALL);
+                    }
+                    break;
+
+                case 3:
+                    if (VREG(85)) {
+                        VREG(84) += 12;
+                        if (VREG(84) > 250) {
+                            VREG(85) = 0;
+                        }
+                    } else {
+                        VREG(84) -= 12;
+                        if (VREG(84) < 10) {
+                            VREG(85) = 1;
+                        }
+                    }
+                    if (Flash_IsDone(&play->sramCtx.flashReqMain) && Flash_IsDone(&play->sramCtx.flashReqBackup)) {
+                        pauseCtx->unk_1EC = 4;
                     }
                     break;
 
@@ -3253,7 +3290,6 @@ void KaleidoScope_Update(PlayState* play) {
                     }
                     break;
 
-                case 3:
                 case 6:
                     pauseCtx->unk_204 += 314.0f / WREG(6);
                     WREG(16) += WREG(25) / WREG(6);
@@ -3461,21 +3497,40 @@ void KaleidoScope_Update(PlayState* play) {
                     gSaveContext.save.info.playerData.savedSceneId = play->sceneId;
                     Sram_WriteSave(&play->sramCtx);
                     pauseCtx->state = PAUSE_STATE_15;
-                    D_8082B25C = 3;
+                    D_8082B25C = 0;
+                    VREG(84) = 30;
+                    VREG(85) = 1;
                 }
             }
             break;
 
         case PAUSE_STATE_15:
-            D_8082B25C--;
             if (D_8082B25C == 0) {
-                pauseCtx->state = PAUSE_STATE_16;
-                gameOverCtx->state++;
-            } else if ((D_8082B25C <= 80) &&
-                       (CHECK_BTN_ALL(input->press.button, BTN_A) || CHECK_BTN_ALL(input->press.button, BTN_START))) {
-                pauseCtx->state = PAUSE_STATE_16;
-                gameOverCtx->state++;
-                func_800F64E0(0);
+                if (VREG(85)) {
+                    VREG(84) += 12;
+                    if (VREG(84) > 250) {
+                        VREG(85) = 0;
+                    }
+                } else {
+                    VREG(84) -= 12;
+                    if (VREG(84) < 10) {
+                        VREG(85) = 1;
+                    }
+                }
+                if (Flash_IsDone(&play->sramCtx.flashReqMain) && Flash_IsDone(&play->sramCtx.flashReqBackup)) {
+                    D_8082B25C = 3;
+                }
+            } else {
+                D_8082B25C--;
+                if (D_8082B25C == 0) {
+                    pauseCtx->state = PAUSE_STATE_16;
+                    gameOverCtx->state++;
+                } else if ((D_8082B25C <= 80) && (CHECK_BTN_ALL(input->press.button, BTN_A) ||
+                                                  CHECK_BTN_ALL(input->press.button, BTN_START))) {
+                    pauseCtx->state = PAUSE_STATE_16;
+                    gameOverCtx->state++;
+                    func_800F64E0(0);
+                }
             }
             break;
 

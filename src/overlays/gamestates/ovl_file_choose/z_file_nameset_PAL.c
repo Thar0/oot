@@ -438,14 +438,11 @@ void FileSelect_DrawNameEntry(GameState* thisx) {
                         }
 
                         if (validName) {
-                            Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4,
-                                                 &gSfxDefaultFreqAndVolScale, &gSfxDefaultFreqAndVolScale,
-                                                 &gSfxDefaultReverb);
                             gSaveContext.fileNum = this->buttonIndex;
                             dayTime = ((void)0, gSaveContext.save.dayTime);
                             Sram_InitSave(this, &this->sramCtx);
                             gSaveContext.save.dayTime = dayTime;
-                            this->configMode = CM_NAME_ENTRY_TO_MAIN;
+                            this->configMode = CM_NAME_ENTRY_WAIT_FLASH;
                             this->nameBoxAlpha[this->buttonIndex] = this->nameAlpha[this->buttonIndex] = 200;
                             this->connectorAlpha[this->buttonIndex] = 255;
                             Rumble_Request(300.0f, 180, 20, 100);
@@ -671,22 +668,17 @@ void FileSelect_UpdateOptionsMenu(GameState* thisx) {
     Input* input = &this->state.input[0];
 
     if (CHECK_BTN_ALL(input->press.button, BTN_B)) {
-        Audio_PlaySfxGeneral(NA_SE_SY_FSEL_DECIDE_L, &gSfxDefaultPos, 4, &gSfxDefaultFreqAndVolScale,
-                             &gSfxDefaultFreqAndVolScale, &gSfxDefaultReverb);
-        this->configMode = CM_OPTIONS_TO_MAIN;
-        sramCtx->readBuff[0] = gSaveContext.audioSetting;
-        sramCtx->readBuff[1] = gSaveContext.zTargetSetting;
-        PRINTF("ＳＡＶＥ");
-        Sram_WriteSramHeader(sramCtx);
-        PRINTF(VT_FGCOL(YELLOW));
-        PRINTF("sram->read_buff[2] = J_N = %x\n", sramCtx->readBuff[2]);
-        PRINTF("sram->read_buff[2] = J_N = %x\n", &sramCtx->readBuff[2]);
-        PRINTF("Na_SetSoundOutputMode = %d\n", gSaveContext.audioSetting);
-        PRINTF("Na_SetSoundOutputMode = %d\n", gSaveContext.audioSetting);
-        PRINTF("Na_SetSoundOutputMode = %d\n", gSaveContext.audioSetting);
-        PRINTF(VT_RST);
-        func_800F6700(gSaveContext.audioSetting);
-        PRINTF("終了\n");
+        if (sramCtx->options.sound != gSaveContext.audioSetting ||
+            sramCtx->options.zTarget != gSaveContext.zTargetSetting) {
+            sramCtx->options.sound = gSaveContext.audioSetting;
+            sramCtx->options.zTarget = gSaveContext.zTargetSetting;
+            Sram_WriteOptions(sramCtx);
+            func_800F6700(gSaveContext.audioSetting);
+            this->configMode = CM_OPTIONS_WAIT_FLASH;
+        } else {
+            // don't wait if nothing was changed
+            this->configMode = CM_OPTIONS_TO_MAIN;
+        }
         return;
     }
 

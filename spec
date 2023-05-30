@@ -199,6 +199,7 @@ beginseg
     compress
     romalign 0x1000
     include "$(BUILD_DIR)/assets/textures/icon_item_nes_static/icon_item_nes_static.o"
+    include "$(BUILD_DIR)/assets_custom/textures/icon_item_nes_static/icon_item_nes_static_mod.o"
     number 13
 endseg
 
@@ -207,6 +208,7 @@ beginseg
     compress
     romalign 0x1000
     include "$(BUILD_DIR)/assets/textures/icon_item_ger_static/icon_item_ger_static.o"
+    include "$(BUILD_DIR)/assets_custom/textures/icon_item_ger_static/icon_item_ger_static_mod.o"
     number 13
 endseg
 
@@ -215,6 +217,7 @@ beginseg
     compress
     romalign 0x1000
     include "$(BUILD_DIR)/assets/textures/icon_item_fra_static/icon_item_fra_static.o"
+    include "$(BUILD_DIR)/assets_custom/textures/icon_item_fra_static/icon_item_fra_static_mod.o"
     number 13
 endseg
 
@@ -388,6 +391,7 @@ beginseg
     include "$(BUILD_DIR)/src/code/z_skin_awb.o"
     include "$(BUILD_DIR)/src/code/z_skin_matrix.o"
     include "$(BUILD_DIR)/src/code/z_sram.o"
+    include "$(BUILD_DIR)/src/code/flash.o"
     include "$(BUILD_DIR)/src/code/z_ss_sram.o"
     include "$(BUILD_DIR)/src/code/z_rumble.o"
 #if OOT_DEBUG
@@ -7396,6 +7400,7 @@ beginseg
     compress
     romalign 0x1000
     include "$(BUILD_DIR)/assets/textures/title_static/title_static.o"
+    include "$(BUILD_DIR)/assets_custom/textures/title_static/title_static_mod.o"
     number 1
 endseg
 

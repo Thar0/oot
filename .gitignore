@@ -50,6 +50,7 @@ graphs/
 *.mtl
 *.fbx
 !*_custom*
+!*_custom/**/*.png
 .extracted-assets.json
 extracted/
 
