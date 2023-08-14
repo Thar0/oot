@@ -475,29 +475,14 @@ $(BUILD_DIR)/assets/%.o: $(EXTRACTED_DIR)/assets/%.c
 $(BUILD_DIR)/src/%.o: src/%.s
 	$(CPP) $(CPPFLAGS) -Iinclude $< | $(AS) $(ASFLAGS) -o $@
 
-<<<<<<< HEAD
 $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)/$(SPEC)
 	$(MKDMADATA) $< $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt
 
-$(BUILD_DIR)/rsp/%.o: rsp/%.s
-	$(ARMIPS) -strequ CODE_FILE $(@:.o=.text.bin) -strequ DATA_FILE $(@:.o=.rodata.bin) $<
-	@printf ".include \"macro.inc\"\n"                                              > $(@:.o=.s)
-	@test -f $(@:.o=.text.bin)   && printf ".section .text\n"                       >> $(@:.o=.s) || true
-	@test -f $(@:.o=.text.bin)   && printf ".balign 16\n"                           >> $(@:.o=.s) || true
-	@test -f $(@:.o=.text.bin)   && printf "glabel $(@F:.o=)TextStart\n"            >> $(@:.o=.s) || true
-	@test -f $(@:.o=.text.bin)   && printf ".incbin \"rsp/$(@F:.o=.text.bin)\"\n"   >> $(@:.o=.s) || true
-	@test -f $(@:.o=.text.bin)   && printf "glabel $(@F:.o=)TextEnd\n"              >> $(@:.o=.s) || true
-	@test -f $(@:.o=.rodata.bin) && printf ".section .rodata\n"                     >> $(@:.o=.s) || true
-	@test -f $(@:.o=.rodata.bin) && printf ".balign 16\n"                           >> $(@:.o=.s) || true
-	@test -f $(@:.o=.rodata.bin) && printf "glabel $(@F:.o=)DataStart\n"            >> $(@:.o=.s) || true
-	@test -f $(@:.o=.rodata.bin) && printf ".incbin \"rsp/$(@F:.o=.rodata.bin)\"\n" >> $(@:.o=.s) || true
-	@test -f $(@:.o=.rodata.bin) && printf "glabel $(@F:.o=)DataEnd\n"              >> $(@:.o=.s) || true
-	$(AS) $(ASFLAGS) -I $(BUILD_DIR) $(@:.o=.s) -o $@
-=======
 RSP_TEXT_SECTION := .text
 RSP_DATA_SECTION := .rodata
 build/rsp/gspF3DZEX2_NoN_PosLight_fifo.o: RSP_TEXT_SECTION := .rodata
 
+.PRECIOUS: build/rsp/%.S
 build/rsp/%.S: rsp/%.s
 # preprocess
 	$(CPP) $(CPPFLAGS) -D_LANGUAGE_ASSEMBLY -I include -I include/ultra64 -I rsp $< $(@:.o=.S)
@@ -509,26 +494,19 @@ build/rsp/%.text.bin build/rsp/%.data.bin: build/rsp/%.S
 	touch $(<:.S=.text.bin)
 	touch $(<:.S=.data.bin)
 
+#	$(RSP_OBJ) $(OBJCOPY) $(RSP_TEXT_SECTION) $(RSP_DATA_SECTION) $(@F:.o=) $^ $@
 build/rsp/%.o: build/rsp/%.text.bin build/rsp/%.data.bin
-# make elf file with dummy section
+# make mostly-empty elf file with dummy section
 	echo \0 > $@
 	$(OBJCOPY) -I binary -O elf32-big --rename-section .data=.temp $@
 # add sections
-	$(OBJCOPY) -I elf32-big --add-section $(RSP_TEXT_SECTION)=$(@:.o=.text.bin) \
-							--set-section-flags $(RSP_TEXT_SECTION)=alloc,code,contents,load,readonly $@
-	$(OBJCOPY) -I elf32-big --add-section $(RSP_DATA_SECTION)=$(@:.o=.data.bin) \
-							--set-section-flags $(RSP_DATA_SECTION)=alloc,contents,load,readonly $@
+	$(OBJCOPY) -I elf32-big --add-section $(RSP_TEXT_SECTION)=$(@:.o=.text.bin) --set-section-flags $(RSP_TEXT_SECTION)=alloc,code,contents,load,readonly $@
+	$(OBJCOPY) -I elf32-big --add-section $(RSP_DATA_SECTION)=$(@:.o=.data.bin) --set-section-flags $(RSP_DATA_SECTION)=alloc,contents,load,readonly $@
 # remove dummy section and symbol
 	$(OBJCOPY) -I elf32-big --remove-section .temp --strip-symbol _binary_$(subst /,_,$(@:.o=))_o_size $@
 # add start/end symbols
-	$(OBJCOPY) -I elf32-big --add-symbol $(@F:.o=)TextStart=$(RSP_TEXT_SECTION):0,global \
-							--add-symbol $(@F:.o=)TextEnd=$(RSP_TEXT_SECTION):$$(du -b $(@:.o=.text.bin) | cut -f1),global $@
-	$(OBJCOPY) -I elf32-big --add-symbol $(@F:.o=)DataStart=$(RSP_DATA_SECTION):0,global \
-							--add-symbol $(@F:.o=)DataEnd=$(RSP_DATA_SECTION):$$(du -b $(@:.o=.data.bin) | cut -f1),global $@
-
-build/dmadata_table_spec.h: build/$(SPEC)
-	$(MKDMADATA) $< $@
->>>>>>> Added s2dex2
+	$(OBJCOPY) -I elf32-big --add-symbol $(@F:.o=)TextStart=$(RSP_TEXT_SECTION):0,global --add-symbol $(@F:.o=)TextEnd=$(RSP_TEXT_SECTION):$$(du -b $(@:.o=.text.bin) | cut -f1),global $@
+	$(OBJCOPY) -I elf32-big --add-symbol $(@F:.o=)DataStart=$(RSP_DATA_SECTION):0,global --add-symbol $(@F:.o=)DataEnd=$(RSP_DATA_SECTION):$$(du -b $(@:.o=.data.bin) | cut -f1),global $@
 
 # Dependencies for files that may include the dmadata header automatically generated from the spec file
 $(BUILD_DIR)/src/boot/z_std_dma.o: $(BUILD_DIR)/dmadata_table_spec.h

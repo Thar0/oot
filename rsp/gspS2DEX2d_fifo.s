@@ -1,19 +1,7 @@
 .rsp
 #include "rsp.inc"
-#include "rsp.h"
-#include "rdp.h"
-
-// TODO this is in gbi.h
-#define G_SETTILE           0xF5
-#define G_SETTILESIZE       0xF2
-#define G_RDPSETOTHERMODE   0xEF
-#define G_SETSCISSOR        0xED
-#define G_RDPTILESYNC       0xE8
-#define G_RDPPIPESYNC       0xE7
-#define G_RDPLOADSYNC       0xE6
-#define G_TEXRECT           0xE4
-
-#define G_SC_NON_INTERLACE 0
+#include "rcp.h"
+#include "gbi.h"
 
 // TODO this is in gs2dex.h
 #define G_OBJ_LOADTXTR 0x05

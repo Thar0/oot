@@ -1,6 +1,6 @@
 .rsp
 #include "rsp.inc"
-#include "rsp.h"
+#include "rcp.h"
 
 // scalar macros
 .macro li, reg, imm
