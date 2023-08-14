@@ -15,8 +15,7 @@
 #define RSPBOOT_ENTRYPOINT_VIRT (0x04000000 | RSPBOOT_ENTRYPOINT)
 
 // OSTask structure
-OS_TASK_SIZE equ 0x40
-.definelabel OSTask_addr, DMEM_END - OS_TASK_SIZE
+.definelabel OSTask_addr, DMEM_END - 0x40/*sizeof(OSTask)*/
 
 OS_TASK_OFF_TYPE       equ 0x00
 OS_TASK_OFF_FLAGS      equ 0x04

@@ -1,6 +1,8 @@
 #ifndef ULTRA64_ABI_H
 #define ULTRA64_ABI_H
 
+#include "ultratypes.h"
+
 /* Audio commands: */
 #define A_SPNOOP        0
 #define A_ADPCM         1
@@ -44,6 +46,8 @@
 #define A_NOAUX     0x00
 #define A_MAIN      0x00
 #define A_MIX       0x10
+
+#if defined(_LANGUAGE_C) || defined(_LANGUAGE_C_PLUS_PLUS)
 
 /*
  * Data Structures.
@@ -515,5 +519,7 @@ typedef short ENVMIX_STATE[40];
                         _SHIFTL(pitch, 0, 16));          \
         _a->words.w1 = _SHIFTL(pitchAccu, 0, 16);        \
 }
+
+#endif
 
 #endif /* ULTRA64_ABI_H */

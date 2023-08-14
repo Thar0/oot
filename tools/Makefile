@@ -18,23 +18,29 @@ EGCS_BINUTILS_VERSION := 0.6
 EGCS_GCC_VERSION := 0.7
 EGCS_DIR := egcs/$(DETECTED_OS)
 
+WARNFLAGS := -Wall -Wextra -pedantic
+STDFLAGS := -std=c99
+OPTFLAGS := -O2 -g
+CFLAGS := -I. $(WARNFLAGS) $(STDFLAGS) $(OPTFLAGS)
+
 ifeq ($(shell command -v clang >/dev/null 2>&1; echo $$?),0)
   CC := clang
+  CXX := clang++
 else
   CC := gcc
+  CXX := g++
 endif
-
-CXX := g++
-
-LLD ?= 0
 
 ifeq ($(shell command -v ld.lld >/dev/null 2>&1; echo $$?),0)
   LLD := 1
+else
+  LLD := 0
 endif
-
 ifneq ($(LLD),0)
   CFLAGS += -fuse-ld=lld
 endif
+
+.PHONY: all clean distclean
 
 all: $(PROGRAMS) $(IDO_RECOMP_5_3_DIR) $(IDO_RECOMP_7_1_DIR) $(EGCS_DIR)
 	$(MAKE) -C fado
@@ -54,8 +60,6 @@ distclean: clean
 	$(MAKE) -C audio distclean
 	$(MAKE) -C assets distclean
 
-.PHONY: all clean distclean
-
 armips_SOURCES             := armips.cpp
 bin2c_SOURCES              := bin2c.c
 mkdmadata_SOURCES          := mkdmadata.c spec.c util.c
@@ -65,7 +69,8 @@ preprocess_pragmas_SOURCES := preprocess_pragmas.c
 vtxdis_SOURCES             := vtxdis.c
 
 armips: CC := $(CXX)
-armips_CFLAGS := -std=c++17 -s -fno-rtti -pipe -Wno-unused-parameter
+armips: STDFLAGS := -std=c++17
+armips_CFLAGS := -s -fno-rtti -pipe -Wno-unused-parameter
 armips_LDFLAGS := -pthread
 
 define COMPILE

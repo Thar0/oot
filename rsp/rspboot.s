@@ -1,7 +1,6 @@
 .rsp
 #include "rsp.inc"
-#include "rsp.h"
-#include "rdp.h"
+#include "rcp.h"
 #include "sptask.h"
 
 .create CODE_FILE, 0x04001000
@@ -12,7 +11,7 @@ entry:
 
 load_ucode_text_and_enter:
     lw      $2, OS_TASK_OFF_UCODE($1)
-    addi    $3, $zero, (IMEM_SIZE - (RSPBOOT_ENTRYPOINT - IMEM_START))-1
+    addi    $3, $zero, (IMEM_SIZE - (RSPBOOT_ENTRYPOINT - IMEM_START)) - 1
     addi    $7, $zero, RSPBOOT_ENTRYPOINT
     mtc0    $7, SP_MEM_ADDR
     mtc0    $2, SP_DRAM_ADDR
