@@ -638,7 +638,7 @@ void MapSelect_DrawMenu(MapSelectState* this) {
     OPEN_DISPS(gfxCtx, "../z_select.c", 930);
 
     gSPSegment(POLY_OPA_DISP++, 0x00, NULL);
-    Gfx_SetupFrame(gfxCtx, 0, 0, 0);
+    Gfx_SetupFrame(gfxCtx, true, 0, 0, 0);
     SET_FULLSCREEN_VIEWPORT(&this->view);
     View_Apply(&this->view, VIEW_ALL);
     Gfx_SetupDL_28Opa(gfxCtx);
@@ -662,7 +662,7 @@ void MapSelect_DrawLoadingScreen(MapSelectState* this) {
     OPEN_DISPS(gfxCtx, "../z_select.c", 977);
 
     gSPSegment(POLY_OPA_DISP++, 0x00, NULL);
-    Gfx_SetupFrame(gfxCtx, 0, 0, 0);
+    Gfx_SetupFrame(gfxCtx, true, 0, 0, 0);
     SET_FULLSCREEN_VIEWPORT(&this->view);
     View_Apply(&this->view, VIEW_ALL);
     Gfx_SetupDL_28Opa(gfxCtx);
@@ -683,7 +683,7 @@ void MapSelect_Draw(MapSelectState* this) {
     OPEN_DISPS(gfxCtx, "../z_select.c", 1013);
 
     gSPSegment(POLY_OPA_DISP++, 0x00, NULL);
-    Gfx_SetupFrame(gfxCtx, 0, 0, 0);
+    Gfx_SetupFrame(gfxCtx, true, 0, 0, 0);
     SET_FULLSCREEN_VIEWPORT(&this->view);
     View_Apply(&this->view, VIEW_ALL);
 

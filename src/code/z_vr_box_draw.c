@@ -11,16 +11,39 @@ Mtx* Skybox_UpdateMatrix(SkyboxContext* skyboxCtx, f32 x, f32 y, f32 z) {
     return Matrix_ToMtx(sSkyboxDrawMatrix, "../z_vr_box_draw.c", 42);
 }
 
-void Skybox_Draw(SkyboxContext* skyboxCtx, GraphicsContext* gfxCtx, s16 skyboxId, s16 blend, f32 x, f32 y, f32 z) {
+void Skybox_Draw(SkyboxContext* skyboxCtx, GraphicsContext* gfxCtx, LightContext* lightCtx, s16 skyboxId, s16 blend,
+                 f32 x, f32 y, f32 z) {
     OPEN_DISPS(gfxCtx, "../z_vr_box_draw.c", 52);
 
     Gfx_SetupDL_40Opa(gfxCtx);
+    // Multitexture LERP based on prim alpha, multiply by fog filter
+    gDPSetCombineLERP(POLY_OPA_DISP++, TEXEL1, TEXEL0, PRIMITIVE_ALPHA, TEXEL0,
+                                       TEXEL1, TEXEL0, PRIMITIVE, TEXEL0,
+                                       ENVIRONMENT, 0, COMBINED, 0,
+                                       ENVIRONMENT, 0, COMBINED, 0);
 
     gSPSegment(POLY_OPA_DISP++, 0x7, skyboxCtx->staticSegments[0]);
     gSPSegment(POLY_OPA_DISP++, 0x8, skyboxCtx->staticSegments[1]);
     gSPSegment(POLY_OPA_DISP++, 0x9, skyboxCtx->palettes);
 
     gDPSetPrimColor(POLY_OPA_DISP++, 0x00, 0x00, 0, 0, 0, blend);
+    {
+        u8 filterR = 255;
+        u8 filterG = 255;
+        u8 filterB = 255;
+        u32 filterA = 255;
+        if (lightCtx != NULL && lightCtx->fogNear < 980) {
+            // Apply fog filter, can be disabled by passing NULL instead of a light context pointer
+            filterR = lightCtx->fogColor[0];
+            filterG = lightCtx->fogColor[1];
+            filterB = lightCtx->fogColor[2];
+            filterA = (1000 - lightCtx->fogNear) * (255.0f / 50);
+            if (filterA > 255) {
+                filterA = 255;
+            }
+        }
+        gDPSetEnvColor(POLY_OPA_DISP++, filterR, filterG, filterB, filterA);
+    }
     gSPTexture(POLY_OPA_DISP++, 0x8000, 0x8000, 0, G_TX_RENDERTILE, G_ON);
 
     // Prepare matrix
@@ -65,10 +88,8 @@ void Skybox_Draw(SkyboxContext* skyboxCtx, GraphicsContext* gfxCtx, s16 skyboxId
                 gSPDisplayList(POLY_OPA_DISP++, skyboxCtx->dListBuf[4]); // +z face upper
                 gSPDisplayList(POLY_OPA_DISP++, skyboxCtx->dListBuf[5]); // +z face lower
 
-                // Note this pipesync is slightly misplaced and would be better off inside the condition
-                gDPPipeSync(POLY_OPA_DISP++);
-
                 if (skyboxCtx->drawType != SKYBOX_DRAW_256_3FACE) {
+                    gDPPipeSync(POLY_OPA_DISP++);
                     gDPLoadTLUT_pal256(POLY_OPA_DISP++, skyboxCtx->palettes[3]);
                     gSPDisplayList(POLY_OPA_DISP++, skyboxCtx->dListBuf[6]); // -x face upper
                     gSPDisplayList(POLY_OPA_DISP++, skyboxCtx->dListBuf[7]); // -x face lower

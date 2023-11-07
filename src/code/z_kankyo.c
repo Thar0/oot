@@ -1397,6 +1397,10 @@ void Environment_DrawSunAndMoon(PlayState* play) {
     }
 
     if (gSaveContext.save.entranceIndex != ENTR_HYRULE_FIELD_0 || ((void)0, gSaveContext.sceneLayer) != 5) {
+        u8 primR, primG, primB, primA;
+        u8 envR, envG, envB;
+        u8 primLodFrac;
+
         Matrix_Translate(play->view.eye.x + play->envCtx.sunPos.x, play->view.eye.y + play->envCtx.sunPos.y,
                          play->view.eye.z + play->envCtx.sunPos.z, MTXMODE_NEW);
 
@@ -1422,13 +1426,48 @@ void Environment_DrawSunAndMoon(PlayState* play) {
             color = 1.0f;
         }
 
-        gDPSetPrimColor(POLY_OPA_DISP++, 0, 0, 255, (u8)(color * 75.0f) + 180, (u8)(color * 155.0f) + 100, 255);
-        gDPSetEnvColor(POLY_OPA_DISP++, 255, (u8)(color * 255.0f), (u8)(color * 255.0f), alpha);
+        primLodFrac = alpha; // For multitexture, so it is unaffected by fog filter
+
+        primR = 255;
+        primG = (u8)(color *  75.0f) + 180;
+        primB = (u8)(color * 155.0f) + 100;
+        primA = alpha;
+
+        envR = 255;
+        envG = color * 255.0f;
+        envB = color * 255.0f;
+
+        if (play->skyboxId != SKYBOX_NONE && play->lightCtx.fogNear < 980) {
+            // Apply fog filter as a premultiplication
+
+            u8 fogR = play->lightCtx.fogColor[0];
+            u8 fogG = play->lightCtx.fogColor[1];
+            u8 fogB = play->lightCtx.fogColor[2];
+            u8 fogA = (1000 - play->lightCtx.fogNear) * (255.0f / 50);
+            if (fogA > 255) {
+                fogA = 255;
+            }
+
+            primR = fogR;
+            primG = (fogG * primG + 0x80) >> 8;
+            primB = (fogB * primB + 0x80) >> 8;
+            primA = (fogA * primA + 0x80) >> 8;
+            envR = fogR;
+            envG = (fogG * envG + 0x80) >> 8;
+            envG = (fogB * envB + 0x80) >> 8;
+        }
+
+        gDPSetPrimColor(POLY_OPA_DISP++, 0, primLodFrac, primR, primG, primB, primA);
+        gDPSetEnvColor(POLY_OPA_DISP++, envR, envG, envB, 0);
 
         scale = (color * 2.0f) + 10.0f;
         Matrix_Scale(scale, scale, scale, MTXMODE_APPLY);
         gSPMatrix(POLY_OPA_DISP++, Matrix_NewMtx(play->state.gfxCtx, "../z_kankyo.c", 2364), G_MTX_LOAD);
         Gfx_SetupDL_54Opa(play->state.gfxCtx);
+        gDPSetCombineLERP(POLY_OPA_DISP++, TEXEL1, TEXEL0, PRIM_LOD_FRAC, TEXEL0,
+                                           TEXEL1, TEXEL0, PRIM_LOD_FRAC, TEXEL0,
+                                           PRIMITIVE, ENVIRONMENT, COMBINED, ENVIRONMENT,
+                                           COMBINED, 0, PRIMITIVE, 0);
         gSPDisplayList(POLY_OPA_DISP++, gSunDL);
 
         Matrix_Translate(play->view.eye.x - play->envCtx.sunPos.x, play->view.eye.y - play->envCtx.sunPos.y,
@@ -1665,12 +1704,14 @@ void Environment_DrawLensFlare(PlayState* play, EnvironmentContext* envCtx, View
                     Math_SmoothStepToF(&envCtx->glareAlpha, 0.0f, 0.5f, 50.0f, 0.1f);
                 }
 
-                temp = colorIntensity / 120.0f;
-                temp = CLAMP_MIN(temp, 0.0f);
+                if (envCtx->glareAlpha >= 8.0f) {
+                    temp = colorIntensity / 120.0f;
+                    temp = CLAMP_MIN(temp, 0.0f);
 
-                gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, (u8)(temp * 75.0f) + 180, (u8)(temp * 155.0f) + 100,
-                                (u8)envCtx->glareAlpha);
-                gDPFillRectangle(POLY_XLU_DISP++, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+                    gDPSetPrimColor(POLY_XLU_DISP++, 0, 0, 255, (u8)(temp * 75.0f) + 180, (u8)(temp * 155.0f) + 100,
+                                    (u8)envCtx->glareAlpha);
+                    gDPFillRectangle(POLY_XLU_DISP++, 0, 0, SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1);
+                }
             } else {
                 envCtx->glareAlpha = 0.0f;
             }
@@ -1817,7 +1858,9 @@ void Environment_ChangeLightSetting(PlayState* play, u32 lightSetting) {
  * An example usage of a filter is to dim the skybox in cloudy conditions.
  */
 void Environment_DrawSkyboxFilters(PlayState* play) {
-    if (((play->skyboxId != SKYBOX_NONE) && (play->lightCtx.fogNear < 980)) || (play->skyboxId == SKYBOX_UNSET_1D)) {
+    // Replaced the following with better combiner usage in skybox and sun/moon drawing
+#if 0
+    if (play->skyboxId != SKYBOX_NONE && play->lightCtx.fogNear < 980) {
         f32 alpha;
 
         OPEN_DISPS(play->state.gfxCtx, "../z_kankyo.c", 3032);
@@ -1840,6 +1883,7 @@ void Environment_DrawSkyboxFilters(PlayState* play) {
 
         CLOSE_DISPS(play->state.gfxCtx, "../z_kankyo.c", 3043);
     }
+#endif
 
     if (play->envCtx.customSkyboxFilter) {
         OPEN_DISPS(play->state.gfxCtx, "../z_kankyo.c", 3048);
@@ -2315,7 +2359,8 @@ void Environment_UpdateRain(PlayState* play) {
 }
 
 void Environment_FillScreen(GraphicsContext* gfxCtx, u8 red, u8 green, u8 blue, u8 alpha, u8 drawFlags) {
-    if (alpha != 0) {
+    if (alpha >= 8) { // The blender operates on the 5 most significant bits of alpha, so we better have at least
+                      // one bit set to bother doing this
         OPEN_DISPS(gfxCtx, "../z_kankyo.c", 3835);
 
         if (drawFlags & FILL_SCREEN_OPA) {

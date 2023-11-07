@@ -1056,7 +1056,23 @@ void Play_Draw(PlayState* this) {
     gSPSegment(POLY_XLU_DISP++, 0x02, this->sceneSegment);
     gSPSegment(OVERLAY_DISP++, 0x02, this->sceneSegment);
 
-    Gfx_SetupFrame(gfxCtx, 0, 0, 0);
+    {
+        s32 clearFB = this->skyboxId == SKYBOX_NONE || this->skyboxId == SKYBOX_UNSET_1D;
+
+        // No skybox, black bg
+        u8 clearR = 0;
+        u8 clearG = 0;
+        u8 clearB = 0;
+
+        if (this->skyboxId == SKYBOX_UNSET_1D) {
+            // solid-color "skybox" matching fog color
+            clearR = this->lightCtx.fogColor[0];
+            clearG = this->lightCtx.fogColor[1];
+            clearB = this->lightCtx.fogColor[2];
+        }
+        // clear the fb only if we aren't drawing a skybox, but always clear zb
+        Gfx_SetupFrame(gfxCtx, clearFB, clearR, clearG, clearB);
+    }
 
     if ((R_HREG_MODE != HREG_MODE_PLAY) || R_PLAY_RUN_DRAW) {
         POLY_OPA_DISP = Play_SetFog(this, POLY_OPA_DISP);
@@ -1146,14 +1162,14 @@ void Play_Draw(PlayState* this) {
         }
 
         if ((R_HREG_MODE != HREG_MODE_PLAY) || R_PLAY_DRAW_SKYBOX) {
-            if (this->skyboxId && (this->skyboxId != SKYBOX_UNSET_1D) && !this->envCtx.skyboxDisabled) {
+            if (this->skyboxId != SKYBOX_NONE && this->skyboxId != SKYBOX_UNSET_1D && !this->envCtx.skyboxDisabled) {
                 if ((this->skyboxId == SKYBOX_NORMAL_SKY) || (this->skyboxId == SKYBOX_CUTSCENE_MAP)) {
                     Environment_UpdateSkybox(this->skyboxId, &this->envCtx, &this->skyboxCtx);
-                    Skybox_Draw(&this->skyboxCtx, gfxCtx, this->skyboxId, this->envCtx.skyboxBlend, this->view.eye.x,
-                                this->view.eye.y, this->view.eye.z);
+                    Skybox_Draw(&this->skyboxCtx, gfxCtx, &this->lightCtx, this->skyboxId, this->envCtx.skyboxBlend,
+                                this->view.eye.x, this->view.eye.y, this->view.eye.z);
                 } else if (this->skyboxCtx.drawType == SKYBOX_DRAW_128) {
-                    Skybox_Draw(&this->skyboxCtx, gfxCtx, this->skyboxId, 0, this->view.eye.x, this->view.eye.y,
-                                this->view.eye.z);
+                    Skybox_Draw(&this->skyboxCtx, gfxCtx, &this->lightCtx, this->skyboxId, 0, this->view.eye.x,
+                                this->view.eye.y, this->view.eye.z);
                 }
             }
         }
@@ -1200,7 +1216,7 @@ void Play_Draw(PlayState* this) {
                 Vec3f quakeOffset;
 
                 Camera_GetQuakeOffset(&quakeOffset, GET_ACTIVE_CAM(this));
-                Skybox_Draw(&this->skyboxCtx, gfxCtx, this->skyboxId, 0, this->view.eye.x + quakeOffset.x,
+                Skybox_Draw(&this->skyboxCtx, gfxCtx, NULL, this->skyboxId, 0, this->view.eye.x + quakeOffset.x,
                             this->view.eye.y + quakeOffset.y, this->view.eye.z + quakeOffset.z);
             }
         }
