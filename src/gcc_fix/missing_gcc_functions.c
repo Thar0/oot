@@ -11,9 +11,9 @@
 // environment and there is no way to tell it otherwise.
 
 int memcmp(const void* s1, const void* s2, size_t n) {
-    u8* m1 = (u8*)s1;
-    u8* m2 = (u8*)s2;
-    u32 i;
+    const u8* m1 = (const u8*)s1;
+    const u8* m2 = (const u8*)s2;
+    size_t i;
 
     for (i = 0; i < n; i++) {
         if (m1[i] < m2[i]) {
@@ -26,14 +26,13 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     return 0;
 }
 
-void* memset(void* str, s32 c, size_t n) {
-    u8* m1 = (u8*)str;
-    u32 i;
+void* memset(void* str, int c, size_t n) {
+    u8* m = (u8*)str;
+    size_t i;
 
     for (i = 0; i < n; i++) {
-        m1[i] = c;
+        m[i] = c;
     }
-
     return str;
 }
 

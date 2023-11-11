@@ -36,7 +36,7 @@ void Locale_ResetRegion(void);
 #if OOT_DEBUG
 void isPrintfInit(void);
 #endif
-void rmonPrintf(const char* fmt, ...);
+FORMAT_PRINTF(1, 2) void rmonPrintf(const char* fmt, ...);
 #if OOT_DEBUG
 void* is_proutSyncPrintf(void* arg, const char* str, size_t count);
 NORETURN void func_80002384(const char* exp, const char* file, int line);
@@ -1719,7 +1719,7 @@ void GfxPrint_Init(GfxPrint* this);
 void GfxPrint_Destroy(GfxPrint* this);
 void GfxPrint_Open(GfxPrint* this, Gfx* dList);
 Gfx* GfxPrint_Close(GfxPrint* this);
-s32 GfxPrint_Printf(GfxPrint* this, const char* fmt, ...);
+FORMAT_PRINTF(2, 3) s32 GfxPrint_Printf(GfxPrint* this, const char* fmt, ...);
 void RcpUtils_PrintRegisterStatus(void);
 void RcpUtils_Reset(void);
 void* Overlay_AllocateAndLoad(uintptr_t vromStart, uintptr_t vromEnd, void* vramStart, void* vramEnd);
@@ -1806,7 +1806,7 @@ void* __osReallocDebug(Arena* arena, void* ptr, u32 newSize, const char* file, i
 void __osDisplayArena(Arena* arena);
 #endif
 s32 PrintUtils_VPrintf(PrintCallback* pfn, const char* fmt, va_list args);
-s32 PrintUtils_Printf(PrintCallback* pfn, const char* fmt, ...);
+FORMAT_PRINTF(2, 3) s32 PrintUtils_Printf(PrintCallback* pfn, const char* fmt, ...);
 void Sleep_Cycles(OSTime cycles);
 void Sleep_Nsec(u32 nsec);
 void Sleep_Usec(u32 usec);

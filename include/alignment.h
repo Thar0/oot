@@ -9,8 +9,12 @@
 
 #ifdef __GNUC__
 #define ALIGNED8 __attribute__ ((aligned (8)))
+#define ALIGNED16 __attribute__ ((aligned (16)))
+#define ALIGNED64 __attribute__ ((aligned (64)))
 #else
 #define ALIGNED8
+#define ALIGNED16
+#define ALIGNED64
 #endif
 
 #ifdef __sgi /* IDO compiler */
