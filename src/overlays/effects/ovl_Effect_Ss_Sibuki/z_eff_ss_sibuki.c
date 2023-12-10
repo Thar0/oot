@@ -5,7 +5,8 @@
  */
 
 #include "z_eff_ss_sibuki.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x55DB0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x1A160.h"
 
 #define rPrimColorR regs[0]
 #define rPrimColorG regs[1]

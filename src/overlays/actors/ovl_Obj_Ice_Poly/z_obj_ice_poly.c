@@ -5,7 +5,7 @@
  */
 
 #include "z_obj_ice_poly.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x33910.h"
 
 #define FLAGS ACTOR_FLAG_4
 

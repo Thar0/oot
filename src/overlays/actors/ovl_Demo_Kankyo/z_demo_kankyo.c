@@ -1,6 +1,8 @@
 #include "z_demo_kankyo.h"
 #include "z64cutscene_commands.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x51DB0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x10050.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x100F0.h"
 #include "assets/objects/object_efc_star_field/object_efc_star_field.h"
 #include "assets/objects/object_toki_objects/object_toki_objects.h"
 

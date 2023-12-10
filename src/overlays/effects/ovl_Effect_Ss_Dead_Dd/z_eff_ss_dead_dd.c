@@ -5,7 +5,7 @@
  */
 
 #include "z_eff_ss_dead_dd.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x36730.h"
 
 #define rScale regs[0]
 #define rPrimColorR regs[2]

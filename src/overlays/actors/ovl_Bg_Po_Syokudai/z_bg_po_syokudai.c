@@ -5,7 +5,7 @@
  */
 
 #include "z_bg_po_syokudai.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D4A0.h"
 #include "assets/objects/object_syokudai/object_syokudai.h"
 
 #define FLAGS 0

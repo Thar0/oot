@@ -5,7 +5,7 @@
  */
 
 #include "z_bg_mori_hineri.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x49F20.h"
 #include "assets/objects/object_box/object_box.h"
 #include "assets/objects/object_mori_hineri1/object_mori_hineri1.h"
 #include "assets/objects/object_mori_hineri1a/object_mori_hineri1a.h"

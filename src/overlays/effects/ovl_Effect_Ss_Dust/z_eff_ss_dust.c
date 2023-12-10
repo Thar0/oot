@@ -5,7 +5,8 @@
  */
 
 #include "z_eff_ss_dust.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x10050.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x51DB0.h"
 
 #define rPrimColorR regs[0]
 #define rPrimColorG regs[1]

@@ -1,6 +1,6 @@
 #include "z_en_ossan.h"
 #include "terminal.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0xCDC0.h"
 #include "assets/objects/object_ossan/object_ossan.h"
 #include "assets/objects/object_oF1d_map/object_oF1d_map.h"
 #include "assets/objects/object_os/object_os.h"

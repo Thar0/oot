@@ -5,7 +5,7 @@
  */
 
 #include "z_en_kanban.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3BDE0.h"
 #include "assets/objects/object_kanban/object_kanban.h"
 #include "terminal.h"
 

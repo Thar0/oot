@@ -5,7 +5,7 @@
  */
 
 #include "z_eff_ss_k_fire.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D4A0.h"
 
 #define rAlpha regs[0]
 #define rScroll regs[2]

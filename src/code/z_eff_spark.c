@@ -1,5 +1,5 @@
 #include "global.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x38FB0.h"
 
 // original name: "spark"
 void EffectSpark_Init(void* thisx, void* initParamsx) {

@@ -6,7 +6,7 @@
  */
 
 #include "z_bg_hidan_fwbig.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x173D0.h"
 #include "assets/objects/object_hidan_objects/object_hidan_objects.h"
 
 #define FLAGS ACTOR_FLAG_4

@@ -6,7 +6,7 @@
 
 #include "z_bg_spot00_hanebasi.h"
 #include "assets/objects/object_spot00_objects/object_spot00_objects.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D4A0.h"
 
 #define FLAGS ACTOR_FLAG_4
 

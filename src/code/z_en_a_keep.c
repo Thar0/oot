@@ -1,5 +1,16 @@
 #include "global.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x393B0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3A020.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3A380.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3A6F0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x39A80.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3A150.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3A4B0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3AAC0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3A820.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3BDE0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3C2E0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0xD0C0.h"
 #include "assets/objects/object_d_hsblock/object_d_hsblock.h"
 
 #define FLAGS ACTOR_FLAG_4

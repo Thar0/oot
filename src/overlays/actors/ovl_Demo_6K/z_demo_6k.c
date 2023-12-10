@@ -6,7 +6,8 @@
 
 #include "z_demo_6k.h"
 #include "terminal.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x100F0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x14BC0.h"
 #include "assets/objects/object_demo_6k/object_demo_6k.h"
 #include "assets/objects/object_gnd_magic/object_gnd_magic.h"
 #include "overlays/actors/ovl_Eff_Dust/z_eff_dust.h"

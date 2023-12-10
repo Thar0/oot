@@ -6,7 +6,7 @@
 
 #include "z_en_goroiwa.h"
 #include "overlays/effects/ovl_Effect_Ss_Kakera/z_eff_ss_kakera.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0xD0C0.h"
 #include "assets/objects/object_goroiwa/object_goroiwa.h"
 #include "quake.h"
 #include "terminal.h"

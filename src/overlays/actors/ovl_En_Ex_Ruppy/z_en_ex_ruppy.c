@@ -1,7 +1,7 @@
 #include "z_en_ex_ruppy.h"
 #include "terminal.h"
 #include "../ovl_En_Diving_Game/z_en_diving_game.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x42140.h"
 
 #define FLAGS ACTOR_FLAG_4
 

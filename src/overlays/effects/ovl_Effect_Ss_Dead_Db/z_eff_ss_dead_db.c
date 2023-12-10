@@ -5,7 +5,7 @@
  */
 
 #include "z_eff_ss_dead_db.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x2CFE0.h"
 
 #define rScale regs[0]
 #define rTextIdx regs[1]

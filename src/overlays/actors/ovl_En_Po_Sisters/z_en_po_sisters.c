@@ -5,7 +5,7 @@
  */
 
 #include "z_en_po_sisters.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D4A0.h"
 #include "assets/objects/object_po_sisters/object_po_sisters.h"
 
 #define FLAGS (ACTOR_FLAG_0 | ACTOR_FLAG_2 | ACTOR_FLAG_4 | ACTOR_FLAG_9 | ACTOR_FLAG_IGNORE_QUAKE | ACTOR_FLAG_14)

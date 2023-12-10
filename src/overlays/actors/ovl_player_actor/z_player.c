@@ -20,7 +20,9 @@
 #include "overlays/actors/ovl_En_Horse/z_en_horse.h"
 #include "overlays/actors/ovl_En_Insect/z_en_insect.h"
 #include "overlays/effects/ovl_Effect_Ss_Fhg_Flash/z_eff_ss_fhg_flash.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/player_anim_headers.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x37960.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x33910.h"
 #include "assets/objects/object_link_child/object_link_child.h"
 
 // Some player animations are played at this reduced speed, for reasons yet unclear.

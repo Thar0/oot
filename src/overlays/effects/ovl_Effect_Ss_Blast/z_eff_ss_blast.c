@@ -5,7 +5,7 @@
  */
 
 #include "z_eff_ss_blast.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x190B0.h"
 
 #define rInnerColorR regs[0]
 #define rInnerColorG regs[1]

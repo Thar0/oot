@@ -5,7 +5,7 @@
  */
 
 #include "z_en_horse_normal.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x49A90.h"
 #include "assets/objects/object_horse_normal/object_horse_normal.h"
 
 #define FLAGS 0

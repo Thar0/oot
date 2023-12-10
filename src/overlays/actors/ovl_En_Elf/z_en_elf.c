@@ -5,7 +5,8 @@
  */
 
 #include "z_en_elf.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x14BC0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x14AF0.h"
 
 #define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5 | ACTOR_FLAG_25)
 

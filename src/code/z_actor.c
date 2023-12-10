@@ -4,7 +4,13 @@
 
 #include "overlays/actors/ovl_Arms_Hook/z_arms_hook.h"
 #include "overlays/actors/ovl_En_Part/z_en_part.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x49210.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x49A90.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x48180.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D450.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0xC880.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x100F0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x1E370.h"
 #include "assets/objects/gameplay_dangeon_keep/gameplay_dangeon_keep.h"
 #include "assets/objects/object_bdoor/object_bdoor.h"
 

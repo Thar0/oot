@@ -1,6 +1,13 @@
 #include "global.h"
 #include "overlays/actors/ovl_En_Elf/z_en_elf.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x42140.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3E870.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3E070.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3C870.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3F140.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3F070.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3B1E0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x3AD30.h"
 #include "overlays/effects/ovl_Effect_Ss_Dead_Sound/z_eff_ss_dead_sound.h"
 
 #define FLAGS 0

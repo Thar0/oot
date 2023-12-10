@@ -5,7 +5,7 @@
  */
 
 #include "z_en_anubice_fire.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x51DB0.h"
 #include "assets/objects/object_anubice/object_anubice.h"
 
 #define FLAGS ACTOR_FLAG_4

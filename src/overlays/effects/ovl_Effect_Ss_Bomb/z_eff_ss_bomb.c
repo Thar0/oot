@@ -5,7 +5,7 @@
  */
 
 #include "z_eff_ss_bomb.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x7F80.h"
 
 #define EFFSSBOMB_LIFESPAN 20
 

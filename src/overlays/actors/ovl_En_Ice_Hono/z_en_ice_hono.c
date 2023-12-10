@@ -5,7 +5,7 @@
  */
 
 #include "z_en_ice_hono.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D4A0.h"
 
 #define FLAGS 0
 

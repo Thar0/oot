@@ -1,7 +1,12 @@
 #include "global.h"
 #include "ultra64.h"
 #include "terminal.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x29F30.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x190B0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x48130.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x36730.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x37F00.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D160.h"
 #include "assets/objects/gameplay_field_keep/gameplay_field_keep.h"
 
 typedef enum {

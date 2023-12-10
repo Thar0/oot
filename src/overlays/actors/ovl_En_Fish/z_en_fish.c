@@ -5,7 +5,9 @@
  */
 
 #include "z_en_fish.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x18FF0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x18540.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x18610.h"
 #include "terminal.h"
 
 #define FLAGS 0

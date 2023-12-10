@@ -5,7 +5,7 @@
  */
 
 #include "z_eff_ss_fire_tail.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D4A0.h"
 
 #define rScale regs[0]
 #define rLifespan regs[1]

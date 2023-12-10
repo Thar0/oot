@@ -6,7 +6,11 @@
 
 #include "z_object_kankyo.h"
 #include "assets/objects/object_demo_kekkai/object_demo_kekkai.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x29F30.h"
+#include "assets/objects/gameplay_keep/sun_textures.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D160.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x51DB0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x10050.h"
 #include "assets/objects/object_spot02_objects/object_spot02_objects.h"
 
 #define FLAGS (ACTOR_FLAG_4 | ACTOR_FLAG_5 | ACTOR_FLAG_25)

@@ -6,7 +6,7 @@
 
 #include "z_obj_bean.h"
 #include "assets/objects/object_mamenoki/object_mamenoki.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x355A0.h"
 #include "terminal.h"
 
 #define FLAGS ACTOR_FLAG_22

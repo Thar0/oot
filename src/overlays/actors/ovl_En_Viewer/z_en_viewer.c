@@ -8,7 +8,7 @@
 #include "overlays/actors/ovl_Boss_Ganon/z_boss_ganon.h"
 #include "overlays/actors/ovl_En_Ganon_Mant/z_en_ganon_mant.h"
 #include "assets/objects/object_zl4/object_zl4.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x4D4A0.h"
 #include "assets/objects/object_horse_zelda/object_horse_zelda.h"
 #include "assets/objects/object_horse_ganon/object_horse_ganon.h"
 #include "assets/objects/object_im/object_im.h"

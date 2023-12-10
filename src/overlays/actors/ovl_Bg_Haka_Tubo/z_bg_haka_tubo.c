@@ -5,7 +5,8 @@
  */
 
 #include "z_bg_haka_tubo.h"
-#include "assets/objects/gameplay_keep/gameplay_keep.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0xCCC0.h"
+#include "assets/objects/gameplay_keep/gameplay_keep_0x173D0.h"
 #include "assets/objects/object_haka_objects/object_haka_objects.h"
 
 #define FLAGS ACTOR_FLAG_4
