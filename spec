@@ -331,6 +331,7 @@ beginseg
     include "$(BUILD_DIR)/src/code/flg_set.o"
     include "$(BUILD_DIR)/src/code/z_DLF.o"
     include "$(BUILD_DIR)/src/code/z_actor.o"
+    include "$(BUILD_DIR)/src/code/bloom.o"
     include "$(BUILD_DIR)/src/code/z_actor_dlftbls.o"
     include "$(BUILD_DIR)/src/code/z_bgcheck.o"
     include "$(BUILD_DIR)/src/code/code_800430A0.o"

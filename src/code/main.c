@@ -65,7 +65,7 @@ void Main(void* arg) {
 
         if (osMemSize >= 0x800000) {
             debugHeapStart = SysCfb_GetFbEnd();
-            debugHeapSize = PHYS_TO_K0(0x600000) - (uintptr_t)debugHeapStart;
+            debugHeapSize = PHYS_TO_K0(0x800000) - (uintptr_t)debugHeapStart;
         } else {
             debugHeapSize = 0x400;
             debugHeapStart = SYSTEM_ARENA_MALLOC(debugHeapSize, "../main.c", 565);

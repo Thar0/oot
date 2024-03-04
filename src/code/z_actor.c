@@ -2633,6 +2633,13 @@ void func_800315AC(PlayState* play, ActorContext* actorCtx) {
         Lights_DrawGlow(play);
     }
 
+    if (1 || CHECK_BTN_ALL(play->state.input[0].cur.button, BTN_L)) { // For testing
+        void PreRender_BloomShader(Gfx** gfxP, u32 yl, u32 yh, u8 alpha1, u8 alpha2);
+
+        u32 lb = Letterbox_GetSize();
+        PreRender_BloomShader((Gfx**)&OVERLAY_DISP, lb, SCREEN_HEIGHT - lb, 25, 85);
+    }
+
     if (!OOT_DEBUG || (HREG(64) != 1) || (HREG(75) != 0)) {
         TitleCard_Draw(play, &actorCtx->titleCtx);
     }
