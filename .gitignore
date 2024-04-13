@@ -57,7 +57,9 @@ graphs/
 extracted/
 
 # Docs
-!docs/tutorial/
+!docs/**/*.png
+docs/doxygen/
+!.vscode/extensions.json
 
 # Per-user configuration
 .python-version
