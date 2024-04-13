@@ -1,6 +1,9 @@
 #ifndef Z64_AUDIO_H
 #define Z64_AUDIO_H
 
+#include "ultra64.h"
+#include "sequence.h"
+
 typedef void (*AudioCustomUpdateFunction)(void);
 
 
@@ -110,6 +113,14 @@ typedef enum {
     /* 3 */ CACHE_PERMANENT
 } AudioCacheType;
 
+typedef enum AudioCacheLoadType {
+    /* 0 */ CACHE_LOAD_PERMANENT,
+    /* 1 */ CACHE_LOAD_PERSISTENT,
+    /* 2 */ CACHE_LOAD_TEMPORARY,
+    /* 3 */ CACHE_LOAD_EITHER,
+    /* 4 */ CACHE_LOAD_EITHER_NOSYNC
+} AudioCacheLoadType;
+
 typedef enum {
     /* 0 */ LOAD_STATUS_NOT_LOADED, // the entry data is not loaded
     /* 1 */ LOAD_STATUS_IN_PROGRESS, // the entry data is being loaded asynchronously
@@ -168,16 +179,30 @@ typedef struct {
 
 typedef struct {
     /* 0x00 */ u32 start;
-    /* 0x04 */ u32 end;
-    /* 0x08 */ u32 count;
+    /* 0x04 */ u32 end; // numSamples position into the sample where the loop ends
+    /* 0x08 */ u32 count; // The number of times the loop is played before the sound completes. Setting count to -1 indicates that the loop should play indefinitely.
     /* 0x0C */ char unk_0C[0x4];
+} AdpcmLoopHeader;
+
+typedef struct {
+    /* 0x00 */ AdpcmLoopHeader header;
     /* 0x10 */ s16 predictorState[16]; // only exists if count != 0. 8-byte aligned
 } AdpcmLoop; // size = 0x30 (or 0x10)
 
 typedef struct {
     /* 0x00 */ s32 order;
     /* 0x04 */ s32 numPredictors;
-    /* 0x08 */ s16 book[1]; // size 8 * order * numPredictors. 8-byte aligned
+} AdpcmBookHeader;
+
+/**
+ * The procedure used to design the codeBook is based on an adaptive clustering algorithm.
+ * The size of the codeBook is (8 * order * numPredictors) and is 8-byte aligned
+ */
+typedef s16 AdpcmBookData[];
+
+typedef struct {
+    /* 0x00 */ AdpcmBookHeader header;
+    /* 0x08 */ AdpcmBookData book; // size 8 * order * numPredictors. 8-byte aligned
 } AdpcmBook; // size >= 0x8
 
 typedef struct {
@@ -808,6 +833,13 @@ typedef struct {
 } AudioSlowLoad; // size = 0x64
 
 typedef struct {
+    /* 0x00 */ s16 numEntries;
+    /* 0x02 */ s16 unkMediumParam;
+    /* 0x04 */ uintptr_t romAddr;
+    /* 0x08 */ char pad[0x8];
+} AudioTableHeader; // size = 0x10
+
+typedef struct {
     /* 0x00 */ u32 romAddr;
     /* 0x04 */ u32 size;
     /* 0x08 */ s8 medium;
@@ -818,10 +850,7 @@ typedef struct {
 } AudioTableEntry; // size = 0x10
 
 typedef struct {
-    /* 0x00 */ s16 numEntries;
-    /* 0x02 */ s16 unkMediumParam;
-    /* 0x04 */ u32 romAddr;
-    /* 0x08 */ char pad[0x8];
+    /* 0x00 */ AudioTableHeader header;
     /* 0x10 */ AudioTableEntry entries[1]; // (dynamic size)
 } AudioTable; // size >= 0x20
 

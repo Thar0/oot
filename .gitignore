@@ -44,6 +44,9 @@ graphs/
 # Assets
 *.png
 *.jpg
+*.aiff
+*.aifc
+*.wav
 *.mdli
 *.anmi
 *.obj

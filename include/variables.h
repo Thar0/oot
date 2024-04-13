@@ -166,10 +166,11 @@ extern s32 __osPfsLastChannel;
 extern const TempoData gTempoData;
 extern const AudioHeapInitSizes gAudioHeapInitSizes;
 extern s16 gOcarinaSongItemMap[];
-extern u8 gSoundFontTable[];
+
+extern AudioTable gSoundFontTable;
 extern u8 gSequenceFontTable[];
-extern u8 gSequenceTable[];
-extern u8 gSampleBankTable[];
+extern AudioTable gSequenceTable;
+extern AudioTable gSampleBankTable;
 
 extern SaveContext gSaveContext;
 

@@ -1,0 +1,14 @@
+*.bin
+*.c
+*.h
+!text/*.[ch]
+*.cfg
+*.vtx.inc
+*.dlist.inc
+
+*.aifc
+*.seq
+!*.prg.seq
+
+audio/samplebanks/**/*.xml
+audio/soundfonts/**/*.xml

@@ -1,4 +1,7 @@
 #include "global.h"
+#include "assets/audio/sequence_sizes.h"
+#include "assets/audio/soundfont_sizes.h"
+#define SFX_SEQ_SIZE Sequence_0_SIZE
 
 u8 D_8016F0E0[0xA0]; // unused
 AudioContext gAudioCtx;
@@ -10,16 +13,10 @@ const TempoData gTempoData = {
     SEQTICKS_PER_BEAT, // seqTicksPerBeat
 };
 
-// TODO: Extract from table?
-#define NUM_SOUNDFONTS 38
-#define SFX_SEQ_SIZE 0x6A90
-#define SFX_SOUNDFONT_1_SIZE 0x3AA0
-#define SFX_SOUNDFONT_2_SIZE 0x17B0
-
 // Sizes of everything on the init pool
 #define AI_BUFFERS_SIZE (AIBUF_SIZE * ARRAY_COUNT(gAudioCtx.aiBuffers))
 #define SOUNDFONT_LIST_SIZE (NUM_SOUNDFONTS * sizeof(SoundFont))
-#define PERMANENT_POOL_SIZE (SFX_SEQ_SIZE + SFX_SOUNDFONT_1_SIZE + SFX_SOUNDFONT_2_SIZE)
+#define PERMANENT_POOL_SIZE (Soundfont_0_SIZE + Soundfont_1_SIZE + SFX_SEQ_SIZE)
 
 const AudioHeapInitSizes gAudioHeapInitSizes = {
     ALIGN16(sizeof(gAudioHeap) - 0x100),                                  // audio heap size
