@@ -24,10 +24,10 @@ typedef struct {
 void
 read_samplebank_xml(samplebank *sb, xmlDocPtr doc)
 {
-    // <SampleBank Name="", Index="" Medium="" CachePolicy="" BufferBug="">
+    // <SampleBank Name="" Index="" Medium="" CachePolicy="" BufferBug="">
     //     <Pointer Index=""/>
-    //     <Sample Name="", Path=""/>
-    //     <Blob Name="", Path=""/>
+    //     <Sample Name="" Path=""/>
+    //     <Blob Name="" Path=""/>
 
     static const xml_attr_spec header_spec = {
         {"Name",         false, xml_parse_c_identifier, offsetof(samplebank, name)        },
