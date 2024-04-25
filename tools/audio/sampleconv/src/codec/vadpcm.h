@@ -1,3 +1,7 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (C) 2024 ZeldaRET
+ * SPDX-License-Identifier: CC0-1.0
+ */
 #ifndef CODEC_VADPCM_H
 #define CODEC_VADPCM_H
 

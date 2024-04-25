@@ -4,6 +4,11 @@ The Z64 Audio Tools work together to implement the full audio asset pipeline
 
 ![](../../docs/audio/build_flowchart.png)
 
+**Licensing Information**
+* The programs `atblgen`, `sampleconv`, `sbc` and `sfc` are (mostly) distributed under MPL-2.0. The VADPCM encoding and decoding portions are under CC0-1.0.
+* The programs `elfpatch` and `afile_sizes` are distributed under CC0-1.0.
+* The extraction tool is distributed under CC0-1.0.
+
 ## sampleconv
 
 Converts aifc <-> aiff / wav

@@ -1,4 +1,6 @@
 # audio_tables.py
+# SPDX-FileCopyrightText: © 2024 ZeldaRET
+# SPDX-License-Identifier: CC0-1.0
 #
 #   Implements code tables structure and related enums
 #

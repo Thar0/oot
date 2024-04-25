@@ -1,4 +1,6 @@
 # audiobank_structs.py
+# SPDX-FileCopyrightText: © 2024 ZeldaRET
+# SPDX-License-Identifier: CC0-1.0
 #
 #   This file implements reading various structures resident to the Audiobank files.
 #   Additionally handles:

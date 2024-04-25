@@ -1,3 +1,11 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (C) 2024 ZeldaRET
+ * SPDX-License-Identifier: MPL-2.0
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 #include <alloca.h>
 #include <assert.h>
 #include <ctype.h>
@@ -1054,16 +1062,25 @@ emit_c_samples(FILE *out, soundfont *sf)
 
         fprintf(out,
                 // clang-format off
-               "NO_REORDER DATA Sample SF%d_%s_HEADER = {"  "\n"
-               "    %s, %d, %s, %s,"                        "\n"
-               "    0x%06lX,"                               "\n"
-               "    %s_%s_Off,"                             "\n"
-               "    &SF%d_%s_LOOP,"                         "\n"
-               "    &SF%d_%s_BOOK,"                         "\n"
-               "};"                                         "\n"
-                                                            "\n",
+               "NO_REORDER DATA ALIGNED(16) Sample SF%d_%s_HEADER = {"  "\n"
+               "    "
+#ifdef SFC_MM
+                // MM has an extra unused field in the sample structure compared to OoT
+                   "%d, "
+#endif
+                   "%s, %d, %s, %s,"                                    "\n"
+               "    0x%06lX,"                                           "\n"
+               "    %s_%s_Off,"                                         "\n"
+               "    &SF%d_%s_LOOP,"                                     "\n"
+               "    &SF%d_%s_BOOK,"                                     "\n"
+               "};"                                                     "\n"
+                                                                        "\n",
                 // clang-format on
-                sf->info.index, sample->name, codec_name, sample->is_dd, BOOL_STR(sample->cached), BOOL_STR(false),
+                sf->info.index, sample->name,
+#ifdef SFC_MM
+                0,
+#endif
+                codec_name, sample->is_dd, BOOL_STR(sample->cached), BOOL_STR(false),
                 sample->aifc.ssnd_size, sb->name, sample->name, sf->info.index, sample->name, sf->info.index, bookname);
         size += 0x10;
 
@@ -1224,20 +1241,20 @@ emit_c_envelopes(FILE *out, soundfont *sf)
 
             fprintf(out,
                     // clang-format off
-                   "NO_REORDER DATA EnvelopePoint SF%d_ENV_EMPTY_%lu[] = {"     "\n"
-                   "    { 0, 0, },"                                             "\n"
-                   "    { 0, 0, },"                                             "\n"
-                   "    { 0, 0, },"                                             "\n"
-                   "    { 0, 0, },"                                             "\n"
-                   "};"                                                         "\n"
-                                                                                "\n",
+                   "NO_REORDER DATA ALIGNED(16) EnvelopePoint SF%d_ENV_EMPTY_%lu[] = {"     "\n"
+                   "    { 0, 0, },"                                                         "\n"
+                   "    { 0, 0, },"                                                         "\n"
+                   "    { 0, 0, },"                                                         "\n"
+                   "    { 0, 0, },"                                                         "\n"
+                   "};"                                                                     "\n"
+                                                                                            "\n",
                     // clang-format on
                     sf->info.index, empty_num);
 
             empty_num++;
             size += 0x10;
         } else {
-            fprintf(out, "NO_REORDER DATA EnvelopePoint SF%d_%s[] = {\n", sf->info.index, envdata->name);
+            fprintf(out, "NO_REORDER DATA ALIGNED(16) EnvelopePoint SF%d_%s[] = {\n", sf->info.index, envdata->name);
 
             // Write all points
             for (size_t j = 0; j < envdata->n_points; j++) {
@@ -1427,7 +1444,7 @@ emit_c_drums(FILE *out, soundfont *sf)
     if (table_len > 64)
         error("Bad drum pointer table length");
 
-    fprintf(out, "NO_REORDER DATA Drum* SF%d_DRUMS_PTR_LIST[%lu] = {\n", sf->info.index, table_len);
+    fprintf(out, "NO_REORDER DATA ALIGNED(16) Drum* SF%d_DRUMS_PTR_LIST[%lu] = {\n", sf->info.index, table_len);
 
     for (size_t i = 0; i < table_len; i++) {
         if (ptr_table[i].name == NULL) {
@@ -1462,7 +1479,7 @@ emit_c_effects(FILE *out, soundfont *sf)
 
     // Effects are all contained in the same array. We write empty <Effect/> entries as NULL entries in this array.
 
-    fprintf(out, "NO_REORDER DATA SoundEffect SF%d_SFX_LIST[] = {\n", sf->info.index);
+    fprintf(out, "NO_REORDER DATA ALIGNED(16) SoundEffect SF%d_SFX_LIST[] = {\n", sf->info.index);
 
     LL_FOREACH(sfx_data *, sfx, sf->sfx) {
         if (sfx->sample != NULL)

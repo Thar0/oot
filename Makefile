@@ -685,31 +685,34 @@ $(BUILD_DIR)/assets/audio/sequence_font_table.s: $(BUILD_DIR)/include/tables/seq
 # build the tables into objects, move data -> rodata
 
 $(BUILD_DIR)/src/audio/tables/samplebank_table.o: src/audio/tables/samplebank_table.c $(BUILD_DIR)/assets/audio/samplebank_table.h
+ifneq ($(RUN_CC_CHECK),0)
 	$(CC_CHECK) $<
+endif
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $(@:.o=.tmp) $<
 	@$(LD) -r -T include/audio/atbl_rdata.ld $(@:.o=.tmp) -o $@
 	@$(RM) $(@:.o=.tmp)
-	$(RM_MDEBUG)
 # TESTING:
 #	$(OBJCOPY) -O binary -j.rodata $@ $(@:.o=.bin)
 # Can't compare this due to pointers
 
 $(BUILD_DIR)/src/audio/tables/soundfont_table.o: src/audio/tables/soundfont_table.c $(BUILD_DIR)/assets/audio/soundfont_table.h $(SOUNDFONT_HEADERS)
+ifneq ($(RUN_CC_CHECK),0)
 	$(CC_CHECK) $<
+endif
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -o $(@:.o=.tmp) $<
 	@$(LD) -r -T include/audio/atbl_rdata.ld $(@:.o=.tmp) -o $@
 	@$(RM) $(@:.o=.tmp)
-	$(RM_MDEBUG)
 # TESTING:
 #	$(OBJCOPY) -O binary -j.rodata $@ $(@:.o=.bin)
 # Can't compare this due to pointers
 
 $(BUILD_DIR)/src/audio/tables/sequence_table.o: src/audio/tables/sequence_table.c $(SEQUENCE_TABLE)
-	$(CC_CHECK) -I include/tables $<
+ifneq ($(RUN_CC_CHECK),0)
+	$(CC_CHECK) $<
+endif
 	$(CC) -c $(CFLAGS) $(MIPS_VERSION) $(OPTFLAGS) -I include/tables -o $(@:.o=.tmp) $<
 	@$(LD) -r -T include/audio/atbl_rdata.ld $(@:.o=.tmp) -o $@
 	@$(RM) $(@:.o=.tmp)
-	$(RM_MDEBUG)
 # TESTING:
 #	$(OBJCOPY) -O binary -j.rodata $@ $(@:.o=.bin)
 # Can't compare this due to pointers

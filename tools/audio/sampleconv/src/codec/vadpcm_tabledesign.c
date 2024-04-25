@@ -1,3 +1,7 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (C) 2024 ZeldaRET
+ * SPDX-License-Identifier: CC0-1.0
+ */
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

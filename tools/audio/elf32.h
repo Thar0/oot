@@ -1,3 +1,5 @@
+/* SPDX-FileCopyrightText: Copyright (C) 2024 ZeldaRET */
+/* SPDX-License-Identifier: CC0-1.0 */
 #ifndef ELF32_H_
 #define ELF32_H_
 

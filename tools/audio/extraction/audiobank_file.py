@@ -1,4 +1,6 @@
 # audiobank_file.py
+# SPDX-FileCopyrightText: © 2024 ZeldaRET
+# SPDX-License-Identifier: CC0-1.0
 #
 #   Implements audiobank file
 #
@@ -272,6 +274,7 @@ class AudiobankFile:
         # Read structures
 
         self.drums_ptr_list_ptr = self.read_pointer(0, DrumsListPtr)
+        assert self.drums_ptr_list_ptr % 16 == 0
         self.drums_ptr_list = self.read_pointer_list(self.drums_ptr_list_ptr, self.table_entry.num_drums, DrumPtr)
         self.drums = self.read_list_from_offset_list(self.drums_ptr_list, Drum)
 
@@ -332,6 +335,7 @@ class AudiobankFile:
         # Read structures
 
         self.sfx_list_ptr = self.read_pointer(4, SfxListPtr)
+        assert self.sfx_list_ptr % 16 == 0
         self.sfx = self.read_list(self.sfx_list_ptr, self.table_entry.num_sfx, SoundFontSound)
 
         # Process structures
@@ -531,6 +535,8 @@ class AudiobankFile:
         return 8 + 2 * 8 * order * npredictors
 
     def read_sample_header(self, offset, tuning, ob):
+        assert offset % 16 == 0
+
         if offset in self.sample_headers:
             # Don't re-read a sample header structure if it was already read
             sample_header = self.sample_headers[offset]
@@ -624,6 +630,8 @@ class AudiobankFile:
         return points, size
 
     def read_envelope(self, offset, release_rate, is_zero=False):
+        assert offset % 16 == 0
+
         if offset in self.envelopes:
             # Look it up if it was already seen
             env = self.envelopes[offset]

@@ -1,3 +1,5 @@
+/* SPDX-FileCopyrightText: Copyright (C) 2024 ZeldaRET */
+/* SPDX-License-Identifier: CC0-1.0 */
 #ifndef UTIL_H_
 #define UTIL_H_
 

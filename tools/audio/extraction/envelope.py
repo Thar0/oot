@@ -1,4 +1,6 @@
 # envelope.py
+# SPDX-FileCopyrightText: © 2024 ZeldaRET
+# SPDX-License-Identifier: CC0-1.0
 #
 #   Implements envelopes and envelope point structures
 #
