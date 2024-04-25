@@ -2,7 +2,7 @@
 
 The Z64 Audio Tools work together to implement the full audio asset pipeline
 
-![](../../docs/audio/build_flowchart.png)
+![](../../docs/audio/media/build_flowchart.png)
 
 ## sampleconv
 

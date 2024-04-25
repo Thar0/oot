@@ -116,8 +116,7 @@ The Audiobank file houses "soundfont" data that organizes samples in the sample 
 
 Part of the Audiobank data is envelope data used to modulate sample waveforms, e.g. for ADSR ('attack-delay-sustain-release') for which the effect on the sample is pictured below:
 
-![ADSR Envelope](https://upload.wikimedia.org/wikipedia/commons/e/ea/ADSR_parameter.svg)
-[(Image Source)](https://commons.wikimedia.org/wiki/File:ADSR_parameter.svg)
+![ADSR Envelope](./media/ADSR_parameter.svg)
 
 Envelopes in the Zelda 64 audio driver are not limited to ADSR shapes, they are capable of building arbitrary piecewise-linear functions to act as an envelope.
 
@@ -170,7 +169,7 @@ It is possible that there is more padding to 0x10 than is indicated. For example
 Occasionally, some structures such as envelopes and Instruments may go unreferenced and unused.
 
 **Visual representation of the Spirit Temple Soundfont by engineer**
-![Spirit Temple Soundfont](https://hackmd.io/_uploads/SyA1RVC92.png)
+![Spirit Temple Soundfont](./media/spirit_temple_soundfount.png)
 
 The various structures are described in greater detail in the following sections.
 
@@ -299,7 +298,7 @@ typedef struct {
 Many drum entries share a sample but differ by a tuning value. The tuning values for drums sharing the same sample differ by a semitone while the samplerate is a property of the sample itself.
 
 For example, soundfont 3 has 5 distinct samples that cover all 64 indices
-![Plot of Drum Group from Soundfont 3](https://hackmd.io/_uploads/Hy--REA53.png)
+![Plot of Drum Group from Soundfont 3](./media/plot_of_drum_group_from_soundfont_3.png)
 
 These "drum groups" and their semitone ranges are enough information to fully reconstruct the entire drums array without listing every single entry.
 
