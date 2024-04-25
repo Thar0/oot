@@ -594,7 +594,7 @@ $(BUILD_DIR)/assets/audio/soundfonts/%.xml: assets/audio/soundfonts/%.xml
 $(BUILD_DIR)/assets/audio/soundfonts/%.c $(BUILD_DIR)/assets/audio/soundfonts/%.h $(BUILD_DIR)/assets/audio/soundfonts/%.name: $(BUILD_DIR)/assets/audio/soundfonts/%.xml $(AIFC_FILES) $(SAMPLEBANK_BUILD_XMLS)
 # This rule can be triggered for either the .c or .h file, so $@ may refer to either the .c or .h file. A simple
 # substitution $(@:.c=.h) will fail ~50% of the time with -j. Instead, don't assume anything about the suffix of $@.
-	$(SFC) $< $(@:$(suffix $(@F))=.c) $(@:$(suffix $(@F))=.h) $(@:$(suffix $(@F))=.name)
+	$(SFC) $< $(basename $@).c $(basename $@).h $(basename $@).name
 
 $(BUILD_DIR)/assets/audio/soundfonts/%.o: $(BUILD_DIR)/assets/audio/soundfonts/%.c $(BUILD_DIR)/assets/audio/soundfonts/%.name $(SAMPLEBANK_O_FILES)
 # compile c to unlinked object
