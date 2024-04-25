@@ -21,6 +21,7 @@ all: $(PROGRAMS)
 
 clean:
 	$(RM) $(PROGRAMS)
+	$(MAKE) -C sampleconv clean
 
 distclean: clean
 	$(MAKE) -C sampleconv distclean
