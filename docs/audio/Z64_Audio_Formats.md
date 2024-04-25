@@ -88,7 +88,7 @@ AIFF files are split into chunks, identified by four characters ("[FourCC](https
  - `INST`: "Instrument" chunk, contains some additional metadata about a sample such as the base note value (using MIDI convention, Middle C = 60)
  - `APPL`: Application-specific sections
 
-For more information on the structure of chunks in an AIFF file, refer to http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/AIFF/Docs/AIFF-1.3.pdf
+For more information on the structure of chunks in an AIFF file, refer to http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/AIFF/Docs/AIFF-1.3.pdf (archived: https://web.archive.org/web/20240225235150/http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/AIFF/Docs/AIFF-1.3.pdf)
 
 An AIFC file is structured in essentially the same way, however the `SSND` data is now compressed with VADPCM and there are two `APPL` sections, `VADPCMCODES` for the codebook and `VADPCMLOOPS` for loop point information. The compression type in the `COMM` header is `VAPC` to indicate VADPCM.
 
@@ -356,9 +356,9 @@ There are 7 section types:
 The rough process for sequence disassembly is to start at the beginning of the file in a sequence section and proceed until a command terminating control-flow or an unconditional loop is encountered. As each command is decoded, track the channels and layers that are spawned and add them to a queue of addresses to start disassembling at next. Repeat until this no longer gives new regions.
 This method works for many sequences but fails for sequences with more complex control flow such as tables. Tables are not bounds-checked so there is no concrete way to identify them.
 
-For more details on individual commands refer to the [MML doc](https://github.com/MNGoldenEagle/oot/blob/7c7b4cea149f8b67af7c011037fb2ad7552dfda8/docs/Music%20Macro%20Language.md).
+For more details on individual commands refer to the MML doc [here (incomplete)](https://github.com/MNGoldenEagle/oot/blob/7c7b4cea149f8b67af7c011037fb2ad7552dfda8/docs/Music%20Macro%20Language.md) or [in the repo here (TODO)](./Music_Macro_Language.md).
 
-A complete list of the audio sequences can be found in [sequence.h](https://github.com/zeldaret/oot/blob/b8b983dd7fcc0870544c586bddda02bc85050f4c/include/sequence.h#L6).
+A complete list of the audio sequences can be found in [sequence_table.h](/include/tables/sequence_table.h) (TODO carry over friendly descriptions and original names from [previous sequence.h](https://github.com/zeldaret/oot/blob/b8b983dd7fcc0870544c586bddda02bc85050f4c/include/sequence.h#L6)).
 
 #### "Program" sequences
 
@@ -366,7 +366,7 @@ Audio sequences can communicate with code via IO ports. Some sequences take adva
  - Sequence 0 uses IO ports to perform sound effects (`NA_SE_*` in `sfx.h`)
  - Sequence 1 is ambient/environment sounds, they change based on current area.
  - Sequence 2 is the Hyrule Field dynamic track switching
- - Sequence 109 is various cutscene effects, IO port 0 is used to communicate which effect to play ([list](https://github.com/MNGoldenEagle/oot/blob/3e298fa818569f9323138ec34f9e3127fa435b9f/src/audio/109_Cutscene_Effects.mus#L849-L865))
+ - Sequence 109 is various cutscene effects, IO port 0 is used to communicate which effect to play ([list](https://github.com/MNGoldenEagle/oot/blob/3e298fa818569f9323138ec34f9e3127fa435b9f/src/audio/109_Cutscene_Effects.mus#L849-L865) (TODO carry over to [the .seq in the repo](/assets/audio/sequences/seq_109.prg.seq)))
 
 These sequences are more like programs than part of the soundtrack.
 
@@ -382,4 +382,4 @@ The table first contains a list of 16-bit offsets from the start of the table fo
 
 ### Files
 
-The files that make up Audioseq each contain a single audio sequence, made up of Music Macro Language commands and related data such as Envelopes and Channels. For an example, see the [disassembled Sequence 0](https://github.com/zeldaret/oot/blob/3e298fa818569f9323138ec34f9e3127fa435b9f/src/audio/000_Sound_Effects.mus).
+The files that make up Audioseq each contain a single audio sequence, made up of Music Macro Language commands and related data such as Envelopes and Channels. For an example, see the [disassembled Sequence 0](/assets/audio/sequences/seq_0.prg.seq) ([external, with some docs](https://github.com/zeldaret/oot/blob/3e298fa818569f9323138ec34f9e3127fa435b9f/src/audio/000_Sound_Effects.mus) TODO carry over docs).
