@@ -215,22 +215,30 @@ else
 SRC_DIRS := $(shell find src -type d)
 endif
 
-AIFF_DIRS := $(shell find assets/audio/samples -type d)
+ifneq ($(wildcard assets/audio/samples),)
+  AIFF_DIRS := $(shell find assets/audio/samples -type d)
+  SAMPLEBANK_DIRS := $(shell find assets/audio/samplebanks -type d)
+  SOUNDFONT_DIRS := $(shell find assets/audio/soundfonts -type d)
+  SEQUENCE_DIRS := $(shell find assets/audio/sequences -type d)
+else
+  AIFF_DIRS :=
+  SAMPLEBANK_DIRS :=
+  SOUNDFONT_DIRS :=
+  SEQUENCE_DIRS :=
+endif
+
 AIFF_FILES := $(foreach dir,$(AIFF_DIRS),$(wildcard $(dir)/*.wav))
 AIFC_FILES := $(foreach f,$(AIFF_FILES),$(BUILD_DIR)/$(f:.wav=.aifc))
 
-SAMPLEBANK_DIRS := $(shell find assets/audio/samplebanks -type d)
 SAMPLEBANK_XMLS := $(foreach dir,$(SAMPLEBANK_DIRS),$(wildcard $(dir)/*.xml))
 SAMPLEBANK_BUILD_XMLS := $(foreach f,$(SAMPLEBANK_XMLS),$(BUILD_DIR)/$f)
 SAMPLEBANK_O_FILES := $(foreach f,$(SAMPLEBANK_XMLS),$(BUILD_DIR)/$(f:.xml=.o))
 
-SOUNDFONT_DIRS := $(shell find assets/audio/soundfonts -type d)
 SOUNDFONT_XMLS := $(foreach dir,$(SOUNDFONT_DIRS),$(wildcard $(dir)/*.xml))
 SOUNDFONT_BUILD_XMLS := $(foreach f,$(SOUNDFONT_XMLS),$(BUILD_DIR)/$f)
 SOUNDFONT_O_FILES := $(foreach f,$(SOUNDFONT_XMLS),$(BUILD_DIR)/$(f:.xml=.o))
 SOUNDFONT_HEADERS := $(foreach f,$(SOUNDFONT_XMLS),$(BUILD_DIR)/$(f:.xml=.h))
 
-SEQUENCE_DIRS := $(shell find assets/audio/sequences -type d)
 SEQUENCE_FILES := $(foreach dir,$(SEQUENCE_DIRS),$(wildcard $(dir)/*.seq))
 SEQUENCE_O_FILES := $(foreach f,$(SEQUENCE_FILES:.seq=.o),$(BUILD_DIR)/$f)
 
