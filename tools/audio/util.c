@@ -97,68 +97,6 @@ util_write_whole_file(const char *filename, const void *data, size_t size)
 }
 
 bool
-isdir(struct dirent *dp)
-{
-#ifdef _DIRENT_HAVE_D_TYPE
-    if (dp->d_type != DT_UNKNOWN && dp->d_type != DT_LNK) {
-        return dp->d_type == DT_DIR;
-    }
-#endif
-    struct stat sb;
-    stat(dp->d_name, &sb);
-    if (errno != 0) {
-        error("Count not stat file \"%.*s\"", (int)sizeof(dp->d_name), dp->d_name);
-    }
-    return S_ISDIR(sb.st_mode);
-}
-
-char *
-path_join(const char *root, const char *f)
-{
-    size_t l1 = strlen(root);
-    size_t l2 = strlen(f);
-
-    // allocate room for the full path
-    char *fullpath = malloc(l1 + l2 + 2);
-
-    // emplace root path
-    strcpy(fullpath, root);
-    // add a separator if necessary
-    if (root[l1 - 1] != '/')
-        fullpath[l1++] = '/';
-    // emplace specific path
-    strcpy(fullpath + l1, f);
-    // done
-    return fullpath;
-}
-
-void
-dir_walk_rec(const char *root, void (*callback)(const char *, void *), void *udata)
-{
-    DIR *dir = opendir(root);
-    struct dirent *dp;
-
-    while ((dp = readdir(dir)) != NULL) {
-        char *path = path_join(root, dp->d_name);
-        // printf("\"%s\" || \"%s\" -> \"%s\"\n", root, dp->d_name, path);
-
-        if (isdir(dp)) {
-            if (dp->d_name[0] == '.' && dp->d_name[1] == '\0')
-                ;
-            else if (dp->d_name[0] == '.' && dp->d_name[1] == '.' && dp->d_name[2] == '\0')
-                ;
-            else
-                dir_walk_rec(path, callback, udata);
-        } else {
-            if (callback != NULL)
-                callback(path, udata);
-        }
-        free(path);
-    }
-    closedir(dir);
-}
-
-bool
 str_is_c_identifier(const char *str)
 {
     // A C language identifier must:

@@ -232,22 +232,30 @@ else
 SRC_DIRS := $(shell find src -type d)
 endif
 
-AIFF_DIRS := $(shell find assets/audio/samples -type d)
+ifneq ($(wildcard assets/audio/samples),)
+  AIFF_DIRS := $(shell find assets/audio/samples -type d)
+  SAMPLEBANK_DIRS := $(shell find assets/audio/samplebanks -type d)
+  SOUNDFONT_DIRS := $(shell find assets/audio/soundfonts -type d)
+  SEQUENCE_DIRS := $(shell find assets/audio/sequences -type d)
+else
+  AIFF_DIRS :=
+  SAMPLEBANK_DIRS :=
+  SOUNDFONT_DIRS :=
+  SEQUENCE_DIRS :=
+endif
+
 AIFF_FILES := $(foreach dir,$(AIFF_DIRS),$(wildcard $(dir)/*.wav))
 AIFC_FILES := $(foreach f,$(AIFF_FILES),$(BUILD_DIR)/$(f:.wav=.aifc))
 
-SAMPLEBANK_DIRS := $(shell find assets/audio/samplebanks -type d)
 SAMPLEBANK_XMLS := $(foreach dir,$(SAMPLEBANK_DIRS),$(wildcard $(dir)/*.xml))
 SAMPLEBANK_BUILD_XMLS := $(foreach f,$(SAMPLEBANK_XMLS),$(BUILD_DIR)/$f)
 SAMPLEBANK_O_FILES := $(foreach f,$(SAMPLEBANK_XMLS),$(BUILD_DIR)/$(f:.xml=.o))
 
-SOUNDFONT_DIRS := $(shell find assets/audio/soundfonts -type d)
 SOUNDFONT_XMLS := $(foreach dir,$(SOUNDFONT_DIRS),$(wildcard $(dir)/*.xml))
 SOUNDFONT_BUILD_XMLS := $(foreach f,$(SOUNDFONT_XMLS),$(BUILD_DIR)/$f)
 SOUNDFONT_O_FILES := $(foreach f,$(SOUNDFONT_XMLS),$(BUILD_DIR)/$(f:.xml=.o))
 SOUNDFONT_HEADERS := $(foreach f,$(SOUNDFONT_XMLS),$(BUILD_DIR)/$(f:.xml=.h))
 
-SEQUENCE_DIRS := $(shell find assets/audio/sequences -type d)
 SEQUENCE_FILES := $(foreach dir,$(SEQUENCE_DIRS),$(wildcard $(dir)/*.seq))
 SEQUENCE_O_FILES := $(foreach f,$(SEQUENCE_FILES:.seq=.o),$(BUILD_DIR)/$f)
 
@@ -638,7 +646,7 @@ $(BUILD_DIR)/assets/audio/soundfonts/%.xml: assets/audio/soundfonts/%.xml
 $(BUILD_DIR)/assets/audio/soundfonts/%.c $(BUILD_DIR)/assets/audio/soundfonts/%.h $(BUILD_DIR)/assets/audio/soundfonts/%.name: $(BUILD_DIR)/assets/audio/soundfonts/%.xml $(AIFC_FILES) $(SAMPLEBANK_BUILD_XMLS)
 # This rule can be triggered for either the .c or .h file, so $@ may refer to either the .c or .h file. A simple
 # substitution $(@:.c=.h) will fail ~50% of the time with -j. Instead, don't assume anything about the suffix of $@.
-	$(SFC) $< $(@:$(suffix $(@F))=.c) $(@:$(suffix $(@F))=.h) $(@:$(suffix $(@F))=.name)
+	$(SFC) $< $(basename $@).c $(basename $@).h $(basename $@).name
 
 $(BUILD_DIR)/assets/audio/soundfonts/%.o: $(BUILD_DIR)/assets/audio/soundfonts/%.c $(BUILD_DIR)/assets/audio/soundfonts/%.name $(SAMPLEBANK_O_FILES)
 # compile c to unlinked object

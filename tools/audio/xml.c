@@ -17,80 +17,55 @@
 
 #define copy_out(out, v) memcpy((out), &(v), sizeof(v));
 
+/**
+ * Parse a string as an integer.
+ *
+ * The expected value matches case-insensitive regex `^\s*[-+]?(0x[0-9A-F]+|[0-9]+)\s*$`.
+ * The value may be base 10, or base 16 with a (case-insensitive) 0x prefix.
+ * Leading and trailing whitespace is ignored.
+ */
 static int
-xml_str_to_int(const char *value, bool note_num)
+xml_str_to_int(const char *value)
 {
     if (value == NULL || value[0] == '\0')
         goto err;
 
     bool neg = false;
-    int res = 0;
+    int res;
 
     size_t value_len = strlen(value);
     size_t start;
 
-    if (note_num) {
-        if (isspace(value[0]))
-            goto err;
-        start = 0;
-    } else {
-        // consume initial whitespace
-        for (start = 0; start < value_len; start++) {
-            if (!isspace(value[start]))
-                break;
-        }
-        // if we consumed the whole string, it was bad
-        if (start == value_len)
-            goto err;
+    // consume initial whitespace
+    for (start = 0; start < value_len; start++) {
+        if (!isspace(value[start]))
+            break;
+    }
+    // if we consumed the whole string, it was bad
+    if (start == value_len)
+        goto err;
+
+    // handle sign character if present
+    if (value[start] == '+' || value[start] == '-') {
+        neg = value[start] == '-';
+        start++;
     }
 
-    if (note_num) {
-        // accept "NEGx" to mean -x
-        if (start + 3 < value_len && toupper(value[start + 0]) == 'N' && toupper(value[start + 1]) == 'E' &&
-            toupper(value[start + 2]) == 'G') {
-            neg = true;
-            start += 3;
-        }
-    } else {
-        // handle sign character if present
-        if (value[start] == '+' || value[start] == '-') {
-            neg = value[start] == '-';
-            start++;
-        }
-    }
+    int base;
 
-    size_t end;
-
-    // get absolute value in either base 10 or 16, accept only base 10 for note numbers
-    if (!note_num && start + 2 < value_len && value[start + 0] == '0' && value[start + 1] == 'x') {
+    // get absolute value in either base 10 or 16
+    if (start + 2 < value_len && value[start + 0] == '0' && tolower(value[start + 1]) == 'x') {
         start += 2;
-
-        // base 16
-        for (end = start; end < value_len; end++) {
-            char c = toupper(value[end]);
-
-            if (isspace(c))
-                break;
-            else if (c >= '0' && c <= '9')
-                res = res * 16 + (c - '0');
-            else if (c >= 'A' && c <= 'F')
-                res = res * 16 + (c - 'A' + 10);
-            else
-                goto err;
-        }
+        base = 16;
     } else {
-        // base 10
-        for (end = start; end < value_len; end++) {
-            char c = value[end];
-
-            if (isspace(c))
-                break;
-            else if (c >= '0' && c <= '9')
-                res = res * 10 + (c - '0');
-            else
-                goto err;
-        }
+        base = 10;
     }
+
+    const char *str_end;
+    res = strtol(&value[start], &str_end, base);
+    size_t end = str_end - value;
+    if (start == end)
+        goto err;
 
     // consume trailing whitespace
     while (value[end] != '\0') {
@@ -104,13 +79,13 @@ xml_str_to_int(const char *value, bool note_num)
     // apply sign
     return neg ? -res : res;
 err:
-    error("bad int value");
+    error("bad int value %s", value);
 }
 
 void
 xml_parse_int(const char *value, void *out)
 {
-    int v = xml_str_to_int(value, false);
+    int v = xml_str_to_int(value);
 
     copy_out(out, v);
 }
@@ -118,7 +93,7 @@ xml_parse_int(const char *value, void *out)
 void
 xml_parse_uint(const char *value, void *out)
 {
-    int v = xml_str_to_int(value, false);
+    int v = xml_str_to_int(value);
     if (v < 0)
         error("Value should be unsigned");
 
@@ -128,7 +103,7 @@ xml_parse_uint(const char *value, void *out)
 void
 xml_parse_s16(const char *value, void *out)
 {
-    int v = xml_str_to_int(value, false);
+    int v = xml_str_to_int(value);
     if (v < INT16_MIN || v > INT16_MAX)
         error("Value %d out of range for s16", v);
     int16_t vs16 = v;
@@ -139,7 +114,7 @@ xml_parse_s16(const char *value, void *out)
 void
 xml_parse_u8(const char *value, void *out)
 {
-    int v = xml_str_to_int(value, false);
+    int v = xml_str_to_int(value);
     if (v < 0 || v > UINT8_MAX)
         error("Value %d out of range for u8", v);
     uint8_t vu8 = v;
@@ -150,7 +125,7 @@ xml_parse_u8(const char *value, void *out)
 void
 xml_parse_s8(const char *value, void *out)
 {
-    int v = xml_str_to_int(value, false);
+    int v = xml_str_to_int(value);
     if (v < INT8_MIN || v > INT8_MAX)
         error("Value %d out of range for s8", v);
     int8_t vs8 = v;
@@ -158,6 +133,10 @@ xml_parse_s8(const char *value, void *out)
     copy_out(out, vs8);
 }
 
+/**
+ * Parse a note number name to its s8 [0;127] value.
+ * For example "PITCH_EF4" -> 42.
+ */
 void
 xml_parse_note_number(const char *value, void *out)
 {
@@ -203,7 +182,38 @@ xml_parse_note_number(const char *value, void *out)
             start++;
         }
 
-        v = xml_str_to_int(&value[start], true);
+        if (start == value_len)
+            goto err;
+
+        bool neg = false;
+        int res;
+
+        // if value starts with NEG (ignoring case)
+        if (start + 3 <= value_len && toupper(value[start + 0]) == 'N' && toupper(value[start + 1]) == 'E' &&
+            toupper(value[start + 2]) == 'G') {
+            neg = true;
+            start += 3;
+        }
+
+        int base = 10;
+
+        const char *str_end;
+        res = strtol(&value[start], &str_end, base);
+        size_t end = str_end - value;
+        if (start == end)
+            goto err;
+
+        // consume trailing whitespace
+        while (value[end] != '\0') {
+            if (!isspace(value[end]))
+                goto err;
+            end++;
+        }
+
+        assert(end == value_len);
+
+        // apply sign
+        v = neg ? -res : res;
 
         if (v < -1 || v > 10)
             error("Value %d out of range for note number", v);
@@ -212,7 +222,7 @@ xml_parse_note_number(const char *value, void *out)
         if (vs8 < 0)
             vs8 += 128;
     } else // got a raw value
-        vs8 = xml_str_to_int(&value[start], false);
+        vs8 = xml_str_to_int(&value[start]);
 
     if (vs8 < 0)
         goto err;
