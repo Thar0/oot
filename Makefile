@@ -635,7 +635,7 @@ $(BUILD_DIR)/assets/audio/samplebanks/%.o: $(BUILD_DIR)/assets/audio/samplebanks
 	$(AS) $(ASFLAGS) $(@:.o=.s) -o $@
 # TESTING:
 #	$(OBJCOPY) -O binary -j.rodata $@ $(@:.o=.bin)
-#	@cmp $(@:.o=.bin) $(patsubst $(BUILD_DIR)/assets/audio/samplebanks/%,baserom/audiotable_files/%,$(@:.o=.bin)) && echo "$(<F) OK"
+#	@cmp $(@:.o=.bin) $(patsubst $(BUILD_DIR)/assets/audio/samplebanks/%,$(EXTRACTED_DIR)/baserom/audiotable_files/%,$(@:.o=.bin)) && echo "$(<F) OK"
 
 # also assemble the soundfonts and generate the associated headers... TODO have sfc handle dependency generation?
 
@@ -662,7 +662,7 @@ $(BUILD_DIR)/assets/audio/soundfonts/%.o: $(BUILD_DIR)/assets/audio/soundfonts/%
 # TESTING: link with samplebanks and dump binary
 #	$(LD) $(foreach f,$(SAMPLEBANK_O_FILES),-R $f) -T include/audio/sf.ld $@ -o $(@:.o=.elf)
 #	$(OBJCOPY) -O binary -j.rodata $(@:.o=.elf) $(@:.o=.bin)
-#	@(cmp $(@:.o=.bin) $(patsubst $(BUILD_DIR)/assets/audio/soundfonts/%,baserom/audiobank_files/%,$(@:.o=.bin)) && echo "$(<F) OK" || (mkdir -p NONMATCHINGS/soundfonts && cp $(@:.o=.bin) NONMATCHINGS/soundfonts/$(@F:.o=.bin)))
+#	@(cmp $(@:.o=.bin) $(patsubst $(BUILD_DIR)/assets/audio/soundfonts/%,$(EXTRACTED_DIR)/baserom/audiobank_files/%,$(@:.o=.bin)) && echo "$(<F) OK" || (mkdir -p NONMATCHINGS/soundfonts && cp $(@:.o=.bin) NONMATCHINGS/soundfonts/$(@F:.o=.bin)))
 
 # then assemble the sequences... TODO would be nicer if these could depend only on the headers they contain instead
 # of all soundfont headers, cpp can do dependency generation so look into using that + move $(SOUNDFONT_HEADERS) to order-only?
@@ -672,7 +672,7 @@ $(BUILD_DIR)/assets/audio/sequences/%.o: assets/audio/sequences/%.seq $(SOUNDFON
 	$(AS) $(ASFLAGS) -I $(BUILD_DIR)/assets/audio/soundfonts -I include/audio $(@:.o=.S) -o $@
 # TESTING:
 #	$(OBJCOPY) -O binary -j.data $@ $(@:.o=.aseq)
-#	@(cmp $(@:.o=.aseq) $(patsubst $(BUILD_DIR)/assets/audio/sequences/%,baserom/audioseq_files/%,$(@:.o=.aseq)) && echo "$(<F) OK" || (mkdir -p NONMATCHINGS/sequences && cp $(@:.o=.aseq) NONMATCHINGS/sequences/$(@F:.o=.aseq)))
+#	@(cmp $(@:.o=.aseq) $(patsubst $(BUILD_DIR)/assets/audio/sequences/%,$(EXTRACTED_DIR)/baserom/audioseq_files/%,$(@:.o=.aseq)) && echo "$(<F) OK" || (mkdir -p NONMATCHINGS/sequences && cp $(@:.o=.aseq) NONMATCHINGS/sequences/$(@F:.o=.aseq)))
 
 # put together the tables
 
@@ -729,7 +729,7 @@ $(BUILD_DIR)/assets/audio/sequence_font_table.o: $(BUILD_DIR)/assets/audio/seque
 	$(AS) $(ASFLAGS) $< -o $@
 # TESTING:
 #	$(OBJCOPY) -O binary -j.rodata $@ $(@:.o=.bin)
-#	@cmp $(@:.o=.bin) baserom/audio_code_tables/sequence_font_table.bin && echo "$(@F:.o=) OK"
+#	@cmp $(@:.o=.bin) $(EXTRACTED_DIR)/baserom/audio_code_tables/sequence_font_table.bin && echo "$(@F:.o=) OK"
 
 # make headers with file sizes and amounts
 
