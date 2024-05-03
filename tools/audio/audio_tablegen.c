@@ -672,9 +672,9 @@ usage(const char *progname)
 int
 main(int argc, char **argv)
 {
-    // -banks -o [header_out] [files...]
-    // -fonts -o [header_out] [files...]
-    // -sequences -o [seq_font_tbl_out] [order] [files...]
+    // -banks [header_out] [files...]
+    // -fonts [header_out] [files...]
+    // -sequences [seq_font_tbl_out] [order] [files...]
     int ret = EXIT_SUCCESS;
 
     const char *progname = argv[0];

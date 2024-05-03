@@ -89,7 +89,6 @@ int
 main(int argc, char **argv)
 {
     // Required arguments
-    const char *progname = NULL;
     const char *in_path = NULL;
     const char *out_path = NULL;
     const char *out_codec_name = NULL;
@@ -106,28 +105,48 @@ main(int argc, char **argv)
         .design.frame_size = 16,
     };
 
-    progname = argv[0];
+    // parse args
 
-    if (argc < 4)
-        usage(progname);
+#define arg_error(fmt, ...) \
+    do { fprintf(stderr, fmt "\n", ##__VA_ARGS__); usage(argv[0]); } while (0)
 
+    int argn = 0;
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
-            if (strequ(argv[i], "--matching"))
+            // Optional args
+
+            if (strequ(argv[i], "--matching")) {
+                if (opts.matching)
+                    arg_error("Received --matching option twice");
+
                 opts.matching = true;
-            else
-                usage(argv[0]);
+                continue;
+            }
+            arg_error("Unknown option \"%s\"", argv[i]);
         } else {
-            if (out_codec_name == NULL)
-                out_codec_name = argv[i];
-            else if (in_path == NULL)
-                in_path = argv[i];
-            else if (out_path == NULL)
-                out_path = argv[i];
-            else
-                usage(argv[0]);
+            // Required args
+
+            switch (argn) {
+                case 0:
+                    out_codec_name = argv[i];
+                    break;
+                case 1:
+                    in_path = argv[i];
+                    break;
+                case 2:
+                    out_path = argv[i];
+                    break;
+                default:
+                    arg_error("Unknown positional argument \"%s\"", argv[i]);
+                    break;
+            }
+            argn++;
         }
     }
+    if (argn != 3)
+        arg_error("Not enough positional arguments");
+
+#undef arg_error
 
     const container_spec *in_container = container_from_name(in_path);
     if (in_container == NULL)

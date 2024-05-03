@@ -156,8 +156,8 @@
 #define PITCH_AF0      127
 
 // Hardcoded Instruments
-#define FONTANY_INSTR_SFX          0x7E
-#define FONTANY_INSTR_DRUM         0x7F
+#define FONTANY_INSTR_SFX          126
+#define FONTANY_INSTR_DRUM         127
 // gWaveSamples[]
 #define FONTANY_INSTR_SAWTOOTH     128
 #define FONTANY_INSTR_TRIANGLE     129

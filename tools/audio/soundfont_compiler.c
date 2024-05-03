@@ -313,7 +313,7 @@ void
 read_instrs_info(soundfont *sf, xmlNodePtr instrs)
 {
     static const xml_attr_spec instr_spec = {
-        {"ProgramNumber", true,  xml_parse_int,          offsetof(instr_data, program_number)   },
+        {"ProgramNumber", true,  xml_parse_uint,         offsetof(instr_data, program_number)   },
         { "Name",         true,  xml_parse_c_identifier, offsetof(instr_data, name)             },
         { "Envelope",     false, xml_parse_c_identifier, offsetof(instr_data, envelope_name)    },
         { "Release",      true,  xml_parse_u8,           offsetof(instr_data, release)          },
@@ -368,9 +368,10 @@ read_instrs_info(soundfont *sf, xmlNodePtr instrs)
         xml_parse_node_by_spec(instr, instr_node, instr_spec, ARRAY_COUNT(instr_spec));
 
         if (!is_instr_unused) {
-            // check program number
-            if (instr->program_number >= 128)
-                error("Program numbers must be in the range 0-127 (got %u)", instr->program_number);
+            // check program number, midi program number range is 0-127 but the audio driver reserves 126 and 127 for
+            // sfx and percussion so the range we allow is 0-125
+            if (instr->program_number >= 126)
+                error("Program numbers must be in the range 0-125 (got %u)", instr->program_number);
 
             // ensure program number is unique
             unsigned upper = instr->program_number >> 5 & 3;
@@ -701,7 +702,7 @@ read_samples_info(soundfont *sf, xmlNodePtr samples)
     static const xml_attr_spec sample_spec = {
         {"Name",        false, xml_parse_c_identifier, offsetof(sample_data, name)       },
         { "SampleRate", true,  xml_parse_double,       offsetof(sample_data, sample_rate)},
-        { "BaseNote",   true,  xml_parse_int,          offsetof(sample_data, base_note)  },
+        { "BaseNote",   true,  xml_parse_note_number,  offsetof(sample_data, base_note)  },
         { "IsDD",       true,  xml_parse_bool,         offsetof(sample_data, is_dd)      },
         { "Cached",     true,  xml_parse_bool,         offsetof(sample_data, cached)     },
     };
@@ -1621,24 +1622,47 @@ usage(const char *progname)
 int
 main(int argc, char **argv)
 {
-#define NUM_REQUIRED_ARGS 4
-#define MAX_OPTIONAL_ARGS 1
     char *filename_in = NULL;
     char *filename_out_c = NULL;
     char *filename_out_h = NULL;
     char *filename_out_name = NULL;
+    const char *mdfilename = NULL;
+    FILE *mdfile;
     xmlDocPtr document;
     soundfont sf;
 
-    if (argc != 1 + NUM_REQUIRED_ARGS && argc != 1 + NUM_REQUIRED_ARGS + MAX_OPTIONAL_ARGS)
-        usage(argv[0]);
+    sf.matching = false;
+
+    // parse args
+
+#define arg_error(fmt, ...) \
+    do { fprintf(stderr, fmt "\n", ##__VA_ARGS__); usage(argv[0]); } while (0)
 
     int argn = 0;
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
-            if (strequ(argv[i], "--matching"))
+            // Optional args
+
+            if (strequ(argv[i], "--matching")) {
+                if (sf.matching)
+                    arg_error("Received --matching option twice");
+
                 sf.matching = true;
+                continue;
+            }
+            if (strequ(argv[i], "--makedepend")) {
+                if (mdfilename != NULL)
+                    arg_error("Received --makedepend option twice");
+                if (i + 1 == argc)
+                    arg_error("--makedepend missing required argument");
+
+                mdfilename = argv[++i];
+                continue;
+            }
+            arg_error("Unknown option \"%s\"", argv[i]);
         } else {
+            // Required args
+
             switch (argn) {
                 case 0:
                     filename_in = argv[i];
@@ -1653,13 +1677,16 @@ main(int argc, char **argv)
                     filename_out_name = argv[i];
                     break;
                 default:
-                    usage(argv[0]);
+                    arg_error("Unknown positional argument \"%s\"", argv[i]);
+                    break;
             }
             argn++;
         }
     }
-    if (argn != NUM_REQUIRED_ARGS)
-        usage(argv[0]);
+    if (argn != 4)
+        arg_error("Not enough positional arguments");
+
+#undef arg_error
 
     document = xmlReadFile(filename_in, NULL, XML_PARSE_NONET);
     if (document == NULL)
@@ -1794,6 +1821,31 @@ main(int argc, char **argv)
     FILE *out_name = fopen(filename_out_name, "w");
     fprintf(out_name, "%s", sf.info.name);
     fclose(out_name);
+
+    // emit dependency file if wanted
+
+    if (mdfilename != NULL) {
+        mdfile = fopen(mdfilename, "w");
+        if (mdfile == NULL)
+            error("Unable to open dependency file [%s] for writing", mdfilename);
+
+        // Begin rule + depend on the soundfont xml input
+        fprintf(mdfile, "%s %s %s: \\\n    %s", filename_out_c, filename_out_h, filename_out_name, filename_in);
+
+        // Depend on the referenced samplebank xmls
+        if (sf.info.bank_path != NULL)
+            fprintf(mdfile, " \\\n    %s", sf.info.bank_path);
+        if (sf.info.bank_path_dd != NULL)
+            fprintf(mdfile, " \\\n    %s", sf.info.bank_path_dd);
+
+        // Depend on the aifc files used by this soundfont
+        LL_FOREACH(sample_data *, sample, sf.samples) {
+            fprintf(mdfile, " \\\n    %s", sample->aifc.path);
+        }
+
+        fputs("\n", mdfile);
+        fclose(mdfile);
+    }
 
     // done
 

@@ -61,7 +61,7 @@ xml_str_to_int(const char *value)
         base = 10;
     }
 
-    const char *str_end;
+    char *str_end;
     res = strtol(&value[start], &str_end, base);
     size_t end = str_end - value;
     if (start == end)
@@ -197,7 +197,7 @@ xml_parse_note_number(const char *value, void *out)
 
         int base = 10;
 
-        const char *str_end;
+        char *str_end;
         res = strtol(&value[start], &str_end, base);
         size_t end = str_end - value;
         if (start == end)

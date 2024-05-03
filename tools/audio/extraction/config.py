@@ -90,7 +90,6 @@ SEQ_DISAS_HACKS_OOT = {
     # sequence number : ((start offset, number of entries, addend, section_type), ...)
     0 : (
             (0x00E1, 128, 0, SqSection.CHAN),
-            (0x01E1,  96, 0, SqSection.CHAN), # TODO is this part of the previous?
             (0x0EE3,  80, 0, SqSection.CHAN),
             (0x16D5, 248, 0, SqSection.CHAN),
             (0x315E, 499, 0, SqSection.CHAN),

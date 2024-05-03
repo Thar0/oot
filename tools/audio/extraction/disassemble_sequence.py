@@ -402,7 +402,6 @@ class MMLCmd:
     args : Tuple[MMLArg] = ()
     is_branch : bool = False
     is_branch_unconditional : bool = False
-    is_flowctrl : bool = False
     is_terminal : bool = False
     handler : Callable = None
     sections : Tuple[SqSection] = SECTION_ALL
@@ -429,20 +428,20 @@ CMD_SPEC = (
     #
     # Control Flow Commands
     #
-    MMLCmd(0xFF, 'end',                               is_flowctrl=True, is_terminal=True, handler=nesting_decr),
-    MMLCmd(0xFE, 'delay1',                            is_flowctrl=True),
-    MMLCmd(0xFD, 'delay',   args=(ArgVar,),           is_flowctrl=True, sections=(SqSection.SEQ, SqSection.CHAN,)),
-    MMLCmd(0xFC, 'call',    args=(ArgBigSectionPtr,), is_flowctrl=True),
-    MMLCmd(0xFB, 'jump',    args=(ArgSectionPtr,),    is_flowctrl=True, is_branch=True, is_branch_unconditional=True),
-    MMLCmd(0xFA, 'beqz',    args=(ArgSectionPtr,),    is_flowctrl=True, is_branch=True),
-    MMLCmd(0xF9, 'bltz',    args=(ArgSectionPtr,),    is_flowctrl=True, is_branch=True),
-    MMLCmd(0xF8, 'loop',    args=(ArgU8,),            is_flowctrl=True, handler=nesting_incr),
-    MMLCmd(0xF7, 'loopend',                           is_flowctrl=True, handler=nesting_decr),
-    MMLCmd(0xF6, 'break',                             is_flowctrl=True, handler=nesting_decr),
-    MMLCmd(0xF5, 'bgez',    args=(ArgSectionPtr,),    is_flowctrl=True, is_branch=True),
-    MMLCmd(0xF4, 'rjump',   args=(ArgRelSectionPtr,), is_flowctrl=True, is_branch=True, is_branch_unconditional=True),
-    MMLCmd(0xF3, 'rbeqz',   args=(ArgRelSectionPtr,), is_flowctrl=True, is_branch=True),
-    MMLCmd(0xF2, 'rbltz',   args=(ArgRelSectionPtr,), is_flowctrl=True, is_branch=True),
+    MMLCmd(0xFF, 'end',                               is_terminal=True, handler=nesting_decr),
+    MMLCmd(0xFE, 'delay1'),
+    MMLCmd(0xFD, 'delay',   args=(ArgVar,),           sections=(SqSection.SEQ, SqSection.CHAN,)),
+    MMLCmd(0xFC, 'call',    args=(ArgBigSectionPtr,)),
+    MMLCmd(0xFB, 'jump',    args=(ArgSectionPtr,),    is_branch=True, is_branch_unconditional=True),
+    MMLCmd(0xFA, 'beqz',    args=(ArgSectionPtr,),    is_branch=True),
+    MMLCmd(0xF9, 'bltz',    args=(ArgSectionPtr,),    is_branch=True),
+    MMLCmd(0xF8, 'loop',    args=(ArgU8,),            handler=nesting_incr),
+    MMLCmd(0xF7, 'loopend',                           handler=nesting_decr),
+    MMLCmd(0xF6, 'break',                             handler=nesting_decr),
+    MMLCmd(0xF5, 'bgez',    args=(ArgSectionPtr,),    is_branch=True),
+    MMLCmd(0xF4, 'rjump',   args=(ArgRelSectionPtr,), is_branch=True, is_branch_unconditional=True),
+    MMLCmd(0xF3, 'rbeqz',   args=(ArgRelSectionPtr,), is_branch=True),
+    MMLCmd(0xF2, 'rbltz',   args=(ArgRelSectionPtr,), is_branch=True),
 
     #
     # SEQ commands
@@ -636,7 +635,6 @@ class SequenceFragment:
 
     @staticmethod
     def merge(frag1, frag2):
-        # TODO fix
         if frag1 == frag2:
             return frag1
 

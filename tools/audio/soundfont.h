@@ -28,7 +28,7 @@ typedef struct sample_data {
 
     const char *name;
     double sample_rate;
-    int base_note;
+    int8_t base_note;
     bool is_dd;
     bool cached;
     aifc_data aifc;
