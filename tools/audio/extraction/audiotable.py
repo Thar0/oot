@@ -524,6 +524,8 @@ class AudioTableFile:
             if self.coverage[-1][1] != len(self):
                 unaccounted_ranges.append((self.coverage[-1][1], len(self)))
 
+        # TODO if an unaccounted range is in the extraction xml, trust it before searching other banks
+
         unaccounted_str = "[" + ", ".join(f"(0x{start:06X}, 0x{end:06X})" for start,end in unaccounted_ranges) + "]"
         print(f"Sample Bank {self.bank_num} has incomplete coverage. Unaccounted: {unaccounted_str}")
 
@@ -546,9 +548,11 @@ class AudioTableFile:
                         if self.data[start:sample_end] == sample.data:
                             print(f"    Located match for range [0x{start:X}:0x{sample_end:X}] in bank {j} at 0x{sample.start:X}")
                             new_sample = sample.clone(start, sample_end, self.data[sample_end:sample_end_aligned])
-                            self.samples_final.append(new_sample)
+                            new_sample.start = start
+                            new_sample.end = sample_end
                             new_sample.sample_rate = sample.sample_rate
                             new_sample.base_note = sample.base_note
+                            self.samples_final.append(new_sample)
                             found = True
                             start = sample_end_aligned
                             break
@@ -637,7 +641,7 @@ class AudioTableFile:
                 xml.write_element("Sample", {
                     "Name"       : sample.name,
                     "FileName"   : sample.filename.replace(".half.aifc", "").replace(".aifc", ""),
-                    "Offset"     : f"0x{sample.header.sample_addr:06X}",
+                    "Offset"     : f"0x{sample.start:06X}",
                     # "Size"     : f"0x{sample.header.size:04X}",
                     "SampleRate" : sample.sample_rate,
                     "BaseNote"   : sample.base_note,

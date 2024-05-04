@@ -6,7 +6,7 @@
 #   Extract audio files
 #
 
-import argparse, os, shutil, time
+import argparse, os, pathlib, shutil, time
 from multiprocessing.pool import ThreadPool
 from typing import Dict, List, Union
 from xml.etree import ElementTree
@@ -24,6 +24,9 @@ from config import SAMPLECONV_PATH
 from config import AUDIOTABLE_BUFFER_BUGS, FAKE_BANKS
 from config import SEQ_DISAS_HACKS
 from config import HANDWRITTEN_SEQUENCES_OOT, HANDWRITTEN_SEQUENCES_MM
+
+BASEROM_DEBUG = False
+BASEROM_DIR = "extracted/gc-eu-mq/baserom_audiotest"
 
 # ======================================================================================================================
 #   Run
@@ -58,7 +61,9 @@ def collect_sample_banks(rom_image : memoryview, version_info : GameVersionInfo,
 
             bank = AudioTableFile(i, rom_image, entry, version_info.audiotable_rom + table.rom_addr, buffer_bug=bug,
                                   extraction_xml=samplebank_xmls.get(i, None))
-            bank.dump_bin(f"baserom/audiotable_files/{bank.file_name}.bin") # (debug)
+
+            if BASEROM_DEBUG:
+                bank.dump_bin(f"{BASEROM_DIR}/audiotable_files/{bank.file_name}.bin")
 
             sample_banks.append(bank)
 
@@ -91,8 +96,9 @@ def collect_soundfonts(rom_image : memoryview, sound_font_table : AudioCodeTable
                                   extraction_xml=soundfont_xmls.get(i, None))
         soundfonts.append(soundfont)
 
-        # Write the individual file for debugging and comparison
-        soundfont.dump_bin(f"baserom/audiobank_files/{soundfont.file_name}.bin")
+        if BASEROM_DEBUG:
+            # Write the individual file for debugging and comparison
+            soundfont.dump_bin(f"{BASEROM_DIR}/audiobank_files/{soundfont.file_name}.bin")
 
     return soundfonts
 
@@ -113,16 +119,13 @@ def aifc_extract_one_bin(base_path : str, sample : AudioTableData):
     shutil.copyfile(f"{base_path}/aifc/{sample.filename}", f"{base_path}/{sample.filename}")
     # TODO move instead of copy? (after testing)
 
-def extract_samplebank(pool : ThreadPool, sample_banks : List[AudioTableFile], bank : AudioTableFile, i : int,
-                       write_xml : bool):
-    # debugm(f"SAMPLE BANK {i}")
-
+def extract_samplebank(pool : ThreadPool, sample_banks : List[AudioTableFile], bank : AudioTableFile, write_xml : bool):
     # deal with remaining gaps, have to blob them unless we can find an exact match in another bank
     bank.finalize_coverage(sample_banks)
     # assign names
     bank.assign_names()
 
-    base_path = f"assets/audio/samples/Bank{i}"
+    base_path = f"assets/audio/samples/{bank.name}"
 
     # write xml
     with open(f"assets/audio/samplebanks/{bank.file_name}.xml", "w") as outfile:
@@ -150,9 +153,11 @@ def extract_samplebank(pool : ThreadPool, sample_banks : List[AudioTableFile], b
     # block until done
     [res.get() for res in async_results]
 
-    print(f"Samplebank {i} extraction took {time.time() - t_start}s")
+    print(f"Samplebank {bank.name} extraction took {time.time() - t_start}s")
 
-    # TODO drop aifc dir
+    # drop aifc dir if not in debug mode
+    if not BASEROM_DEBUG:
+        shutil.rmtree(f"{base_path}/aifc")
 
 def disassemble_one_sequence(version_info : GameVersionInfo, soundfonts : List[AudiobankFile], enum_names : List[str],
                              id : int, data : bytes, name : str, filename : str, fonts : memoryview):
@@ -188,7 +193,9 @@ def extract_sequences(sequence_table : AudioCodeTable, sequence_font_table : mem
 
     assert len(seq_enum_names) == len(sequence_table)
 
-    os.makedirs(f"baserom/audioseq_files", exist_ok=True) # (debug)
+    if BASEROM_DEBUG:
+        os.makedirs(f"{BASEROM_DIR}/audioseq_files", exist_ok=True)
+
     os.makedirs(f"assets/audio/sequences", exist_ok=True)
     if write_xml:
         os.makedirs(f"assets/xml/audio/sequences", exist_ok=True)
@@ -219,9 +226,10 @@ def extract_sequences(sequence_table : AudioCodeTable, sequence_font_table : mem
 
             ext = ".prg" if i in handwritten_sequences else ""
 
-            # (Debug) extract original sequence binary for comparison
-            with open(f"baserom/audioseq_files/seq_{i}{ext}.aseq", "wb") as outfile:
-                outfile.write(seq_data)
+            if BASEROM_DEBUG:
+                # Extract original sequence binary for comparison
+                with open(f"{BASEROM_DIR}/audioseq_files/seq_{i}{ext}.aseq", "wb") as outfile:
+                    outfile.write(seq_data)
 
             extraction_xml = sequence_xmls.get(i, None)
             if extraction_xml is None:
@@ -329,21 +337,22 @@ def extract_audio_for_version(version_name : str, rom_path : str, read_xml : boo
     sequence_table = AudioCodeTable(rom_image, version_info.seq_table)
     sequence_font_table = incbin(rom_image, version_info.seq_font_table, seq_font_tbl_len)
 
-    # (Debug) Extract Table Binaries
+    if BASEROM_DEBUG:
+        # Extract Table Binaries
 
-    os.makedirs(f"baserom/audio_code_tables/", exist_ok=True)
+        os.makedirs(f"{BASEROM_DIR}/audio_code_tables/", exist_ok=True)
 
-    with open(f"baserom/audio_code_tables/samplebank_table.bin", "wb") as outfile:
-        outfile.write(sample_bank_table.data)
+        with open(f"{BASEROM_DIR}/audio_code_tables/samplebank_table.bin", "wb") as outfile:
+            outfile.write(sample_bank_table.data)
 
-    with open(f"baserom/audio_code_tables/soundfont_table.bin", "wb") as outfile:
-        outfile.write(sound_font_table.data)
+        with open(f"{BASEROM_DIR}/audio_code_tables/soundfont_table.bin", "wb") as outfile:
+            outfile.write(sound_font_table.data)
 
-    with open(f"baserom/audio_code_tables/sequence_table.bin", "wb") as outfile:
-        outfile.write(sequence_table.data)
+        with open(f"{BASEROM_DIR}/audio_code_tables/sequence_table.bin", "wb") as outfile:
+            outfile.write(sequence_table.data)
 
-    with open(f"baserom/audio_code_tables/sequence_font_table.bin", "wb") as outfile:
-        outfile.write(sequence_font_table)
+        with open(f"{BASEROM_DIR}/audio_code_tables/sequence_font_table.bin", "wb") as outfile:
+            outfile.write(sequence_font_table)
 
     # ==================================================================================================================
     # Collect extraction xmls
@@ -377,14 +386,16 @@ def extract_audio_for_version(version_name : str, rom_path : str, read_xml : boo
     # Collect samplebanks
     # ==================================================================================================================
 
-    os.makedirs(f"baserom/audiotable_files", exist_ok=True) # (debug)
+    if BASEROM_DEBUG:
+        os.makedirs(f"{BASEROM_DIR}/audiotable_files", exist_ok=True)
     sample_banks = collect_sample_banks(rom_image, version_info, sample_bank_table, samplebank_xmls)
 
     # ==================================================================================================================
     # Collect soundfonts
     # ==================================================================================================================
 
-    os.makedirs(f"baserom/audiobank_files", exist_ok=True) # (debug)
+    if BASEROM_DEBUG:
+        os.makedirs(f"{BASEROM_DIR}/audiobank_files", exist_ok=True)
     soundfonts = collect_soundfonts(rom_image, sound_font_table, sample_banks, version_info, soundfont_xmls)
 
     # ==================================================================================================================
@@ -408,9 +419,9 @@ def extract_audio_for_version(version_name : str, rom_path : str, read_xml : boo
     os.makedirs(f"assets/xml/audio/samplebanks", exist_ok=True)
 
     with ThreadPool(processes=os.cpu_count()) as pool:
-        for i,bank in enumerate(sample_banks):
+        for bank in sample_banks:
             if isinstance(bank, AudioTableFile):
-                extract_samplebank(pool, sample_banks, bank, i, write_xml)
+                extract_samplebank(pool, sample_banks, bank, write_xml)
 
     # ==================================================================================================================
     # Extract soundfonts
