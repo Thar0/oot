@@ -107,7 +107,7 @@ read_pstring_alloc(FILE *f)
     FREAD(f, &len, sizeof(len));
 
     // alloc
-    char *out = MALLOC_CHECKED_INFO(len, "len=%u", len);
+    char *out = MALLOC_CHECKED_INFO(len + 1, "len=%u", len);
 
     // read string and null-terminate it
     FREAD(f, out, len);
@@ -455,10 +455,9 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
                                 for (size_t j = 0; j < ARRAY_COUNT(out->vadpcm.loops[i].state); j++)
                                     out->vadpcm.loops[i].state[j] = be16toh(out->vadpcm.loops[i].state[j]);
                             }
-
-                            out->vadpcm.has_book = true;
-                        } else
+                        } else {
                             warning("Skipping unknown APPL::stoc subchunk: \"%s\"", chunk_name);
+                        }
                     } break;
 
                     default:
@@ -497,7 +496,7 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
         if (read_size > chunk_size.value)
             error("overran chunk: %lu vs %u\n", read_size, chunk_size.value);
         else if (read_size < chunk_size.value)
-            warning("did not read entire %*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size.value);
+            warning("did not read entire %.*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size.value);
 
         fseek(in, start + 8 + chunk_size.value, SEEK_SET);
     }

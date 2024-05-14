@@ -16,42 +16,86 @@
 #include "aifc.h"
 #include "util.h"
 
+#define BIG_ENDIAN_STRUCT __attribute__((scalar_storage_order("big-endian"))) struct
+
+typedef BIG_ENDIAN_STRUCT
+{
+    uint32_t value;
+}
+uint32_t_BE;
+
+typedef BIG_ENDIAN_STRUCT
+{
+    uint16_t value;
+}
+uint16_t_BE;
+
+typedef BIG_ENDIAN_STRUCT
+{
+    int16_t value;
+}
+int16_t_BE;
+
+#define CC4_CHECK(buf, str) \
+    ((buf)[0] == (str)[0] && (buf)[1] == (str)[1] && (buf)[2] == (str)[2] && (buf)[3] == (str)[3])
+
+#define CC4(c1, c2, c3, c4) (((c1) << 24) | ((c2) << 16) | ((c3) << 8) | (c4))
+
+#define FREAD(file, data, size)                                                                      \
+    do {                                                                                             \
+        if (fread((data), (size), 1, (file)) != 1) {                                                 \
+            error("[%s:%d] Could not read %lu bytes from file", __FILE__, __LINE__, (size_t)(size)); \
+        }                                                                                            \
+    } while (0)
+
+#define VADPCM_VER ((int16_t)1)
+
 #define DEBUGF(fmt, ...) (void)0
 
-typedef struct {
-    uint32_t ckID;
-    uint32_t ckSize;
-} ChunkHeader;
-
-typedef struct {
-    ChunkHeader hdr;
-    uint32_t formType;
-} FormChunk;
-
-typedef struct {
+typedef BIG_ENDIAN_STRUCT
+{
     int16_t numChannels;
     uint16_t numFramesH;
     uint16_t numFramesL;
     int16_t sampleSize;
     int16_t sampleRate[5]; // 80-bit float
-    uint16_t compressionTypeH;
-    uint16_t compressionTypeL;
-    // followed by compression name pstring (?)
-} CommonChunk;
+    // uint16_t compressionTypeH;
+    // uint16_t compressionTypeL;
+    // followed by compression type + compression name pstring
+}
+aiff_COMM;
 
-typedef struct {
-    int16_t MarkerID;
+typedef BIG_ENDIAN_STRUCT
+{
+    uint16_t nMarkers;
+}
+aiff_MARK;
+
+typedef BIG_ENDIAN_STRUCT
+{
+    uint16_t MarkerID;
     uint16_t positionH;
     uint16_t positionL;
-} Marker;
+}
+Marker;
 
-typedef struct {
-    int16_t playMode;
+typedef enum {
+    LOOP_PLAYMODE_NONE = 0,
+    LOOP_PLAYMODE_FWD = 1,
+    LOOP_PLAYMODE_FWD_BWD = 2
+} aiff_loop_playmode;
+
+typedef BIG_ENDIAN_STRUCT
+{
+    int16_t playMode; // aiff_loop_playmode
+    // Marker IDs
     int16_t beginLoop;
     int16_t endLoop;
-} Loop;
+}
+Loop;
 
-typedef struct {
+typedef BIG_ENDIAN_STRUCT
+{
     int8_t baseNote;
     int8_t detune;
     int8_t lowNote;
@@ -61,25 +105,15 @@ typedef struct {
     int16_t gain;
     Loop sustainLoop;
     Loop releaseLoop;
-} InstrumentChunk;
+}
+aiff_INST;
 
-typedef struct {
+typedef BIG_ENDIAN_STRUCT
+{
     int32_t offset;
     int32_t blockSize;
-} SoundDataChunk;
-
-typedef struct {
-    int16_t version;
-    int16_t order;
-    int16_t nEntries;
-} CodeChunk;
-
-#define READ_DATA(file, ptr, length)                  \
-    do {                                              \
-        if (fread((ptr), (length), 1, (file)) != 1) { \
-            error("[aifc:%d] read error", __LINE__);  \
-        }                                             \
-    } while (0)
+}
+aiff_SSND;
 
 static_assert(sizeof(double) == sizeof(uint64_t), "Double is assumed to be 64-bit");
 
@@ -113,9 +147,9 @@ f64_to_f80(double f64, uint8_t *f80)
 
     // byteswap to BE
 
-    BSWAP32(f80tmp.w[0]);
-    BSWAP32(f80tmp.w[1]);
-    BSWAP32(f80tmp.w[2]);
+    f80tmp.w[0] = htobe32(f80tmp.w[0]);
+    f80tmp.w[1] = htobe32(f80tmp.w[1]);
+    f80tmp.w[2] = htobe32(f80tmp.w[2]);
 
     // write bytes
 
@@ -139,9 +173,9 @@ f80_to_f64(double *f64, uint8_t *f80)
 
     // byteswap from BE
 
-    BSWAP32(f80tmp.w[0]);
-    BSWAP32(f80tmp.w[1]);
-    BSWAP32(f80tmp.w[2]);
+    f80tmp.w[0] = be32toh(f80tmp.w[0]);
+    f80tmp.w[1] = be32toh(f80tmp.w[1]);
+    f80tmp.w[2] = be32toh(f80tmp.w[2]);
 
     // get f64 parts
 
@@ -160,38 +194,51 @@ f80_to_f64(double *f64, uint8_t *f80)
     *f64 = *(double *)&f64_bits;
 }
 
-static char *
-ReadPString(FILE *f)
+static void
+read_pstring(FILE *f, char *out)
 {
-    unsigned char num;
-    char *st;
+    unsigned char len;
 
     // read string length
-    READ_DATA(f, &num, sizeof(num));
+    FREAD(f, &len, sizeof(len));
 
-    // alloc
-    st = malloc(num + 1);
+    // read string and null-terminate it
+    FREAD(f, out, len);
+    out[len] = '\0';
 
-    // read string and null terminate it
-    READ_DATA(f, st, num);
-    st[num] = '\0';
-
-    // pad to 2 byte boundary
-    if ((num & 1) == 0)
-        READ_DATA(f, &num, sizeof(num));
-
-    return st;
+    // pad to 2-byte boundary
+    if (!(len & 1))
+        FREAD(f, &len, 1);
 }
 
-#define VADPCM_VER ((int16_t)1)
+static char *
+read_pstring_alloc(FILE *f)
+{
+    unsigned char len;
+
+    // read string length
+    FREAD(f, &len, sizeof(len));
+
+    // alloc
+    char *out = malloc(len + 1);
+
+    // read string and null-terminate it
+    FREAD(f, out, len);
+    out[len] = '\0';
+
+    // pad to 2-byte boundary
+    if (!(len & 1))
+        FREAD(f, &len, 1);
+
+    return out;
+}
 
 void
 aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf_pos)
 {
-    FILE *aifc_file;
-    FormChunk fc;
-    bool saw_comm;
-    bool saw_ssnd;
+    FILE *in;
+    bool has_comm = false;
+    bool has_ssnd = false;
 
     memset(af, 0, sizeof(aifc_data));
 
@@ -200,62 +247,69 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
     if (path == NULL)
         return;
 
-    aifc_file = fopen(path, "rb");
-    if (aifc_file == NULL)
-        error("[aifc] sample file [%s] could not be opened", path);
+    in = fopen(path, "rb");
+    if (in == NULL)
+        error("Failed to open \"%s\" for reading", path);
 
-    READ_DATA(aifc_file, &fc, sizeof(fc));
+    char form[4];
+    uint32_t_BE size_BE;
+    char aifc[4];
 
-    BSWAP32(fc.hdr.ckID);
-    BSWAP32(fc.formType);
+    FREAD(in, form, 4);
+    FREAD(in, &size_BE, 4);
+    FREAD(in, aifc, 4);
+    uint32_t size = size_BE.value;
 
-    if (fc.hdr.ckID != CC4('F', 'O', 'R', 'M') || fc.formType != CC4('A', 'I', 'F', 'C'))
-        error("[aifc] file [%s] is not an AIFF-C file", path);
+    if (!CC4_CHECK(form, "FORM") || !CC4_CHECK(aifc, "AIFC"))
+        error("Not an aifc file?");
 
     af->path = path;
 
     while (true) {
-        ChunkHeader header;
-        InstrumentChunk ic;
-        CommonChunk cc;
-        SoundDataChunk sc;
-        uint32_t ts;
-        long offset;
-        size_t num;
+        char cc4[4];
+        uint32_t_BE chunk_size;
 
-        num = fread(&header, sizeof(header), 1, aifc_file);
-        if (num == 0)
+        long start = ftell(in);
+        if (start > 8 + size) {
+            error("Overran file");
+        }
+        if (start == 8 + size) {
             break;
+        }
 
-        BSWAP32(header.ckID);
-        BSWAP32(header.ckSize);
-        header.ckSize++;
-        header.ckSize &= ~1;
+        FREAD(in, cc4, 4);
+        FREAD(in, &chunk_size, 4);
 
-        offset = ftell(aifc_file);
+        chunk_size.value++;
+        chunk_size.value &= ~1;
 
         DEBUGF("%c%c%c%c\n", header.ckID >> 24, header.ckID >> 16, header.ckID >> 8, header.ckID);
 
-        switch (header.ckID) {
-            case CC4('C', 'O', 'M', 'M'):
-                READ_DATA(aifc_file, &cc, sizeof(cc));
-                BSWAP16(cc.numChannels);
-                BSWAP16(cc.numFramesH);
-                BSWAP16(cc.numFramesL);
-                BSWAP16(cc.sampleSize);
-                BSWAP16(cc.compressionTypeH);
-                BSWAP16(cc.compressionTypeL);
+        switch (CC4(cc4[0], cc4[1], cc4[2], cc4[3])) {
+            case CC4('C', 'O', 'M', 'M'): {
+                aiff_COMM comm;
+                FREAD(in, &comm, sizeof(comm));
 
-                assert(cc.numChannels == 1); // mono
-                assert(cc.sampleSize == 16); // 16-bit samples
+                assert(comm.numChannels == 1); // mono
+                assert(comm.sampleSize == 16); // 16-bit samples
 
-                af->num_channels = cc.numChannels;
-                af->sample_size = cc.sampleSize;
-                af->num_frames = (cc.numFramesH << 16) | cc.numFramesL;
-                af->compression_type = (cc.compressionTypeH << 16) | cc.compressionTypeL;
-                f80_to_f64(&af->sample_rate, (uint8_t *)cc.sampleRate);
+                af->num_channels = comm.numChannels;
+                af->sample_size = comm.sampleSize;
+                af->num_frames = (comm.numFramesH << 16) | comm.numFramesL;
+                f80_to_f64(&af->sample_rate, (uint8_t *)comm.sampleRate);
 
-                af->compression_name = ReadPString(aifc_file);
+                uint32_t comp_type = CC4('N', 'O', 'N', 'E');
+                if (chunk_size.value > sizeof(aiff_COMM)) {
+                    uint32_t_BE compressionType;
+                    FREAD(in, &compressionType, sizeof(compressionType));
+                    comp_type = compressionType.value;
+                }
+                af->compression_type = comp_type;
+
+                af->compression_name = NULL;
+                if (chunk_size.value > sizeof(aiff_COMM) + 4) {
+                    af->compression_name = read_pstring_alloc(in);
+                }
 
                 DEBUGF("    numChannels %d\n"
                        "    numFrames %u\n"
@@ -266,137 +320,12 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
                        af->compression_type >> 16, af->compression_type >> 8, af->compression_type,
                        af->compression_name);
 
-                saw_comm = true;
-                break;
+                has_comm = true;
+            } break;
 
-            case CC4('S', 'S', 'N', 'D'):
-                READ_DATA(aifc_file, &sc, sizeof(sc));
-
-                BSWAP32(sc.offset);
-                BSWAP32(sc.blockSize);
-
-                assert(sc.offset == 0);
-                assert(sc.blockSize == 0);
-
-                af->ssnd_offset = ftell(aifc_file);
-                // TODO use numFrames instead?
-                af->ssnd_size = header.ckSize - 8;
-
-                // af->data = malloc(af->data_size);
-                // READ_DATA(aifc_file, af->data, af->data_size);
-
-                DEBUGF("    offset = 0x%lX size = 0x%lX\n", af->ssnd_offset, af->ssnd_size);
-
-                saw_ssnd = true;
-                break;
-
-            case CC4('A', 'P', 'P', 'L'):
-                READ_DATA(aifc_file, &ts, sizeof(ts));
-
-                BSWAP32(ts);
-
-                DEBUGF("    %c%c%c%c\n", ts >> 24, ts >> 16, ts >> 8, ts);
-
-                if (ts == CC4('s', 't', 'o', 'c')) {
-                    int16_t version;
-
-                    unsigned char name_length;
-                    READ_DATA(aifc_file, &name_length, sizeof(name_length));
-
-                    char chunk_name[257];
-                    READ_DATA(aifc_file, chunk_name, name_length);
-                    chunk_name[name_length] = '\0';
-
-                    DEBUGF("    %s\n", chunk_name);
-
-                    if (strequ(chunk_name, "VADPCMCODES")) {
-                        READ_DATA(aifc_file, &version, sizeof(version));
-                        BSWAP16(version);
-
-                        if (version != VADPCM_VER)
-                            error("Non-identical codebook chunk versions");
-
-                        int16_t order;
-                        int16_t npredictors;
-
-                        READ_DATA(aifc_file, &order, sizeof(order));
-                        BSWAP16(order);
-                        READ_DATA(aifc_file, &npredictors, sizeof(npredictors));
-                        BSWAP16(npredictors);
-
-                        uint32_t book_size = 8 * order * npredictors;
-
-                        af->book.order = order;
-                        af->book.npredictors = npredictors;
-                        af->book_state = malloc(book_size * sizeof(int16_t));
-                        READ_DATA(aifc_file, af->book_state, book_size * sizeof(int16_t));
-                        for (size_t i = 0; i < book_size; i++)
-                            BSWAP16((*af->book_state)[i]);
-
-                        af->has_book = true;
-
-                        // DEBUG
-
-                        DEBUGF("        order       = %d\n"
-                               "        npredictors = %d\n",
-                               af->book.order, af->book.npredictors);
-
-                        for (size_t i = 0; i < book_size; i++) {
-                            if (i % 8 == 0)
-                                DEBUGF("\n        ");
-                            DEBUGF("%04X ", (uint16_t)(*af->book_state)[i]);
-                        }
-                        DEBUGF("\n");
-                    } else if (strequ(chunk_name, "VADPCMLOOPS")) {
-                        READ_DATA(aifc_file, &version, sizeof(version));
-                        BSWAP16(version);
-
-                        if (version != VADPCM_VER)
-                            error("Non-identical loop chunk versions");
-
-                        int16_t nloops;
-                        READ_DATA(aifc_file, &nloops, sizeof(nloops));
-                        BSWAP16(nloops);
-
-                        if (nloops != 1)
-                            error("Only one loop is supported, got %d", nloops);
-
-                        READ_DATA(aifc_file, &af->loop, sizeof(ALADPCMloop));
-                        BSWAP32(af->loop.start);
-                        BSWAP32(af->loop.end);
-                        BSWAP32(af->loop.count);
-                        for (size_t i = 0; i < ARRAY_COUNT(af->loop.state); i++)
-                            BSWAP16(af->loop.state[i]);
-
-                        af->has_loop = true;
-
-                        // DEBUG
-
-                        DEBUGF("        start = %d\n"
-                               "        end   = %d\n"
-                               "        count = %d\n",
-                               af->loop.start, af->loop.end, af->loop.count);
-
-                        for (size_t i = 0; i < ARRAY_COUNT(af->loop.state); i++) {
-                            if (i % 8 == 0)
-                                DEBUGF("\n        ");
-                            DEBUGF("%04X ", (uint16_t)af->loop.state[i]);
-                        }
-                        DEBUGF("\n");
-                    }
-                }
-                break;
-
-            case CC4('I', 'N', 'S', 'T'):
-                READ_DATA(aifc_file, &ic, sizeof(ic));
-
-                BSWAP16(ic.gain);
-                BSWAP16(ic.sustainLoop.beginLoop);
-                BSWAP16(ic.sustainLoop.endLoop);
-                BSWAP16(ic.sustainLoop.playMode);
-                BSWAP16(ic.releaseLoop.beginLoop);
-                BSWAP16(ic.releaseLoop.endLoop);
-                BSWAP16(ic.releaseLoop.playMode);
+            case CC4('I', 'N', 'S', 'T'): {
+                aiff_INST inst;
+                FREAD(in, &inst, sizeof(inst));
 
                 // basenote
 
@@ -409,71 +338,193 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
                        "    gain        = %d\n"
                        "    sustainLoop = %d [%d:%d]\n"
                        "    releaseLoop = %d [%d:%d]\n",
-                       ic.baseNote, NOTE_MIDI_TO_Z64(ic.baseNote), ic.detune, ic.lowNote, ic.highNote, ic.lowVelocity,
-                       ic.highVelocity, ic.gain, ic.sustainLoop.playMode, ic.sustainLoop.beginLoop,
-                       ic.sustainLoop.endLoop, ic.releaseLoop.playMode, ic.releaseLoop.beginLoop,
-                       ic.releaseLoop.endLoop);
+                       inst.baseNote, NOTE_MIDI_TO_Z64(inst.baseNote), inst.detune, inst.lowNote, inst.highNote,
+                       inst.lowVelocity, inst.highVelocity, inst.gain, inst.sustainLoop.playMode,
+                       inst.sustainLoop.beginLoop, inst.sustainLoop.endLoop, inst.releaseLoop.playMode,
+                       inst.releaseLoop.beginLoop, inst.releaseLoop.endLoop);
 
-                af->basenote = ic.baseNote;
-                af->detune = ic.detune;
+                af->basenote = inst.baseNote;
+                af->detune = inst.detune;
                 af->has_inst = true;
                 // TODO others?
-                break;
+            } break;
 
             case CC4('M', 'A', 'R', 'K'):;
-                int16_t numMarkers;
-                READ_DATA(aifc_file, &numMarkers, sizeof(int16_t));
-                BSWAP16(numMarkers);
+                aiff_MARK mark;
+                FREAD(in, &mark, sizeof(mark));
 
-                af->num_markers = numMarkers;
-                af->markers = malloc(numMarkers * sizeof(aifc_marker));
+                af->num_markers = mark.nMarkers;
+                af->markers = malloc(mark.nMarkers * sizeof(aifc_marker));
 
-                for (int i = 0; i < numMarkers; i++) {
+                for (size_t i = 0; i < mark.nMarkers; i++) {
                     Marker marker;
-
-                    READ_DATA(aifc_file, &marker, sizeof(Marker));
-                    BSWAP16(marker.MarkerID);
-                    BSWAP16(marker.positionH);
-                    BSWAP16(marker.positionL);
+                    FREAD(in, &marker, sizeof(marker));
 
                     (*af->markers)[i].id = marker.MarkerID;
                     (*af->markers)[i].pos = (marker.positionH << 16) | marker.positionL;
-                    (*af->markers)[i].label = ReadPString(aifc_file);
+                    (*af->markers)[i].label = read_pstring_alloc(in);
 
                     DEBUGF("    MARKER: %d @ %u [%s]\n", (*af->markers)[i].id, (*af->markers)[i].pos,
                            (*af->markers)[i].label);
                 }
                 break;
 
+            case CC4('A', 'P', 'P', 'L'): {
+                char subcc4[4];
+
+                FREAD(in, subcc4, 4);
+
+                DEBUGF("    %c%c%c%c\n", ts >> 24, ts >> 16, ts >> 8, ts);
+
+                switch (CC4(subcc4[0], subcc4[1], subcc4[2], subcc4[3])) {
+                    case CC4('s', 't', 'o', 'c'): {
+                        char chunk_name[257];
+                        read_pstring(in, chunk_name);
+
+                        DEBUGF("    %s\n", chunk_name);
+
+                        if (strequ(chunk_name, "VADPCMCODES")) {
+                            int16_t_BE version;
+                            uint16_t_BE order;
+                            uint16_t_BE npredictors;
+
+                            FREAD(in, &version, sizeof(version));
+                            FREAD(in, &order, sizeof(order));
+                            FREAD(in, &npredictors, sizeof(npredictors));
+
+                            if (version.value != VADPCM_VER)
+                                error("Non-identical codebook chunk versions");
+
+                            size_t book_size = 8 * order.value * npredictors.value;
+
+                            af->book.order = order.value;
+                            af->book.npredictors = npredictors.value;
+                            af->book_state = malloc(book_size * sizeof(int16_t));
+                            FREAD(in, af->book_state, book_size * sizeof(int16_t));
+
+                            for (size_t i = 0; i < book_size; i++)
+                                (*af->book_state)[i] = be16toh((*af->book_state)[i]);
+
+                            af->has_book = true;
+
+                            // DEBUG
+
+                            DEBUGF("        order       = %d\n"
+                                   "        npredictors = %d\n",
+                                   af->book.order, af->book.npredictors);
+
+                            for (size_t i = 0; i < book_size; i++) {
+                                if (i % 8 == 0)
+                                    DEBUGF("\n        ");
+                                DEBUGF("%04X ", (uint16_t)(*af->book_state)[i]);
+                            }
+                            DEBUGF("\n");
+                        } else if (strequ(chunk_name, "VADPCMLOOPS")) {
+                            int16_t_BE version;
+                            int16_t_BE nloops;
+
+                            FREAD(in, &version, sizeof(version));
+                            FREAD(in, &nloops, sizeof(nloops));
+
+                            if (version.value != VADPCM_VER)
+                                error("Non-identical loop chunk versions");
+
+                            if (nloops.value != 1)
+                                error("Only one loop is supported, got %d", nloops.value);
+
+                            FREAD(in, &af->loop, sizeof(ALADPCMloop));
+                            af->loop.start = be32toh(af->loop.start);
+                            af->loop.end = be32toh(af->loop.end);
+                            af->loop.count = be32toh(af->loop.count);
+                            for (size_t i = 0; i < ARRAY_COUNT(af->loop.state); i++)
+                                af->loop.state[i] = be16toh(af->loop.state[i]);
+
+                            af->has_loop = true;
+
+                            // DEBUG
+
+                            DEBUGF("        start = %d\n"
+                                   "        end   = %d\n"
+                                   "        count = %d\n",
+                                   af->loop.start, af->loop.end, af->loop.count);
+
+                            for (size_t i = 0; i < ARRAY_COUNT(af->loop.state); i++) {
+                                if (i % 8 == 0)
+                                    DEBUGF("\n        ");
+                                DEBUGF("%04X ", (uint16_t)af->loop.state[i]);
+                            }
+                            DEBUGF("\n");
+                        } else {
+                            warning("Skipping unknown APPL::stoc subchunk: \"%s\"", chunk_name);
+                        }
+                    } break;
+
+                    default:
+                        warning("Skipping unknown APPL subchunk: \"%c%c%c%c\"", subcc4[0], subcc4[1], subcc4[2],
+                                subcc4[3]);
+                        break;
+                }
+            } break;
+
+            case CC4('S', 'S', 'N', 'D'): {
+                aiff_SSND ssnd;
+                FREAD(in, &ssnd, sizeof(ssnd));
+
+                assert(ssnd.offset == 0);
+                assert(ssnd.blockSize == 0);
+
+                af->ssnd_offset = ftell(in);
+                // TODO use numFrames instead?
+                af->ssnd_size = chunk_size.value - sizeof(ssnd);
+
+                // Skip reading the rest of the chunk
+                fseek(in, af->ssnd_size, SEEK_CUR);
+
+                // af->data = malloc(af->ssnd_size);
+                // FREAD(in, af->data, af->ssnd_size);
+
+                DEBUGF("    offset = 0x%lX size = 0x%lX\n", af->ssnd_offset, af->ssnd_size);
+
+                has_ssnd = true;
+            } break;
+
             default: // skip it
                 break;
         }
-        fseek(aifc_file, offset + header.ckSize, SEEK_SET);
+
+        long read_size = ftell(in) - start - 8;
+
+        if (read_size > chunk_size.value)
+            error("overran chunk: %lu vs %u\n", read_size, chunk_size.value);
+        else if (read_size < chunk_size.value)
+            warning("did not read entire %.*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size.value);
+
+        fseek(in, start + 8 + chunk_size.value, SEEK_SET);
     }
 
-    if (!saw_comm)
-        error("aifc has no COMM chunk");
-    if (!saw_ssnd)
-        error("aifc file has no data");
+    if (!has_comm)
+        error("aiff/aifc has no COMM chunk");
+    if (!has_ssnd)
+        error("aiff/aifc has no SSND chunk");
 
     // replicate buffer bug in original tool
     if (match_buf != NULL && match_buf_pos != NULL) {
         size_t buf_pos = ALIGN16(*match_buf_pos) % BUG_BUF_SIZE;
         size_t rem = af->ssnd_size;
 
-        fseek(aifc_file, af->ssnd_offset, SEEK_SET);
+        fseek(in, af->ssnd_offset, SEEK_SET);
 
         if (rem > BUG_BUF_SIZE - buf_pos) {
-            READ_DATA(aifc_file, &match_buf[buf_pos], BUG_BUF_SIZE - buf_pos);
+            FREAD(in, &match_buf[buf_pos], BUG_BUF_SIZE - buf_pos);
             rem -= BUG_BUF_SIZE - buf_pos;
             buf_pos = 0;
         }
-        READ_DATA(aifc_file, &match_buf[buf_pos], rem);
+        FREAD(in, &match_buf[buf_pos], rem);
 
         *match_buf_pos = (buf_pos + rem) % BUG_BUF_SIZE;
     }
 
-    fclose(aifc_file);
+    fclose(in);
 }
 
 void

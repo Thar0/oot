@@ -39,8 +39,11 @@ main(int argc, char **argv)
 
     // parse args
 
-#define arg_error(fmt, ...) \
-    do { fprintf(stderr, fmt "\n", ##__VA_ARGS__); usage(argv[0]); } while (0)
+#define arg_error(fmt, ...)                       \
+    do {                                          \
+        fprintf(stderr, fmt "\n", ##__VA_ARGS__); \
+        usage(argv[0]);                           \
+    } while (0)
 
     int argn = 0;
     for (int i = 1; i < argc; i++) {

@@ -167,7 +167,7 @@ ATBLGEN       := tools/audio/atblgen
 AFILE_SIZES   := tools/audio/afile_sizes
 
 # We want linemarkers in sequence assembly files for better assembler error messages
-SEQ_CPP := cpp -fno-dollars-in-identifiers
+SEQ_CPP := $(CPP) -x assembler-with-cpp -fno-dollars-in-identifiers
 SEQ_CPPFLAGS := -D_LANGUAGE_ASEQ -DMML_VERSION=$(MML_VERSION) -I include/audio -I include/tables/sfx -I $(BUILD_DIR)/assets/audio/soundfonts
 
 CFLAGS += $(CPP_DEFINES)
@@ -754,9 +754,9 @@ $(BUILD_DIR)/assets/audio/soundfont_sizes.h: $(SOUNDFONT_O_FILES)
 $(BUILD_DIR)/assets/audio/sequence_sizes.h: $(SEQUENCE_O_FILES)
 	$(AFILE_SIZES) $@ NUM_SEQUENCES SEQUENCE_SIZES $^
 
+# Extra audiobank padding that doesn't belong to any soundfont file
 $(BUILD_DIR)/assets/audio/audiobank_padding.o:
-	dd if=/dev/zero of=$(@:.o=.bin) bs=32 count=1 status=none
-	$(OBJCOPY) -I binary -O elf32-big --rename-section .data=.rodata,alloc,contents,load,readonly $(@:.o=.bin) $@
+	echo ".rdata; .fill 0x20" | $(AS) $(ASFLAGS) -o $@
 
 -include $(DEP_FILES)
 

@@ -1081,8 +1081,8 @@ emit_c_samples(FILE *out, soundfont *sf)
 #ifdef SFC_MM
                 0,
 #endif
-                codec_name, sample->is_dd, BOOL_STR(sample->cached), BOOL_STR(false),
-                sample->aifc.ssnd_size, sb->name, sample->name, sf->info.index, sample->name, sf->info.index, bookname);
+                codec_name, sample->is_dd, BOOL_STR(sample->cached), BOOL_STR(false), sample->aifc.ssnd_size, sb->name,
+                sample->name, sf->info.index, sample->name, sf->info.index, bookname);
         size += 0x10;
 
         // Write the book if it hasn't been deduplicated.
@@ -1635,8 +1635,11 @@ main(int argc, char **argv)
 
     // parse args
 
-#define arg_error(fmt, ...) \
-    do { fprintf(stderr, fmt "\n", ##__VA_ARGS__); usage(argv[0]); } while (0)
+#define arg_error(fmt, ...)                       \
+    do {                                          \
+        fprintf(stderr, fmt "\n", ##__VA_ARGS__); \
+        usage(argv[0]);                           \
+    } while (0)
 
     int argn = 0;
     for (int i = 1; i < argc; i++) {

@@ -80,18 +80,18 @@ typedef BIG_ENDIAN_STRUCT
 }
 int16_t_BE;
 
-#define FWRITE(file, data, size)                                        \
-    do {                                                                \
-        if (fwrite((data), (size), 1, (file)) != 1) {                   \
-            error("Could not write %lu bytes to file", (size_t)(size)); \
-        }                                                               \
+#define FWRITE(file, data, size)                                                                    \
+    do {                                                                                            \
+        if (fwrite((data), (size), 1, (file)) != 1) {                                               \
+            error("[%s:%d] Could not write %lu bytes to file", __FILE__, __LINE__, (size_t)(size)); \
+        }                                                                                           \
     } while (0)
 
-#define FREAD(file, data, size)                                          \
-    do {                                                                 \
-        if (fread((data), (size), 1, (file)) != 1) {                     \
-            error("Could not read %lu bytes from file", (size_t)(size)); \
-        }                                                                \
+#define FREAD(file, data, size)                                                                      \
+    do {                                                                                             \
+        if (fread((data), (size), 1, (file)) != 1) {                                                 \
+            error("[%s:%d] Could not read %lu bytes from file", __FILE__, __LINE__, (size_t)(size)); \
+        }                                                                                            \
     } while (0)
 
 #define CC4_CHECK(buf, str) \
