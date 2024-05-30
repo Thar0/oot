@@ -1,7 +1,7 @@
 PROGRAMS := afile_sizes atblgen elfpatch sbc sfc
 
 ifeq ($(shell which xml2-config),)
-	$(error Install libxml2-dev)
+  $(error Install libxml2-dev)
 endif
 
 CLANG_FORMAT := clang-format-14
