@@ -1,7 +1,7 @@
 PROGRAMS := afile_sizes atblgen elfpatch sbc sfc
 
 ifeq ($(shell which xml2-config),)
-	$(error Install libxml2-dev)
+  $(error Install libxml2-dev)
 endif
 
 CLANG_FORMAT := clang-format-14
@@ -30,17 +30,23 @@ format:
 	$(CLANG_FORMAT) $(FORMAT_ARGS) $(shell find . -maxdepth 1 -type f -name "*.[ch]")
 	$(MAKE) -C sampleconv format
 
-afile_sizes: afile_sizes.c util.c
-	$(CC) $(CFLAGS) $(OPTFLAGS) $^ -o $@
+afile_sizes_SOURCES := afile_sizes.c util.c
+atblgen_SOURCES := audio_tablegen.c samplebank.c soundfont.c xml.c util.c
+elfpatch_SOURCES := elfpatch.c util.c
+sbc_SOURCES := samplebank_compiler.c samplebank.c aifc.c xml.c util.c
+sfc_SOURCES := soundfont_compiler.c samplebank.c soundfont.c aifc.c xml.c util.c
 
-atblgen: audio_tablegen.c samplebank.c soundfont.c xml.c util.c
-	$(CC) $(CFLAGS) $(OPTFLAGS) $(XML_CFLAGS) $^ $(XML_LDFLAGS) -o $@
+atblgen_CFLAGS := $(XML_CFLAGS)
+sbc_CFLAGS := $(XML_CFLAGS)
+sfc_CFLAGS := $(XML_CFLAGS)
 
-elfpatch: elfpatch.c util.c
-	$(CC) $(CFLAGS) $(OPTFLAGS) $^ -o $@
+atblgen_LDFLAGS := $(XML_LDFLAGS)
+sbc_LDFLAGS := $(XML_LDFLAGS)
+sfc_LDFLAGS := $(XML_LDFLAGS)
 
-sbc: samplebank_compiler.c samplebank.c aifc.c xml.c util.c
-	$(CC) $(CFLAGS) $(OPTFLAGS) $(XML_CFLAGS) $^ $(XML_LDFLAGS) -o $@
+define COMPILE =
+$(1): $($1_SOURCES)
+	$(CC) $(CFLAGS) $($1_CFLAGS) $$^ $($1_LDFLAGS) -o $$@
+endef
 
-sfc: soundfont_compiler.c samplebank.c soundfont.c aifc.c xml.c util.c
-	$(CC) $(CFLAGS) $(OPTFLAGS) $(XML_CFLAGS) $^ $(XML_LDFLAGS) -o $@
+$(foreach p,$(PROGRAMS),$(eval $(call COMPILE,$(p))))

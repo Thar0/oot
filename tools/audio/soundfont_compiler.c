@@ -473,7 +473,8 @@ read_instrs_info(soundfont *sf, xmlNodePtr instrs)
         if (instr->sample_name_low != NULL) {
             instr->sample_low = sample_data_forname(sf, instr->sample_name_low);
             if (instr->sample_low == NULL)
-                error("Bad sample name for LOW sample");
+                error("Bad sample name \"%s\" for LOW sample (line %d). Is it defined in <Samples>?",
+                      instr->sample_name_low, instr_node->line);
 
             if (instr->base_note_lo == NOTE_UNSET)
                 instr->base_note_lo = instr->sample_low->base_note;
@@ -488,7 +489,8 @@ read_instrs_info(soundfont *sf, xmlNodePtr instrs)
 
         instr->sample_mid = sample_data_forname(sf, instr->sample_name_mid);
         if (instr->sample_mid == NULL)
-            error("Bad sample name for MID sample");
+            error("Bad sample name \"%s\" for MID sample (line %d). Is it defined in <Samples>?",
+                  instr->sample_name_mid, instr_node->line);
 
         if (instr->base_note_mid == NOTE_UNSET)
             instr->base_note_mid = instr->sample_mid->base_note;
@@ -500,14 +502,17 @@ read_instrs_info(soundfont *sf, xmlNodePtr instrs)
         // printf("Tuning(M): (%f, %d) -> %f(%08X) \n", (float)instr->sample_rate_mid, instr->base_note_mid,
         //        instr->sample_mid_tuning, f2i(instr->sample_mid_tuning));
 
-        // The nastiest hack (tm)
-        if (f2i(instr->sample_mid_tuning) == 0x3E7319DF /* 0.23740337789058685 */)
-            instr->sample_mid_tuning = i2f(0x3E7319E3 /* 0.23740343749523163 */);
+        // Some tuning values don't decompose properly into a samplerate and basenote, they must be accounted for here
+        // for matching. So far this has only been seen for an Instrument mid sample.
+        // NOTE: Keep in sync with the BAD_FLOATS list in extraction/tuning.py
+        if (f2i(instr->sample_mid_tuning) == 0x3E7319DF /* 0.237403377 */) // diff = 2^-24
+            instr->sample_mid_tuning = i2f(0x3E7319E3 /* 0.237403437 */);
 
         if (instr->sample_name_high != NULL) {
             instr->sample_high = sample_data_forname(sf, instr->sample_name_high);
             if (instr->sample_high == NULL)
-                error("Bad sample name for HIGH sample");
+                error("Bad sample name \"%s\" for HIGH sample (line %d). Is it defined in <Samples>?",
+                      instr->sample_name_high, instr_node->line);
 
             if (instr->base_note_hi == NOTE_UNSET)
                 instr->base_note_hi = instr->sample_high->base_note;
@@ -598,7 +603,7 @@ read_drums_info(soundfont *sf, xmlNodePtr drums)
 
         drum->sample = sample_data_forname(sf, drum->sample_name);
         if (drum->sample == NULL)
-            error("Bad sample name");
+            error("Bad sample name \"%s\" (line %d). Is it defined in <Samples>?", drum->sample_name, drum_node->line);
 
         // set final samplerate if not overridden
         if (drum->sample_rate == -1) {
@@ -636,35 +641,38 @@ read_drums_info(soundfont *sf, xmlNodePtr drums)
 void
 read_sfx_info(soundfont *sf, xmlNodePtr effects)
 {
-    static const xml_attr_spec effect_spec = {
+    static const xml_attr_spec sfx_spec = {
         {"Name",        false, xml_parse_c_identifier, offsetof(sfx_data, name)       },
         { "Sample",     false, xml_parse_c_identifier, offsetof(sfx_data, sample_name)},
         { "SampleRate", true,  xml_parse_double,       offsetof(sfx_data, sample_rate)},
         { "BaseNote",   true,  xml_parse_note_number,  offsetof(sfx_data, base_note)  },
     };
 
-    LL_FOREACH(xmlNodePtr, eff, effects->children) {
-        if (eff->type != XML_ELEMENT_NODE)
+    LL_FOREACH(xmlNodePtr, sfx_node, effects->children) {
+        if (sfx_node->type != XML_ELEMENT_NODE)
             continue;
 
-        const char *name = XMLSTR_TO_STR(eff->name);
+        const char *name = XMLSTR_TO_STR(sfx_node->name);
         if (!strequ(name, "Effect"))
-            error("Unexpected element node %s in effects list (line %d)", name, eff->line);
+            error("Unexpected element node %s in effects list (line %d)", name, sfx_node->line);
 
         sf->info.num_effects++;
 
         sfx_data *sfx = malloc(sizeof(sfx_data));
 
-        if (eff->properties == NULL) {
+        if (sfx_node->properties == NULL) {
             // printf("GOT SFX (NULL)\n");
             sfx->sample = NULL;
         } else {
             sfx->sample_rate = -1;
             sfx->base_note = NOTE_UNSET;
-            xml_parse_node_by_spec(sfx, eff, effect_spec, ARRAY_COUNT(effect_spec));
+            xml_parse_node_by_spec(sfx, sfx_node, sfx_spec, ARRAY_COUNT(sfx_spec));
             // printf("GOT SFX Name=\"%s\" Sample=\"%s\"\n", sfx->name, sfx->sample_name);
 
             sfx->sample = sample_data_forname(sf, sfx->sample_name);
+            if (sfx->sample == NULL)
+                error("Bad sample name \"%s\" (line %d). Is it defined in <Samples>?", sfx->sample_name,
+                      sfx_node->line);
 
             if (sfx->base_note == NOTE_UNSET)
                 sfx->base_note = sfx->sample->base_note;
