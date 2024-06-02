@@ -5,7 +5,7 @@
 To add bgm you would:
 - If using any custom samples, add the wav to the samplebank that the soundfont will use
   - Put wav file in one of the subdirectories in `assets/samples`
-  - Add path to wav file to the corresponding samplebank xml in `assets/samplebanks`
+  - Add path to wav file to the corresponding samplebank xml in `assets/samplebanks`, prefixing it with `$(BUILD_DIR)` and replacing `.wav` with `.aifc` to match the other paths
 - If using a custom soundfont, add the soundfont `.xml` file to `assets/soundfonts`
 - Add the sequence `.seq` file to `assets/sequences`
 - Add both to the spec in the appropriate locations
@@ -40,7 +40,7 @@ There is no convenient way to produce a soundfont `.xml` automatically. If using
 To add a new sound effect in the way the driver expects is a somewhat lengthy process:
 - Add the wav to Samplebank 0
   - Put wav file in `assets/samples/Samplebank_0`
-  - Add path to wav file to `assets/samplebanks/Samplebank_0.xml`
+  - Add path to wav file to `assets/samplebanks/Samplebank_0.xml`, prefixing it with `$(BUILD_DIR)` and replacing `.wav` with `.aifc` to match the other paths
 - Add an sfx entry to one of the headers in `include/tables/sfx/`, whichever feels most appropriate
   - The first entry in `DEFINE_SFX` is the name of the assembly routine that will play the sound effect
   - The second entry in `DEFINE_SFX` is the name you'll use to trigger your sound effect in code (that is, it's the enum name you'll pass to `Audio_PlaySfxGeneral` or similar functions)
@@ -65,14 +65,14 @@ To add a new sound effect in the way the driver expects is a somewhat lengthy pr
     .layer my_sound_effect_layer
         transpose   K
         instr       FONTANY_INSTR_SFX
-        notedv      (SF0_EFFECT_MY_EFFECT - K), 0, 100
+        notedv      (SF0_EFFECT_MY_EFFECT - K * 64), 0, 100
         end
     ```
-    `K` is a (signed, 8-bit) number that needs to be chosen such that the result of `SF0_EFFECT_MY_EFFECT - K` is less than 64. e.g. if `SF0_EFFECT_MY_EFFECT` was valued at 136, `K` can be chosen to be any value in the range [73, 127]; taking `K=80` you'd then write
+    `K` should be chosen to be the smallest number such that the result of `SF0_EFFECT_MY_EFFECT - K * 64` is less than 64. e.g. if `SF0_EFFECT_MY_EFFECT` was valued at 136, `K` should be `2`. You can find the number very easily by repeatedly subtracting 64 from the effect id until the result is less than 64, K is the number of times you had to subtract 64 before this happened. You'd then write
     ```
     .layer my_sound_effect_layer
-        transpose   80
+        transpose   2
         instr       FONTANY_INSTR_SFX
-        notedv      (SF0_EFFECT_MY_EFFECT - 80), 0, 100
+        notedv      (SF0_EFFECT_MY_EFFECT - 2 * 64), 0, 100
         end
     ```

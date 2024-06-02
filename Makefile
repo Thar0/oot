@@ -568,7 +568,7 @@ $(BUILD_DIR)/src/code/z_actor_dlftbls.o: include/tables/actor_table.h
 $(BUILD_DIR)/src/code/z_effect_soft_sprite_dlftbls.o: include/tables/effect_ss_table.h
 $(BUILD_DIR)/src/code/z_game_dlftbls.o: include/tables/gamestate_table.h
 $(BUILD_DIR)/src/code/z_scene_table.o: include/tables/scene_table.h include/tables/entrance_table.h
-$(BUILD_DIR)/src/audio/general.o: $(SEQUENCE_TABLE)
+$(BUILD_DIR)/src/audio/general.o: $(SEQUENCE_TABLE) include/tables/sfx/*.h
 $(BUILD_DIR)/src/audio/sfx_params.o: include/tables/sfx/*.h
 
 $(BUILD_DIR)/src/%.o: src/%.c
