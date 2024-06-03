@@ -71,30 +71,29 @@ typedef struct {
     s8 y;
 } OcarinaStick;
 
-#define DEFINE_SFX(_0, _1, _2, _3, _4, _5) \
-    1+
+#define DEFINE_SFX(_0, _1, _2, _3, _4, _5) 1 +
 u8 gIsLargeSfxBank[7] = {
     (
-    #include "tables/sfx/playerbank_table.h"
-    0) > 256,
+#include "tables/sfx/playerbank_table.h"
+        0) > 256,
     (
-    #include "tables/sfx/itembank_table.h"
-    0) > 256,
+#include "tables/sfx/itembank_table.h"
+        0) > 256,
     (
-    #include "tables/sfx/environmentbank_table.h"
-    0) > 256,
+#include "tables/sfx/environmentbank_table.h"
+        0) > 256,
     (
-    #include "tables/sfx/enemybank_table.h"
-    0) > 256,
+#include "tables/sfx/enemybank_table.h"
+        0) > 256,
     (
-    #include "tables/sfx/systembank_table.h"
-    0) > 256,
+#include "tables/sfx/systembank_table.h"
+        0) > 256,
     (
-    #include "tables/sfx/ocarinabank_table.h"
-    0) > 256,
+#include "tables/sfx/ocarinabank_table.h"
+        0) > 256,
     (
-    #include "tables/sfx/voicebank_table.h"
-    0) > 256,
+#include "tables/sfx/voicebank_table.h"
+        0) > 256,
 };
 #undef DEFINE_SFX
 

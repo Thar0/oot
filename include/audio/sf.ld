@@ -8,6 +8,7 @@ SECTIONS {
     {
         *(.data*)
         *(.rodata*)
+        . = ALIGN(16);
         __LEN__ = . - ADDR(.rodata);
     }
 
