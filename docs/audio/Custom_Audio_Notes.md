@@ -68,7 +68,7 @@ To add a new sound effect in the way the driver expects is a somewhat lengthy pr
         notedv      (SF0_EFFECT_MY_EFFECT - K * 64), 0, 100
         end
     ```
-    `K` should be chosen to be the smallest number such that the result of `SF0_EFFECT_MY_EFFECT - K * 64` is less than 64. e.g. if `SF0_EFFECT_MY_EFFECT` was valued at 136, `K` should be `2`. You can find the number very easily by repeatedly subtracting 64 from the effect id until the result is less than 64, K is the number of times you had to subtract 64 before this happened. You'd then write
+    `K` should be chosen to be the smallest number such that the result of `SF0_EFFECT_MY_EFFECT - K * 64` is less than 64, which is immediately found by calculating `floor(SF0_EFFECT_MY_EFFECT / 64)`. e.g. if `SF0_EFFECT_MY_EFFECT` was valued at 136, `K` should be `2`. You'd then write
     ```
     .layer my_sound_effect_layer
         transpose   2
