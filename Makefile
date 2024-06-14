@@ -137,7 +137,7 @@ MIPS_BUILTIN_DEFS := -D_MIPS_ISA_MIPS2=2 -D_MIPS_ISA=_MIPS_ISA_MIPS2 -D_ABIO32=1
 
 AS_NOCPP := $(MIPS_BINUTILS_PREFIX)as
 ifeq ($(COMPILER),gcc)
-  AS       = $(CC) -x assembler-with-cpp $(CPPFLAGS) -c $<
+  AS       = $(CC) $(CPPFLAGS) -x assembler-with-cpp -c $<
 else
   AS       = $(CPP) $(CPPFLAGS) $(MIPS_BUILTIN_DEFS) -I include $< | $(AS_NOCPP)
 endif
