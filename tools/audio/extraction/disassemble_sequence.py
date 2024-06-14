@@ -380,7 +380,7 @@ class ArgFilterPtr(ArgAddr):
 
 class ArgTblPtr(ArgAddr):
     def analyze(self, disas):
-        if disas.pos in (0x5FD0,):
+        if disas.pos in (0x5FD0,): # TODO remove
             return
         disas.add_ref(self.value, SqSection.TABLE, big=True)
 

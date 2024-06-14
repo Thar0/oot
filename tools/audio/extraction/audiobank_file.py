@@ -6,7 +6,7 @@
 #
 
 import struct
-from typing import Tuple
+from typing import Optional, Tuple
 from xml.etree.ElementTree import Element
 
 from audio_tables import AudioCodeTable
@@ -14,7 +14,7 @@ from audiobank_structs import AdpcmBook, AdpcmLoop, Drum, Instrument, SoundFontS
 from envelope import Envelope
 from audiotable import AudioTableFile, AudioTableSample
 from tuning import pitch_names
-from util import XMLWriter, align, debugm, list_is_in_order, merge_like_ranges, merge_ranges
+from util import XMLWriter, align, debugm, merge_like_ranges, merge_ranges
 
 # Debug settings
 PLOT_DRUM_TUNING = False
@@ -703,7 +703,7 @@ class AudiobankFile:
         for i,offset in enumerate(sorted(self.sample_headers)):
             yield i,(offset,self.sample_headers[offset])
 
-    def lookup_sample(self, header_offset):
+    def lookup_sample(self, header_offset : int) -> Optional[AudioTableSample]:
         if header_offset == 0:
             return None
         header : SoundFontSample = self.sample_headers[header_offset]
@@ -729,8 +729,7 @@ class AudiobankFile:
 
         # Link Instruments
         for instr in self.instruments:
-            instr.link(self.envelopes[instr.envelope], [self.lookup_sample(offset) for offset in
-                       [instr.low_notes_sample, instr.normal_notes_sample, instr.high_notes_sample]])
+            instr.finalize(self.lookup_sample)
 
         # Final Drum Groups
 
@@ -744,13 +743,13 @@ class AudiobankFile:
         for drum_grp in self.drum_groups:
             if all(d is None for d in drum_grp):
                 continue
-            else:
-                if PLOT_DRUM_TUNING:
-                    plt.plot(   range(drum_grp.start,drum_grp.end), [drum.tuning for drum in drum_grp])
-                    plt.scatter(range(drum_grp.start,drum_grp.end), [drum.tuning for drum in drum_grp])
 
-                drum_grp : DrumGroup
-                drum_grp.finalize(self.envelopes, self.lookup_sample)
+            if PLOT_DRUM_TUNING:
+                plt.plot(   range(drum_grp.start,drum_grp.end), [drum.tuning for drum in drum_grp])
+                plt.scatter(range(drum_grp.start,drum_grp.end), [drum.tuning for drum in drum_grp])
+
+            drum_grp : DrumGroup
+            drum_grp.finalize(self.envelopes, self.lookup_sample)
 
         if PLOT_DRUM_TUNING:
             if len(self.drum_groups) != 0:
@@ -758,7 +757,7 @@ class AudiobankFile:
 
         # Link SFX
         for sfx in self.sfx:
-            sfx.link(self.lookup_sample(sfx.sample))
+            sfx.finalize(self.lookup_sample)
 
         # TODO resolve decay/release index overrides?
 

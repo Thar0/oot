@@ -184,8 +184,8 @@ u8 sSeqModeInput = 0;
 #define SEQ_FLAG_SKIP_HARP_INTRO (1 << 6)
 #define SEQ_FLAG_NO_AMBIENCE (1 << 7)
 
-#define DEFINE_SEQUENCE(name, seqId, storageMedium, cachePolicy, seqFlags, seqPlayer) seqFlags,
-#define DEFINE_SEQUENCE_PTR(seqIdReal, seqId, storageMediumReal, cachePolicyReal, seqFlags, seqPlayer) seqFlags,
+#define DEFINE_SEQUENCE(name, seqId, storageMedium, cachePolicy, seqFlags) seqFlags,
+#define DEFINE_SEQUENCE_PTR(seqIdReal, seqId, storageMediumReal, cachePolicyReal, seqFlags) seqFlags,
 u8 sSeqFlags[] = {
 #include "tables/sequence_table.h"
 };

@@ -181,6 +181,18 @@ class AudioTableSample(AudioTableData):
             AudioSampleCodec.CODEC_S16          : b"Uncompressed"
         }[self.header.codec]
 
+    def codec_file_extension(self):
+        ext = {
+            AudioSampleCodec.CODEC_ADPCM        : ".aifc",
+            AudioSampleCodec.CODEC_S8           : None,
+            AudioSampleCodec.CODEC_S16_INMEMORY : None,
+            AudioSampleCodec.CODEC_SMALL_ADPCM  : ".half.aifc",
+            AudioSampleCodec.CODEC_REVERB       : None,
+            AudioSampleCodec.CODEC_S16          : ".aiff",
+        }[self.header.codec]
+        assert ext is not None
+        return ext
+
     def base_note_number(self):
         return note_z64_to_midi(pitch_names.index(self.base_note))
 
@@ -438,16 +450,8 @@ class AudioTableFile:
             new_sample.notes_rates.add((notes_rates, tuning))
             self.samples[sample_start] = new_sample
 
-    def lookup_sample(self, offset) -> AudioTableSample:
+    def lookup_sample(self, offset : int) -> AudioTableSample:
         return self.samples[offset]
-
-    def lookup_sample_with_idx(self, offset):
-        if offset not in self.samples:
-            return None,None
-
-        sample = self.samples[offset]
-        i = sorted(self.samples.keys()).index(offset)
-        return i,sample
 
     def sample_name(self, sample : AudioTableSample, index : int):
         if self.extraction_sample_info is not None:
@@ -457,7 +461,7 @@ class AudioTableFile:
         return f"SAMPLE_{self.bank_num}_{index}"
 
     def sample_filename(self, sample : AudioTableSample, index : int):
-        ext = ".half.aifc" if sample.header.codec == AudioSampleCodec.CODEC_SMALL_ADPCM else ".aifc"
+        ext = sample.codec_file_extension()
 
         if self.extraction_sample_info is not None:
             if sample.start in self.extraction_sample_info:
@@ -471,11 +475,6 @@ class AudioTableFile:
                 return self.extraction_blob_info[start]["Name"]
             print(f"WARNING: Missing extraction xml entry for blob at offset=0x{start:X}")
         return f"UNACCOUNTED_{start:X}_{end:X}"
-
-    def lookup_sample_with_name(self, offset):
-        i,sample = self.lookup_sample_with_idx(offset)
-        assert sample is not None
-        return sample, self.sample_name(i)
 
     def finalize_samples(self):
         self.samples_final = list(sorted(self.samples.values(), key = lambda sample : sample.start))
@@ -640,7 +639,7 @@ class AudioTableFile:
 
                 xml.write_element("Sample", {
                     "Name"       : sample.name,
-                    "FileName"   : sample.filename.replace(".half.aifc", "").replace(".aifc", ""),
+                    "FileName"   : sample.filename.replace(sample.codec_file_extension(), ""),
                     "Offset"     : f"0x{sample.start:06X}",
                     # "Size"     : f"0x{sample.header.size:04X}",
                     "SampleRate" : sample.sample_rate,

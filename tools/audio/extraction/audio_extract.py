@@ -6,9 +6,9 @@
 #   Extract audio files
 #
 
-import argparse, os, pathlib, shutil, time
+import argparse, os, shutil, time
 from multiprocessing.pool import ThreadPool
-from typing import Dict, List, Union
+from typing import Dict, List, Tuple, Union
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 
@@ -33,7 +33,7 @@ BASEROM_DIR = "extracted/gc-eu-mq/baserom_audiotest"
 # ======================================================================================================================
 
 def collect_sample_banks(rom_image : memoryview, version_info : GameVersionInfo, table : AudioCodeTable,
-                         samplebank_xmls : Dict[int,Element]):
+                         samplebank_xmls : Dict[int, Tuple[str, Element]]):
     sample_banks = []
 
     for i,entry in enumerate(table):
@@ -78,7 +78,7 @@ def bank_data_lookup(sample_banks : List[AudioTableFile], e : Union[AudioTableFi
         return e
 
 def collect_soundfonts(rom_image : memoryview, sound_font_table : AudioCodeTable, sample_banks : List[AudioTableFile],
-                       version_info : GameVersionInfo, soundfont_xmls : Dict[int, Element]):
+                       version_info : GameVersionInfo, soundfont_xmls : Dict[int, Tuple[str, Element]]):
     soundfonts = []
 
     for i,entry in enumerate(sound_font_table):
@@ -105,7 +105,7 @@ def collect_soundfonts(rom_image : memoryview, sound_font_table : AudioCodeTable
 def aifc_extract_one_sample(base_path : str, sample : AudioTableSample):
     # debugm(f"SAMPLE {n}")
     aifc_path = f"{base_path}/aifc/{sample.filename}"
-    wav_path = f"{base_path}/{sample.filename.replace('.aifc', '.wav')}"
+    wav_path = f"{base_path}/{sample.filename.replace(sample.codec_file_extension(), '.wav')}"
     # export to AIFC
     sample.to_file(aifc_path)
     # decode to AIFF/WAV
@@ -358,14 +358,14 @@ def extract_audio_for_version(version_name : str, rom_path : str, read_xml : boo
     # Collect extraction xmls
     # ==================================================================================================================
 
-    samplebank_xmls = {}
-    soundfont_xmls = {}
-    sequence_xmls = {}
+    samplebank_xmls : Dict[int, Tuple[str, Element]] = {}
+    soundfont_xmls : Dict[int, Tuple[str, Element]] = {}
+    sequence_xmls : Dict[int, Tuple[str, Element]] = {}
 
     if read_xml:
         # Read all present xmls
 
-        def walk_xmls(out_dict, path, typename):
+        def walk_xmls(out_dict : Dict[int, Tuple[str, Element]], path : str, typename : str):
             for root,_,files in os.walk(path):
                 for f in files:
                     fullpath = os.path.join(root, f)

@@ -695,8 +695,8 @@ $(BUILD_DIR)/assets/audio/samplebank_table.h: $(SAMPLEBANK_BUILD_XMLS)
 $(BUILD_DIR)/assets/audio/soundfont_table.h: $(SOUNDFONT_BUILD_XMLS)
 	$(ATBLGEN) -fonts $@ $^
 
-SEQ_ORDER_DEFS := -DDEFINE_SEQUENCE_PTR\(name,seqId,_2,_3,_4,_5\)=*\(name,seqId\) \
-                  -DDEFINE_SEQUENCE\(name,seqId,_2,_3,_4,_5\)=\(name,seqId\)
+SEQ_ORDER_DEFS := -DDEFINE_SEQUENCE_PTR\(name,seqId,_2,_3,_4\)=*\(name,seqId\) \
+                  -DDEFINE_SEQUENCE\(name,seqId,_2,_3,_4\)=\(name,seqId\)
 $(BUILD_DIR)/include/tables/sequence_order.in: $(SEQUENCE_TABLE)
 	$(CPP) $(CPPFLAGS) $< $(SEQ_ORDER_DEFS) -o $@
 

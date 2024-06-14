@@ -546,6 +546,8 @@ wav_write(container_data *in, const char *path, bool matching)
     }
     CHUNK_END(out, chunk_start, uint32_t_LE);
 
+    // Books generally don't match on round-trip, if matching we should write a vadpcm book chunk to the uncompressed
+    // output so it may be read back when re-encoding.
     if (in->vadpcm.has_book && matching) {
         uint32_t book_size = VADPCM_BOOK_SIZE(in->vadpcm.book_header.order, in->vadpcm.book_header.npredictors);
 
@@ -559,7 +561,7 @@ wav_write(container_data *in, const char *path, bool matching)
         }
 
         CHUNK_BEGIN(out, "zzbk", &chunk_start);
-        CHUNK_WRITE_RAW(out, "VADPCMCODES", 12);
+        CHUNK_WRITE_RAW(out, "VADPCMCODES", sizeof("VADPCMCODES"));
         CHUNK_WRITE(out, &version);
         CHUNK_WRITE(out, &order);
         CHUNK_WRITE(out, &npredictors);
@@ -567,7 +569,9 @@ wav_write(container_data *in, const char *path, bool matching)
         CHUNK_END(out, chunk_start, uint32_t_LE);
     }
 
-    if (in->vadpcm.num_loops != 0) {
+    // Loop states match on round-trip while books don't, so don't write a vadpcm loop chunk if the output format
+    // is uncompressed.
+    if (in->vadpcm.num_loops != 0 && in->data_type != SAMPLE_TYPE_PCM16) {
         CHUNK_BEGIN(out, "zzlp", &chunk_start);
 
         for (size_t i = 0; i < in->vadpcm.num_loops; i++) {

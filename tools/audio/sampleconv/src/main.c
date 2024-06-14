@@ -165,23 +165,24 @@ main(int argc, char **argv)
 
     container_data ctnr;
 
+    // Read input from container
     if (in_container->read(&ctnr, in_path, opts.matching))
         error("Error reading input file");
 
+    // Determine input codec from input container automatically
     const codec_spec *in_codec = codec_from_type(ctnr.data_type);
     if (in_codec == NULL)
         error("Unrecognized input codec: type=%d", ctnr.data_type);
 
-    // If the input isn't PCM16, decode to PCM16
-    if (in_codec->type != SAMPLE_TYPE_PCM16) {
-        if (in_codec->decode(&ctnr, in_codec, &opts))
-            error("Error in decoding");
-    }
+    // Decode to PCM16 (this does nothing if in_codec is PCM16)
+    if (in_codec->decode(&ctnr, in_codec, &opts))
+        error("Error in decoding");
 
     // Encode to output (this does nothing if out_codec is PCM16)
     if (out_codec->encode(&ctnr, out_codec, &opts))
         error("Error in encoding");
 
+    // Write output to container
     if (out_container->write(&ctnr, out_path, opts.matching))
         error("Error reading output file");
 

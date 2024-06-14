@@ -48,7 +48,7 @@ To add a new sound effect in the way the driver expects is a somewhat lengthy pr
   - Use Soundfont 1 if this effect is in the enemy bank, otherwise use Soundfont 0
   - Add the sample name to the `<Samples>` region of the xml, e.g. `<Sample Name="samplename"/>`
   - In the `<Effects>` region add a new entry, e.g. `<Effect Name="EFFECT_MY_EFFECT" Sample="samplename"/>`
-- Finally, add the assembly routine to `seq_0.prg.seq` somewhere in the file, e.g. if your assembly routine was called `my_sound_effect` and the effect name in the Soundfont is `EFFECT_MY_EFFECT` then you'd want to write something like (note that the effect name in the Soundfont is prefixed by `SFn_` in the sequence file, where `n` is the Index of the Soundfont e.g. `SF0_` for Soundfont 0 or `SF1_` for Soundfont 1)
+- Finally, add the assembly routine to `seq_0.prg.seq` somewhere in the file above the `SEQ_0_END` label, e.g. if your assembly routine was called `my_sound_effect` and the effect name in the Soundfont is `EFFECT_MY_EFFECT` then you'd want to write something like (note that the effect name in the Soundfont is prefixed by `SFn_` in the sequence file, where `n` is the Index of the Soundfont e.g. `SF0_` for Soundfont 0 or `SF1_` for Soundfont 1)
     ```mips
     .channel my_sound_effect
         ldlayer     0, my_sound_effect_layer

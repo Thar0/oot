@@ -658,7 +658,7 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
 
     size_t num_markers = 0;
     container_marker markers[4];
-    char *marker_names[4] = {
+    static char *marker_names[4] = {
         "start",
         "end",
         "start",
@@ -748,10 +748,10 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
     CHUNK_END(out, chunk_start, uint32_t_BE);
 
     if (aifc || matching) {
-        // If we're writing an aifc, or we want to match on round-trip, emit application-specific chunks
-
-        // APPL::stoc::VADPCMCODES
+        // If we're writing an aifc, or we want to match on round-trip, emit an application-specific chunk for the
+        // vadpcm codebook.
         if (in->vadpcm.has_book) {
+            // APPL::stoc::VADPCMCODES
             CHUNK_BEGIN(out, "APPL", &chunk_start);
             CHUNK_WRITE_RAW(out, "stoc", 4);
             write_pstring(out, "VADPCMCODES");
@@ -775,8 +775,10 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
             CHUNK_END(out, chunk_start, uint32_t_BE);
         }
 
-        // APPL::stoc::VADPCMLOOPS
-        if (in->vadpcm.num_loops != 0) {
+        // Only write a vadpcm loop structure for compressed output. Loop states match on round-trip so we need not
+        // save them in uncompressed output.
+        if (aifc && in->vadpcm.num_loops != 0) {
+            // APPL::stoc::VADPCMLOOPS
             CHUNK_BEGIN(out, "APPL", &chunk_start);
             CHUNK_WRITE_RAW(out, "stoc", 4);
             write_pstring(out, "VADPCMLOOPS");

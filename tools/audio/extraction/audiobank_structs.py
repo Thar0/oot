@@ -198,12 +198,10 @@ class SoundFontSound:
         self.index = index
         self.sample, self.tuning = struct.unpack(">If", data[:8])
 
-    def tunings(self):
-        return [self.tuning]
-
-    def link(self, sample):
+    def finalize(self, sample_lookup_fn):
         from audiotable import AudioTableSample
 
+        sample = sample_lookup_fn(self.sample)
         if sample is None:
             return
 
@@ -260,9 +258,6 @@ class Drum:
             struct.unpack(">BBBxIfI", data[:0x10])
 
         assert self.is_relocated == 0
-
-    def tunings(self):
-        return [self.tuning]
 
     def group_continuation(self, other):
         """
@@ -345,10 +340,7 @@ class Instrument:
         out += "}\n"
         return out
 
-    def tunings(self):
-        return [self.low_notes_tuning, self.normal_notes_tuning, self.high_notes_tuning]
-
-    def link(self, envelope, samples):
+    def finalize(self, sample_lookup_fn):
         from audiotable import AudioTableSample
 
         self.sample_rate = [None] * 3
@@ -356,7 +348,10 @@ class Instrument:
         self.needs_rate_override = [False] * 3
         self.needs_note_override = [False] * 3
 
-        for i,(sample,tuning) in enumerate(zip(samples, self.tunings())):
+        sample_offsets = (self.low_notes_sample, self.normal_notes_sample, self.high_notes_sample)
+        tunings = (self.low_notes_tuning, self.normal_notes_tuning, self.high_notes_tuning)
+        for i,(sample_offset,tuning) in enumerate(zip(sample_offsets, tunings)):
+            sample = sample_lookup_fn(sample_offset)
             if sample is None:
                 continue
             assert isinstance(sample, AudioTableSample)

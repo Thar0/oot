@@ -8,14 +8,14 @@ Samplebank XMLs describe which sample files to include in a particular sampleban
     Index="<uint>"
     Medium="<Medium>"
     CachePolicy="<CachePolicy>"
-    BufferBug="<bool>"
+    BufferBug="[bool]"
 >
 <!-- Begins a new samplebank. -->
 <!--    Name: The name of the samplebank. -->
 <!--    Index: The index of the samplebank in the samplebank table. Must be a unique index. -->
 <!--    Medium: The storage medium, from the SampleMedium enum. -->
 <!--    CachePolicy: The cache policy, from the AudioCacheLoadType enum. -->
-<!--    BufferBug: Whether this samplebank suffers from a buffer clearing bug present in the original audio tools. For matching only. -->
+<!--    BufferBug[Optional]: Whether this samplebank suffers from a buffer clearing bug present in the original audio tools. For matching only. -->
 
     <Pointer
         Index="<uint>"
