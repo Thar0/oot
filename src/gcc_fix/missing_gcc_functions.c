@@ -188,16 +188,18 @@ f32 __powisf2(f32 x, s32 m) {
 
 // Compute division and modulo of 64-bit signed and unsigned integers
 
-// eabi requires the following functions, but also needs to allocate stack
 #if !defined(_MIPS_SIM)
+// EABI requires the following functions, but also needs to allocate stack
 #define STACK_ALLOC     "addiu $sp, $sp, -0x10"
 #define STACK_DEALLOC   "addiu $sp, $sp,  0x10"
 #else
+// O32 is the only other ABI that requires these functions, in which stack is allocated by the caller for each arg
 #define STACK_ALLOC     ""
 #define STACK_DEALLOC   ""
 #endif
 
 #if !defined(_MIPS_SIM) || _MIPS_SIM == _ABIO32
+// EABI or O32
 __asm__("                                   \n\
     .set push                               \n\
     .set noreorder                          \n\

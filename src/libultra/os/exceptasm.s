@@ -222,7 +222,7 @@ endrcp:
     sdc1    $f26, THREAD_FP26($k0)
     sdc1    $f28, THREAD_FP28($k0)
     sdc1    $f30, THREAD_FP30($k0)
-#if defined(_MIPS_SIM) && _MIPS_SIM == _ABIN32
+#if defined(_MIPS_SIM) && (_MIPS_SIM == _ABIN32 || _MIPS_SIM == _ABIO64)
     sdc1    $f1, THREAD_FP1($k0)
     sdc1    $f3, THREAD_FP3($k0)
     sdc1    $f5, THREAD_FP5($k0)
@@ -770,6 +770,15 @@ LEAF(__osEnqueueAndYield)
     sdc1    $f26, THREAD_FP26($a1)
     sdc1    $f28, THREAD_FP28($a1)
     sdc1    $f30, THREAD_FP30($a1)
+#if defined(_MIPS_SIM) && _MIPS_SIM == _ABIO64
+    // O64 designates the odd-numbered registers as callee-saved while N32 does not.
+    sdc1    $f21, THREAD_FP21($a1)
+    sdc1    $f23, THREAD_FP23($a1)
+    sdc1    $f25, THREAD_FP25($a1)
+    sdc1    $f27, THREAD_FP27($a1)
+    sdc1    $f29, THREAD_FP29($a1)
+    sdc1    $f31, THREAD_FP31($a1)
+#endif
     sw      $k1, THREAD_FPCSR($a1)
 1:
     lw      $k1, THREAD_SR($a1)
@@ -959,7 +968,7 @@ LEAF(__osDispatchThread)
     ldc1    $f26, THREAD_FP26($k0)
     ldc1    $f28, THREAD_FP28($k0)
     ldc1    $f30, THREAD_FP30($k0)
-#if defined(_MIPS_SIM) && _MIPS_SIM == _ABIN32
+#if defined(_MIPS_SIM) && (_MIPS_SIM == _ABIN32 || _MIPS_SIM == _ABIO64)
     ldc1    $f1, THREAD_FP1($k0)
     ldc1    $f3, THREAD_FP3($k0)
     ldc1    $f5, THREAD_FP5($k0)

@@ -56,7 +56,8 @@
 #define ENDDATA(x)              \
     .size x, . - x
 
-#if !defined(_MIPS_SIM) || _MIPS_SIM != _ABIO32
+#if !defined(_MIPS_SIM) || _MIPS_SIM == _ABIN32
+// EABI or NABI
 .set $t4, $ta0
 .set $t5, $ta1
 .set $t6, $ta2
@@ -68,11 +69,13 @@
 /**
  *  Stack Alignment
  */
-#if defined(_MIPS_SIM) && _MIPS_SIM == _ABIO32
+#if defined(_MIPS_SIM) && (_MIPS_SIM == _ABIO32 || _MIPS_SIM == _ABIO64)
+// OABI
 #define NARGSAVE 4      // space for 4 args must be allocated
 #define ALSZ    (8-1)
 #define ALMASK ~(8-1)
 #else
+// EABI or NABI
 #define NARGSAVE 0      // no caller responsibilities
 #define ALSZ    (16-1)
 #define ALMASK ~(16-1)
@@ -83,9 +86,11 @@
 /**
  *  Register Size
  */
-#if   (_MIPS_ISA == _MIPS_ISA_MIPS1 || _MIPS_ISA == _MIPS_ISA_MIPS2)
+#if !defined(_MIPS_SIM) || _MIPS_SIM == _ABI_O32 || _MIPS_SIM == _ABI_N32
+// EABI32, O32, N32
 #define SZREG 4
-#elif (_MIPS_ISA == _MIPS_ISA_MIPS3 || _MIPS_ISA == _MIPS_ISA_MIPS4)
+#else
+// EABI64(unsupported), O64, N64(unsupported)
 #define SZREG 8
 #endif
 

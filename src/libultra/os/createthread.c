@@ -15,9 +15,11 @@ void osCreateThread(OSThread* thread, OSId id, void (*entry)(void*), void* arg, 
     thread->context.ra = (u64)(s32)__osCleanupThread;
 
     mask = OS_IM_ALL;
-#if !defined(_MIPS_SIM) || _MIPS_SIM != _ABIN32
+#if !defined(_MIPS_SIM) || _MIPS_SIM == _ABIO32
+    // EABI or O32
     thread->context.sr = (mask & OS_IM_CPU) | SR_EXL;
 #else
+    // O64 or NABI
     thread->context.sr = (mask & OS_IM_CPU) | SR_EXL | SR_FR;
 #endif
     thread->context.rcp = (mask & RCP_IMASK) >> RCP_IMASKSHIFT;
