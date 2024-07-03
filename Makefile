@@ -1014,14 +1014,14 @@ $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)
 
 RSP_TEXT_SECTION := .text
 RSP_DATA_SECTION := .rodata
-build/rsp/gspF3DZEX2_NoN_PosLight_fifo.o: RSP_TEXT_SECTION := .rodata
+$(BUILD_DIR)/rsp/gspF3DZEX2_NoN_PosLight_fifo.o: RSP_TEXT_SECTION := .rodata
 
-.PRECIOUS: build/rsp/%.S
-build/rsp/%.S: rsp/%.s
+.PRECIOUS: $(BUILD_DIR)/rsp/%.S
+$(BUILD_DIR)/rsp/%.S: rsp/%.s
 # preprocess
 	$(CPP) $(CPPFLAGS) -D_LANGUAGE_ASSEMBLY -I include -I include/ultra64 -I rsp $< $(@:.o=.S)
 
-build/rsp/%.text.bin build/rsp/%.data.bin: build/rsp/%.S
+$(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin: $(BUILD_DIR)/rsp/%.S
 # assemble to code and data binaries
 	$(ARMIPS) -strequ CODE_FILE $(<:.S=.text.bin) -strequ DATA_FILE $(<:.S=.data.bin) $<
 # create an empty file if armips did not error but one of the files was not created
@@ -1029,7 +1029,7 @@ build/rsp/%.text.bin build/rsp/%.data.bin: build/rsp/%.S
 	touch $(<:.S=.data.bin)
 
 #	$(RSP_OBJ) $(OBJCOPY) $(RSP_TEXT_SECTION) $(RSP_DATA_SECTION) $(@F:.o=) $^ $@
-build/rsp/%.o: build/rsp/%.text.bin build/rsp/%.data.bin
+$(BUILD_DIR)/rsp/%.o: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin
 # make mostly-empty elf file with dummy section
 	echo \0 > $@
 	$(OBJCOPY) -I binary -O elf32-big --rename-section .data=.temp $@
