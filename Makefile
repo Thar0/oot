@@ -480,13 +480,14 @@ $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)
 
 RSP_TEXT_SECTION := .text
 RSP_DATA_SECTION := .rodata
-$(BUILD_DIR)/rsp/gspF3DZEX2_NoN_PosLight_fifo.o: RSP_TEXT_SECTION := .rodata
+$(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.o: RSP_TEXT_SECTION := .rodata
 
 .PRECIOUS: $(BUILD_DIR)/rsp/%.S
 $(BUILD_DIR)/rsp/%.S: rsp/%.s
 # preprocess
-	$(CPP) $(CPPFLAGS) -D_LANGUAGE_ASSEMBLY -I include -I include/ultra64 -I rsp $< $(@:.o=.S)
+	$(CPP) $(CPPFLAGS) -D_LANGUAGE_ASSEMBLY $(GBI_DEFINES) -I include -I include/ultra64 -I rsp $< -o $(@:.o=.S)
 
+.PRECIOUS: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin
 $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin: $(BUILD_DIR)/rsp/%.S
 # assemble to code and data binaries
 	$(ARMIPS) -strequ CODE_FILE $(<:.S=.text.bin) -strequ DATA_FILE $(<:.S=.data.bin) $<
@@ -494,7 +495,7 @@ $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin: $(BUILD_DIR)/rsp/%.S
 	touch $(<:.S=.text.bin)
 	touch $(<:.S=.data.bin)
 
-#	$(RSP_OBJ) $(OBJCOPY) $(RSP_TEXT_SECTION) $(RSP_DATA_SECTION) $(@F:.o=) $^ $@
+#	$(RSP_OBJ) $(OBJCOPY) $(RSP_TEXT_SECTION) $(RSP_DATA_SECTION) $(subst .,_,$(@F:.o=)) $^ $@
 $(BUILD_DIR)/rsp/%.o: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin
 # make mostly-empty elf file with dummy section
 	echo \0 > $@
@@ -505,8 +506,8 @@ $(BUILD_DIR)/rsp/%.o: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin
 # remove dummy section and symbol
 	$(OBJCOPY) -I elf32-big --remove-section .temp --strip-symbol _binary_$(subst /,_,$(@:.o=))_o_size $@
 # add start/end symbols
-	$(OBJCOPY) -I elf32-big --add-symbol $(@F:.o=)TextStart=$(RSP_TEXT_SECTION):0,global --add-symbol $(@F:.o=)TextEnd=$(RSP_TEXT_SECTION):$$(du -b $(@:.o=.text.bin) | cut -f1),global $@
-	$(OBJCOPY) -I elf32-big --add-symbol $(@F:.o=)DataStart=$(RSP_DATA_SECTION):0,global --add-symbol $(@F:.o=)DataEnd=$(RSP_DATA_SECTION):$$(du -b $(@:.o=.data.bin) | cut -f1),global $@
+	$(OBJCOPY) -I elf32-big --add-symbol $(subst .,_,$(@F:.o=))TextStart=$(RSP_TEXT_SECTION):0,global --add-symbol $(subst .,_,$(@F:.o=))TextEnd=$(RSP_TEXT_SECTION):$$(du -b $(@:.o=.text.bin) | cut -f1),global $@
+	$(OBJCOPY) -I elf32-big --add-symbol $(subst .,_,$(@F:.o=))DataStart=$(RSP_DATA_SECTION):0,global --add-symbol $(subst .,_,$(@F:.o=))DataEnd=$(RSP_DATA_SECTION):$$(du -b $(@:.o=.data.bin) | cut -f1),global $@
 
 # Dependencies for files that may include the dmadata header automatically generated from the spec file
 $(BUILD_DIR)/src/boot/z_std_dma.o: $(BUILD_DIR)/dmadata_table_spec.h

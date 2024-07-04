@@ -25,6 +25,8 @@ extern "C" {
 #define	G_BG_FLAG_FLIPS		0x01
 #define	G_BG_FLAG_FLIPT		0x10
 
+#ifdef _LANGUAGE_C
+
 /* Non scalable background plane */
 typedef	struct	{
   u16   imageX;		/* x-coordinate of upper-left position of texture (u10.5) */
@@ -97,11 +99,15 @@ typedef union {
   long long int   force_structure_alignment;
 } uObjBg;
 
+#endif
+
 /*---------------------------------------------------------------------------*
  *	2D Objects
  *---------------------------------------------------------------------------*/
 #define	G_OBJ_FLAG_FLIPS	1<<0		/* inversion to S-direction */
 #define	G_OBJ_FLAG_FLIPT	1<<4		/* nversion to T-direction */
+
+#ifdef _LANGUAGE_C
 
 typedef struct {
   s16  objX;		/* s10.2 OBJ x-coordinate of upper-left end */
@@ -125,9 +131,14 @@ typedef union {
   long long int   force_structure_alignment;
 } uObjSprite;
 
+#endif
+
 /*---------------------------------------------------------------------------*
  *	2D Matrix
  *---------------------------------------------------------------------------*/
+
+#ifdef _LANGUAGE_C
+
 typedef struct {
   s32   A, B, C, D;     /* s15.16 */
   s16   X, Y;           /* s10.2  */
@@ -151,6 +162,8 @@ typedef union {
   long long int force_structure_alignment;
 } uObjSubMtx;
 
+#endif
+
 /*---------------------------------------------------------------------------*
  *	Loading into TMEM
  *---------------------------------------------------------------------------*/
@@ -160,6 +173,8 @@ typedef union {
 
 #define	GS_TB_TSIZE(pix,siz)	(GS_PIX2TMEM((pix),(siz))-1)
 #define	GS_TB_TLINE(pix,siz)	(GS_CALC_DXT(GS_PIX2TMEM((pix),(siz))))
+
+#ifdef _LANGUAGE_C
 
 typedef	struct	{
   u32	type;		/* G_OBJLT_TXTRBLOCK divided into types */
@@ -172,8 +187,12 @@ typedef	struct	{
   u32	mask;		/* STATE mask  */
 } uObjTxtrBlock_t;		/* 24 bytes */
 
+#endif
+
 #define	GS_TT_TWIDTH(pix,siz)	((GS_PIX2TMEM((pix), (siz))<<2)-1)
 #define	GS_TT_THEIGHT(pix,siz)	(((pix)<<2)-1)
+
+#ifdef _LANGUAGE_C
 
 typedef	struct	{
   u32	type;		/* G_OBJLT_TXTRTILE divided into types */
@@ -186,8 +205,12 @@ typedef	struct	{
   u32	mask;		/* STATE mask  */
 } uObjTxtrTile_t;		/* 24 bytes */
 
+#endif
+
 #define	GS_PAL_HEAD(head)	((head)+256)
 #define	GS_PAL_NUM(num)		((num)-1)
+
+#ifdef _LANGUAGE_C
 
 typedef	struct	{
   u32	type;		/* G_OBJLT_TLUT divided into types */
@@ -207,13 +230,20 @@ typedef union {
   long long int   force_structure_alignment;
 } uObjTxtr;
 
+#endif
+
 /*---------------------------------------------------------------------------*
  *	Loading into TMEM & 2D Objects
  *---------------------------------------------------------------------------*/
+
+#ifdef _LANGUAGE_C
+
 typedef	struct	{
   uObjTxtr	txtr;
   uObjSprite	sprite;
 } uObjTxSprite;		/* 48 bytes */
+
+#endif
 
 /*===========================================================================*
  *	GBI Commands for S2DEX microcode
@@ -352,6 +382,8 @@ typedef	struct	{
  *	External functions
  *===========================================================================*/
 
+#ifdef _LANGUAGE_C
+
 extern	void	guS2DInitBg(uObjBg *);
 
 #ifdef	F3DEX_GBI_2
@@ -362,6 +394,8 @@ extern	void	guS2DInitBg(uObjBg *);
 #else
   extern void	guS2DEmuSetScissor(u32, u32, u32, u32, u8);
   extern void	guS2DEmuBgRect1Cyc(Gfx **, uObjBg *);
+#endif
+
 #endif
 
 #ifdef _LANGUAGE_C_PLUS_PLUS

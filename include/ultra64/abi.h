@@ -34,9 +34,11 @@
 /*
  * Audio flags
  */
-#define A_INIT      0x01
-#define A_CONTINUE  0x00
-#define A_LOOP      0x02
+#define A_INIT          (1 << 0)
+#define A_CONTINUE      (0 << 0)
+#define A_LOOP          (1 << 1)
+#define A_ADPCM_SHORT   (1 << 2)
+
 #define A_OUT       0x02
 #define A_LEFT      0x02
 #define A_RIGHT     0x00
@@ -46,6 +48,9 @@
 #define A_NOAUX     0x00
 #define A_MAIN      0x00
 #define A_MIX       0x10
+
+#define ADPCMVSIZE  8
+#define ADPCMFSIZE  16
 
 #if defined(_LANGUAGE_C) || defined(_LANGUAGE_C_PLUS_PLUS)
 
@@ -218,8 +223,6 @@ typedef union {
 /*
  * ADPCM State
  */
-#define ADPCMVSIZE 8
-#define ADPCMFSIZE 16
 typedef short ADPCM_STATE[ADPCMFSIZE];
 
 /*
