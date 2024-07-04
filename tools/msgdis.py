@@ -223,8 +223,8 @@ def read_sfx_ids():
             assert line.startswith("DEFINE_SFX(") and line.endswith(")")
             line = line[len("DEFINE_SFX("):-len(")")]
             args = [a.strip() for a in line.split(",")]
-            assert len(args) == 5
-            sfx_ids[value] = args[0]
+            assert len(args) == 6
+            sfx_ids[value] = args[1]
             value += 1
 
     return sfx_ids

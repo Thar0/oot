@@ -181,7 +181,7 @@ class AudioTableSample(AudioTableData):
             AudioSampleCodec.CODEC_S16          : b"Uncompressed"
         }[self.header.codec]
 
-    def codec_file_extension(self):
+    def codec_file_extension_compressed(self):
         ext = {
             AudioSampleCodec.CODEC_ADPCM        : ".aifc",
             AudioSampleCodec.CODEC_S8           : None,
@@ -189,6 +189,18 @@ class AudioTableSample(AudioTableData):
             AudioSampleCodec.CODEC_SMALL_ADPCM  : ".half.aifc",
             AudioSampleCodec.CODEC_REVERB       : None,
             AudioSampleCodec.CODEC_S16          : ".aiff",
+        }[self.header.codec]
+        assert ext is not None
+        return ext
+
+    def codec_file_extension_decompressed(self):
+        ext = {
+            AudioSampleCodec.CODEC_ADPCM        : ".wav",
+            AudioSampleCodec.CODEC_S8           : None,
+            AudioSampleCodec.CODEC_S16_INMEMORY : None,
+            AudioSampleCodec.CODEC_SMALL_ADPCM  : ".half.wav",
+            AudioSampleCodec.CODEC_REVERB       : None,
+            AudioSampleCodec.CODEC_S16          : ".wav",
         }[self.header.codec]
         assert ext is not None
         return ext
@@ -461,7 +473,7 @@ class AudioTableFile:
         return f"SAMPLE_{self.bank_num}_{index}"
 
     def sample_filename(self, sample : AudioTableSample, index : int):
-        ext = sample.codec_file_extension()
+        ext = sample.codec_file_extension_compressed()
 
         if self.extraction_sample_info is not None:
             if sample.start in self.extraction_sample_info:
@@ -639,7 +651,7 @@ class AudioTableFile:
 
                 xml.write_element("Sample", {
                     "Name"       : sample.name,
-                    "FileName"   : sample.filename.replace(sample.codec_file_extension(), ""),
+                    "FileName"   : sample.filename.replace(sample.codec_file_extension_compressed(), ""),
                     "Offset"     : f"0x{sample.start:06X}",
                     # "Size"     : f"0x{sample.header.size:04X}",
                     "SampleRate" : sample.sample_rate,

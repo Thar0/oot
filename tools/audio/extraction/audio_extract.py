@@ -105,7 +105,9 @@ def collect_soundfonts(rom_image : memoryview, sound_font_table : AudioCodeTable
 def aifc_extract_one_sample(base_path : str, sample : AudioTableSample):
     # debugm(f"SAMPLE {n}")
     aifc_path = f"{base_path}/aifc/{sample.filename}"
-    wav_path = f"{base_path}/{sample.filename.replace(sample.codec_file_extension(), '.wav')}"
+    ext_compressed = sample.codec_file_extension_compressed()
+    ext_decompressed = sample.codec_file_extension_decompressed()
+    wav_path = f"{base_path}/{sample.filename.replace(ext_compressed, ext_decompressed)}"
     # export to AIFC
     sample.to_file(aifc_path)
     # decode to AIFF/WAV
