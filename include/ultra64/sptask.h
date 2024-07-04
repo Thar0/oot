@@ -26,6 +26,10 @@
 
 #define OS_YIELD_DATA_SIZE 0xC00
 
+#ifdef _LANGUAGE_ASSEMBLY
+#include "sptaskoff.h"
+#endif
+
 #ifdef _LANGUAGE_C
 
 #include "ultratypes.h"

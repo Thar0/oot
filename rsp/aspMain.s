@@ -1,13 +1,11 @@
 .rsp
-#include "rsp.inc"
 #include "rcp.h"
+#include "sptask.h"
+#include "rspboot.h"
 #include "abi.h"
 
-// Flags
-#define A_ADPCM_SHORT 4
-
-// Frame size
-#define ADPCMFSIZE (0x10 * 2)
+#define ADPCMFSIZE_BYTES (2 * ADPCMFSIZE)
+#define RESAMPLE_STATE_SIZE (2 * 16)
 
 // data macros
 .macro jumpTableEntry, addr
@@ -192,7 +190,7 @@ DMA_DRAM_ADDR equ $2
 DMA_LENGTH equ $3
 
 audio_entry:
-    ori     $10, $zero, OSTask_addr
+    ori     $10, $zero, OSTASK_ADDR
     lw      DMA_DRAM_ADDR, OS_TASK_OFF_UDATA($10)
     lw      DMA_LENGTH, OS_TASK_OFF_UDATA_SZ($10)
     mtc0    $zero, SP_SEMAPHORE             // release semaphore
@@ -305,13 +303,16 @@ dma_write:
      nop
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Empty           | DMEM                            | Empty                           | Count                           |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] -
+ * [0][15: 0] DMEM Address
+ * [1][31:16] -
+ * [1][15: 0] Count
  *
- *  Clears the DMEM buffer pointed to by `DMEM`, `count` should be a multiple of 16/0x10 bytes
+ *  Clears the DMEM buffer pointed to by `DMEM`.
+ *
+ *  `Count` should be a multiple of 16/0x10 bytes.
+ *  `DMEM` may have arbitrary alignment.
  */
 cmd_CLEARBUFF:
     @@mem_addr equ $2
@@ -332,13 +333,13 @@ cmd_CLEARBUFF:
      nop
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Flags           | DMEM In                         | DMEM Out                        | Count                           |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Flags
+ * [0][15: 0] DMEM In Address
+ * [1][31:16] DMEM Out Address
+ * [1][15: 0] Count
  *
- *  Sets buffers used by ADPCM, RESAMPLE, RESAMPLE_ZOH, S8DEC commands
+ *  Sets buffers used by ADPCM, RESAMPLE, RESAMPLE_ZOH, S8DEC commands.
  */
 cmd_SETBUFF:
     @@mem_addr equ $2
@@ -350,14 +351,14 @@ cmd_SETBUFF:
      sh     cmd_w1, (audio_count)(audioStructPtr)       // store count
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Count           | DMEM Out                        | Left                            | Right                           |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Count
+ * [0][15: 0] DMEM Out Address
+ * [1][31:16] DMEM Left In Address
+ * [1][15: 0] DMEM Right In Address
  *
- *  Interleaves the two channels pointed to by `Left` and `Right` DMEM addresses into stereo (L,R,L,R,L,R,L,R)
- *   Result is placed at `DMEM Out`
+ *  Interleaves the two channels pointed to by `Left` and `Right` DMEM addresses into stereo (L,R,L,R,L,R,L,R).
+ *  The result is placed at `DMEM Out`.
  */
 cmd_INTERLEAVE:
     @@count    equ $1
@@ -393,11 +394,16 @@ cmd_INTERLEAVE:
      nop
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Empty           | DMEM In                         | DMEM Out                        | Count                           |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] -
+ * [0][15: 0] DMEM In Address
+ * [1][31:16] DMEM Out Address
+ * [1][15: 0] Count
+ *
+ *  Moves `Count` bytes at `DMEM In` to `DMEM Out`.
+ *
+ *  `Count` should be a multiple of 16/0x10 bytes.
+ *  The DMEM buffers may have arbitrary alignment.
  */
 cmd_DMEMMOVE:
     @@dmem_in  equ $2
@@ -421,11 +427,10 @@ cmd_DMEMMOVE:
      nop
 
 /**
- * |                 |                                                 |                                                                 |
- * | Command         | Empty                                           | Address                                                         |
- * | 8               | 8                                               | 16                                                              |
- * | 31           24 | 23                                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23: 0] -
+ * [1][31:24] -
+ * [1][23: 0] DRAM Address
  */
 cmd_SETLOOP:
     @@loop_address equ $1
@@ -436,18 +441,14 @@ cmd_SETLOOP:
      sw     @@loop_address, (audio_loop_addr)(audioStructPtr)   // store addr in audio struct
 
 /**
- * |                 |                 |                                 |                                                                 |
- * | Command         | Flags           | Gain                            | Address                                                         |
- * | 8               | 8               | 16                              | 32                                                              |
- * | 31           24 | 23           16 | 15                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Flags
+ * [0][15: 0] Gain
+ * [1][31:24] -
+ * [1][23: 0] DRAM Address
  *
- *  Flags:
- *   & 1 = Init
- *   & 2 = Loop
- *   & 4 = Short ADPCM / two bits per sample
+ * Flags come from (A_INIT, A_CONTINUE, A_LOOP, A_ADPCM_SHORT) in abi.h
  */
-
 cmd_ADPCM:
     @@isShortADPCM      equ $8
     @@adpcmBookPtr      equ $15
@@ -534,7 +535,8 @@ cmd_ADPCM:
     ldv     @@masks1[8], 0x10($16)      // masks1 = [0xC000, 0x3000, 0x0C00, 0x0300, 0x00C0, 0x0030, 0x000C, 0x0003]
     addi    $16, $16, 2                 // $16 += 2
     j       @@stepover_regular          // step over regular ADPCM handling
-     ldv    @@mulFactors[8], 0x18($16)  // mulFactors = [0x0001, 0x0004, 0x0010, 0x0040, 0x0100, 0x0400, 0x1000, 0x40__]  (last byte is read from first byte of data_0060)
+     ldv    @@mulFactors[8], 0x18($16)  // mulFactors = [0x0001, 0x0004, 0x0010, 0x0040, 0x0100, 0x0400, 0x1000, 0x40__]
+                                        //              (last byte is read from first byte of data_0060)
 @@stepover_short:
     li      @@bytesPerFrame, 9          // $10 = 9 (bytes per frame)
     li      $9, 12                      // $9 = 12
@@ -555,17 +557,17 @@ cmd_ADPCM:
     // DMA saved adpcm state into the first 0x20 bytes of outBuffer
     move    DMA_MEM_ADDR, @@outBuffer
     jal     dma_read_start
-     li     DMA_LENGTH, ADPCMFSIZE - 1
+     li     DMA_LENGTH, ADPCMFSIZE_BYTES - 1
 @@is_init:
-    lqv     @@output2[0], 0x10(@@outBuffer)         // read last 0x10 bytes of the adpcm state, if A_INIT is set then this is 0
-    addi    @@outBuffer, @@outBuffer, ADPCMFSIZE    // increment outBuffer by 0x20
-    beqz    @@count, @@early_ret                    // 0 count, leave early
-     ldv    @@frameData[0], ($20)                   // load frame data
-    lbu     @@frameHeader, ($21)                    // $1 = header
-    andi    @@pageNumber, @@frameHeader, 0xF        // pageNumber = optimalp = header & 0xF        (codebook page number)
-    sll     @@pageNumber, @@pageNumber, 5           // pageNumber *= 32
-    vand    @@frameData0, @@masks1, @@frameData[0]  // both ADPCM
-    add     @@pagePtr, @@pageNumber, @@adpcmBookPtr // get pointer to specific codebook page
+    lqv     @@output2[0], 0x10(@@outBuffer)             // read last 0x10 bytes of the adpcm state, if A_INIT is set then this is 0
+    addi    @@outBuffer, @@outBuffer, ADPCMFSIZE_BYTES  // increment outBuffer by 0x20
+    beqz    @@count, @@early_ret                        // 0 count, leave early
+     ldv    @@frameData[0], ($20)                       // load frame data
+    lbu     @@frameHeader, ($21)                        // $1 = header
+    andi    @@pageNumber, @@frameHeader, 0xF            // pageNumber = optimalp = header & 0xF     (codebook page number)
+    sll     @@pageNumber, @@pageNumber, 5               // pageNumber *= 32
+    vand    @@frameData0, @@masks1, @@frameData[0]      // both ADPCM
+    add     @@pagePtr, @@pageNumber, @@adpcmBookPtr     // get pointer to specific codebook page
     vclr    @@frameData1
     vclr    @@frameData3
     bnez    @@isShortADPCM, @@skip_masks1           // if short ADPCM, skip
@@ -684,28 +686,29 @@ cmd_ADPCM:
     lrv     @@bookvec9[0], 0x20(@@pagePtr2)
     lqv     @@bookvec1[0], 0x00(@@pagePtr)      ::  vmudn   @@v___, @@resultTemp, $v31[4]   // $v31[4] = 0x0020
     lqv     @@bookvec2[0], 0x10(@@pagePtr)      ::  vmadh   @@output2, @@output2, $v31[4]   // $v31[4] = 0x0020
-    addi    @@count, @@count, -ADPCMFSIZE       // decr count
+    addi    @@count, @@count, -ADPCMFSIZE_BYTES // decr count
     // Save output to destination buffer
     sdv     @@output1[0], 0x00(@@outBuffer)
     sdv     @@output1[8], 0x08(@@outBuffer)
     sdv     @@output2[0], 0x10(@@outBuffer)
     sdv     @@output2[8], 0x18(@@outBuffer)
     bgtz    @@count, @@main_loop                // loop until done
-     addi   @@outBuffer, @@outBuffer, ADPCMFSIZE
+     addi   @@outBuffer, @@outBuffer, ADPCMFSIZE_BYTES
 @@early_ret:
     // Save the most recent output data to the adpcm state to resume further frame decoding later
-    addi    DMA_MEM_ADDR, @@outBuffer, -ADPCMFSIZE
+    addi    DMA_MEM_ADDR, @@outBuffer, -ADPCMFSIZE_BYTES
     move    DMA_DRAM_ADDR, @@adpcmStateAddr
     j       dma_write_and_nextcmd
-     li     DMA_LENGTH, ADPCMFSIZE
+     li     DMA_LENGTH, ADPCMFSIZE_BYTES
 
-RESAMPLE_STATE_SIZE equ 32
 /**
- * |                 |                 |                                 |                                                                 |
- * | Command         | Flags           | Pitch                           | Address (pointer to s16[16])                                    |
- * | 8               | 8               | 16                              | 32                                                              |
- * | 31           24 | 23           16 | 15                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Flags
+ * [0][15: 0] Pitch
+ * [1][31:24] -
+ * [1][23: 0] DRAM Address
+ *
+ * DRAM Address should point to the s16[16] resample state.
  */
 cmd_RESAMPLE:
     @@in_buf    equ $8
@@ -870,11 +873,11 @@ cmd_RESAMPLE:
      li     DMA_LENGTH, RESAMPLE_STATE_SIZE
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Count2          | DMEM In                         | DMEM Out                        | Count                           |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Count2
+ * [0][15: 0] DMEM In
+ * [1][31:16] DMEM Out
+ * [1][15: 0] Count1
  *
  *  Similar to DMEM Move but using lqv/sqv
  */
@@ -906,11 +909,11 @@ cmd_UNK16:
      nop
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Count           | DMEM In                         | DMEM Out                        | Empty                           |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Count
+ * [0][15: 0] DMEM In
+ * [1][31:16] DMEM Out
+ * [1][15: 0] -
  *
  * Copies `dmem_in` to `dmem_out` `count` times. DMEM in and DMEM out should be 0x10 byte aligned
  */
@@ -947,11 +950,11 @@ cmd_DUPLICATE:
      nop
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Empty           | Count                           | DMEM In                         | DMEM Out                        |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] -
+ * [0][15: 0] Count
+ * [1][31:16] DMEM In
+ * [1][15: 0] DMEM Out
  *
  *  Interleave
  */
@@ -984,26 +987,27 @@ cmd_INTERL:
      nop
 
 /**
- * |                 |                 |                 |       |   |   |   |   |   |                 |                 |                 |                 |
- * | Command         | DMEM Address    | Count           | Empty | S | X0| X1| X2| X3| DMEM Left       | DMEM Right      | DMEM Wet Left   | DMEM Wet Right  |
- * | 8               | 8               | 8               | 3     | 1 | 1 | 1 | 1 | 1 | 8               | 8               | 8               | 8               |
- * | 31           24 | 23           16 | 15            8 | 7   5 | 4 | 3 | 2 | 1 | 0 | 31           24 | 23           16 | 15            8 | 7             0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 | 0 | 0 | 0 | 0 | 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 |
- *
- * S  = swapLR
- * X0 = stereoHeadsetEffects
- * X1 = usesHeadsetPanEffects
- * X2 = stereoStrongRight
- * X3 = stereoStrongLeft
- *
- * Common w1 configurations:
- *  envmixer w1
- *  p1                  p2                  p3                p4
- *  DMEM_NOTE_PAN_TEMP, DMEM_RIGHT_CH,      DMEM_WET_LEFT_CH, DMEM_WET_RIGHT_CH
- *  DMEM_LEFT_CH,       DMEM_NOTE_PAN_TEMP, DMEM_WET_LEFT_CH, DMEM_WET_RIGHT_CH
- *  DMEM_LEFT_CH,       DMEM_RIGHT_CH,      DMEM_WET_LEFT_CH, DMEM_WET_RIGHT_CH
+ * [0][31:24] Command
+ * [0][23:16] DMEM Address
+ * [0][15: 8] Count
+ * [0][ 7: 5] -
+ * [0][    4] SwapLR
+ * [0][    3] StereoHeadsetEffects
+ * [0][    2] UsesHeadsetPanEffects
+ * [0][    1] StereoStrongRight
+ * [0][    0] StereoStrongLeft
+ * [1][31:24] DMEM Left
+ * [1][23:16] DMEM Right
+ * [1][15: 8] DMEM Wet Left
+ * [1][ 7: 0] DMEM Wet Right
  *
  *  Envelope Mixer
+ *
+ *  Common w1 configurations:
+ *      Left                Right               Wet Left          Wet Right
+ *      DMEM_NOTE_PAN_TEMP, DMEM_RIGHT_CH,      DMEM_WET_LEFT_CH, DMEM_WET_RIGHT_CH
+ *      DMEM_LEFT_CH,       DMEM_NOTE_PAN_TEMP, DMEM_WET_LEFT_CH, DMEM_WET_RIGHT_CH
+ *      DMEM_LEFT_CH,       DMEM_RIGHT_CH,      DMEM_WET_LEFT_CH, DMEM_WET_RIGHT_CH
  */
 cmd_ENVMIXER:
     @@env_state_addr    equ $19
@@ -1210,11 +1214,11 @@ cmd_ENVMIXER:
      vadd   @@wet_right_result, @@wet_right_result, @@leftRampAdd
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Reverb Vol      | Ramp Reverb                     | Ramp Left                       | Ramp Right                      |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Reverb Volume
+ * [0][15: 0] Ramp Reverb
+ * [1][31:16] Ramp Left
+ * [1][15: 0] Ramp Right
  *
  *  Envelope Setup (1)
  */
@@ -1234,11 +1238,10 @@ cmd_ENVSETUP1:
      andi   g_rampRight, cmd_w1, 0xFFFF
 
 /**
- * |                 |                                                 |                                 |                                 |
- * | Command         | Empty                                           | Vol Left                        | Vol Right                       |
- * | 8               | 24                                              | 16                              | 16                              |
- * | 31           24 | 23                                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23: 0] -
+ * [1][31:16] Volume Left
+ * [1][15: 0] Volume Right
  *
  *  Envelope Setup (2)
  */
@@ -1266,11 +1269,11 @@ setup_loadadpcm:
      srl    DMA_DRAM_ADDR, DMA_DRAM_ADDR, 8 // DRAM addr, remove highest byte
 
 /**
- * |                 |                 |                                 |                                                                 |
- * | Command         | Count           | DMEM Addr                       | Address                                                         |
- * | 8               | 8               | 16                              | 16                                                              |
- * | 31           24 | 23           16 | 15                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Count
+ * [0][15: 0] DMEM Address
+ * [1][31:24] -
+ * [1][23: 0] DRAM Address
  */
 cmd_LOADBUFF:
     jal     setup_buff_noop
@@ -1279,11 +1282,11 @@ cmd_LOADBUFF:
      nop
 
 /**
- * |                 |                 |                                 |                                                                 |
- * | Command         | Count           | DMEM Addr                       | Address                                                         |
- * | 8               | 8               | 16                              | 16                                                              |
- * | 31           24 | 23           16 | 15                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Count
+ * [0][15: 0] DMEM Address
+ * [1][31:24] -
+ * [1][23: 0] DRAM Address
  */
 cmd_SAVEBUFF:
     jal     setup_buff_noop
@@ -1292,11 +1295,11 @@ cmd_SAVEBUFF:
      nop
 
 /**
- * |                 |                 |                                 |                                                                 |
- * | Command         | Empty           | Count                           | Address                                                         |
- * | 8               | 8               | 16                              | 16                                                              |
- * | 31           24 | 23           16 | 15                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] -
+ * [0][15: 0] Count
+ * [1][31:24] -
+ * [1][23: 0] DRAM Address
  *
  * Loads the ADPCM codebook.
  * Count is the size in bytes: 16 * order * npredictors
@@ -1374,11 +1377,11 @@ dma_wait:
      mtc0   $zero, SP_SEMAPHORE
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Count           | Gain                            | DMEM In                         | DMEM Out                        |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Count
+ * [0][15: 0] Gain
+ * [1][31:16] DMEM In
+ * [1][15: 0] DMEM Out
  */
 cmd_MIXER:
     @@count    equ $18
@@ -1416,11 +1419,11 @@ cmd_MIXER:
      nop
 
 /**
- * |                 |                 |                                 |                                                                 |
- * | Command         | Flags           | Empty                           | Address                                                         |
- * | 8               | 8               | 16                              | 32                                                              |
- * | 31           24 | 23           16 | 15                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Flags
+ * [0][15: 0] -
+ * [1][31:24] -
+ * [1][23: 0] DRAM Address
  *
  *  "Decompress" signed 8-bit PCM to signed 16-bit PCM
  */
@@ -1489,11 +1492,12 @@ cmd_S8DEC:
      nop
 
 /**
- * |                 |         |         |                                 |                                 |                                 |
- * | Command         | HI Gain | LO Gain | Count                           | DMEM Address                    | Empty                           |
- * | 8               | 4       | 4       | 16                              | 16                              | 16                              |
- * | 31           24 | 23   20 | 19   16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 | 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:20] HI Gain
+ * [0][19:16] LO Gain
+ * [0][15: 0] Count
+ * [1][31:16] DMEM Address
+ * [1][15: 0] -
  */
 cmd_HILOGAIN:
     @@gain      equ $15
@@ -1524,11 +1528,11 @@ cmd_HILOGAIN:
      vclr   $vzero
 
 /**
- * |                 |                 |                                 |                                                                 |
- * | Command         | Flags           | Count or DMEM Address           | DRAM Address                                                    |
- * | 8               | 8               | 16                              | 32                                                              |
- * | 31           24 | 23           16 | 15                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Flags
+ * [0][15: 0] Count or DMEM Address
+ * [1][31:24] -
+ * [1][23: 0] DRAM Address
  *
  *  Discrete convolution
  */
@@ -1641,11 +1645,11 @@ cmd_FILTER:
      li     DMA_LENGTH, 0x20 - 1
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Count           | Unused Parameter                | DMEM In                         | DMEM Out                        |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Count
+ * [0][15: 0] -
+ * [1][31:16] DMEM In
+ * [1][15: 0] DMEM Out
  *
  *  Additive Mixer
  */
@@ -1685,11 +1689,11 @@ cmd_ADDMIXER:
      nop
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Empty           | Pitch                           | Empty                           | Start Offset                    |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] -
+ * [0][15: 0] Pitch
+ * [1][31:16] -
+ * [1][15: 0] Start Offset
  *
  * Zero-Order Hold Resampling
  */
@@ -1734,11 +1738,11 @@ cmd_RESAMPLE_ZOH:
      nop
 
 /**
- * |                 |                 |                                 |                                 |                                 |
- * | Command         | Empty           | Count                           | DMEM In                         | DMEM Out                        |
- * | 8               | 8               | 16                              | 16                              | 16                              |
- * | 31           24 | 23           16 | 15                            0 | 31                           16 | 15                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] -
+ * [0][15: 0] Count
+ * [1][31:16] DMEM In
+ * [1][15: 0] DMEM Out
  */
 cmd_UNK3:
     @@count    equ $18
@@ -1768,11 +1772,10 @@ cmd_UNK3:
      nop
 
 /**
- * |                 |                 |                                 |                                                                 |
- * | Command         | Size            | Unknown                         | DRAM Address                                                    |
- * | 8               | 8               | 16                              | 32                                                              |
- * | 31           24 | 23           16 | 15                            0 | 31                                                            0 |
- * | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 | 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 |
+ * [0][31:24] Command
+ * [0][23:16] Size
+ * [0][15: 0] ?
+ * [1][31: 0] DRAM Address
  *
  * Appears to be some kind of debug feature?
  */

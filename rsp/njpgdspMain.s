@@ -1,6 +1,7 @@
 .rsp
-#include "rsp.inc"
 #include "rcp.h"
+#include "sptask.h"
+#include "rspboot.h"
 
 // scalar macros
 .macro li, reg, imm
@@ -96,6 +97,15 @@ transposeBuffer:
 
 // Unused?
     .skip 0x160
+
+ostask:
+    .skip OS_TASK_SIZE
+
+.align 0x10
+
+.if . > DMEM_END
+    .error "Not enough room in DMEM"
+.endif
 
 .close
 
@@ -971,6 +981,10 @@ dma_wait:
     jr      $ra
      mtc0   $zero, SP_SEMAPHORE
 
-.align 8
+.align 0x10
+
+.if . > IMEM_END_VIRT
+    .error "Not enough room in IMEM"
+.endif
 
 .close
