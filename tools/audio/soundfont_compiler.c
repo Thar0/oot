@@ -447,8 +447,9 @@ read_instrs_info(soundfont *sf, xmlNodePtr instrs)
 
                     if (instr->sample_high_start == INSTR_HI_NONE)
                         error("Useless High sample specified (RangeHi is 0)");
-                } else
+                } else {
                     error("Unexpected attribute name for instrument sample (line %d)", instr_sample_node->line);
+                }
 
                 if (*seen)
                     error("Duplicate \"%s\" sample specifier in instrument sample (line %d)", attr_name,

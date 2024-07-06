@@ -1,5 +1,6 @@
 #include "global.h"
 #include "terminal.h"
+#pragma increment_block_number 244
 
 extern u8 _buffersSegmentEnd[];
 

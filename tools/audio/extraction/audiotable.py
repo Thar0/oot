@@ -626,7 +626,7 @@ class AudioTableFile:
 
                 xml.write_element("Blob", {
                     "Name" : sample.name,
-                    "Path" : f"{base_path}/{sample.filename}",
+                    "Path" : f"$(BUILD_DIR)/{base_path}/{sample.filename}",
                 })
 
         xml.write_end_tag()

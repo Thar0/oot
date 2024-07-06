@@ -47,7 +47,7 @@ file_handler(const char *path, FILE *out, size_t *total_num)
         const char *sym_name = elf32_get_string(sym->st_name, strtab, data, data_size);
         size_t name_len = strlen(sym_name);
 
-        if (name_len > 5 && strcmp(&sym_name[name_len - 5], "_Size") == 0) {
+        if (str_endswith(sym_name, name_len, "_Size")) {
             if (sym->st_shndx != SHN_ABS)
                 continue;
 
@@ -59,7 +59,7 @@ file_handler(const char *path, FILE *out, size_t *total_num)
             continue;
         }
 
-        if (name_len > 6 && strcmp(&sym_name[name_len - 6], "_Start") == 0) {
+        if (str_endswith(sym_name, name_len, "_Start")) {
             object_name = (char *)sym_name;
             object_name[name_len - 6] = '\0';
 

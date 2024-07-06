@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # tuning.py
 # SPDX-FileCopyrightText: © 2024 ZeldaRET
 # SPDX-License-Identifier: CC0-1.0

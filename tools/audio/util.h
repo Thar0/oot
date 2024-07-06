@@ -19,6 +19,9 @@
 
 #define strequ(s1, s2) ((__builtin_constant_p(s2) ? strncmp(s1, s2, sizeof(s2) - 1) : strcmp(s1, s2)) == 0)
 
+#define str_endswith(str, len, endswith) \
+    ((len) > (sizeof(endswith) - 1) && strequ(&(str)[(len) - sizeof(endswith) + 1], (endswith)))
+
 #define LL_FOREACH(type, x, base) for (type(x) = (base); (x) != NULL; (x) = (x)->next)
 
 #define ARRAY_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))

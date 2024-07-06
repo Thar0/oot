@@ -7,6 +7,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 #include <assert.h>
+
 #include "xml.h"
 #include "samplebank.h"
 #include "util.h"
@@ -17,9 +18,8 @@ samplebank_path_forname(samplebank *sb, const char *name)
     assert(name != NULL);
 
     for (size_t i = 0; i < sb->num_samples; i++) {
-        if (strequ(sb->sample_names[i], name)) {
+        if (strequ(sb->sample_names[i], name))
             return sb->sample_paths[i];
-        }
     }
     return NULL;
 }

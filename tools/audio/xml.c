@@ -221,8 +221,9 @@ xml_parse_note_number(const char *value, void *out)
         vs8 = (v - 1) * 12 + notes_lut[c - 'A'] + mod;
         if (vs8 < 0)
             vs8 += 128;
-    } else // got a raw value
+    } else { // got a raw value
         vs8 = xml_str_to_int(&value[start]);
+    }
 
     if (vs8 < 0)
         goto err;

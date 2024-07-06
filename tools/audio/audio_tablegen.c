@@ -145,9 +145,8 @@ tablegen_samplebanks(const char *sb_hdr_out, const char **samplebanks_paths, int
     // check that we have no gaps
 
     for (size_t i = 0; i < indices_len; i++) {
-        if (index_info[i].index_type == INDEX_NONE) {
+        if (index_info[i].index_type == INDEX_NONE)
             error("Missing index");
-        }
     }
 
     // emit table
@@ -239,7 +238,7 @@ tablegen_soundfonts(const char *sf_hdr_out, char **soundfonts_paths, int num_sou
 
         read_soundfont_info(sf, root);
 
-        if (sf->info.index > max_index)
+        if (max_index < sf->info.index)
             max_index = sf->info.index;
     }
 
@@ -525,17 +524,13 @@ tablegen_sequences(const char *seq_font_tbl_out, const char *seq_order_path, con
 
             // The start symbol should be defined and global
             int bind = sym->st_info >> 4;
-            if (bind != SB_GLOBAL || sym->st_shndx == SHN_UND) {
+            if (bind != SB_GLOBAL || sym->st_shndx == SHN_UND)
                 continue;
-            }
 
             const char *sym_name = elf32_get_string(sym->st_name, strtab, data, data_size);
             size_t name_len = strlen(sym_name);
 
-            if (name_len < 6) // _Start
-                continue;
-            if (sym_name[name_len - 6] != '_' || sym_name[name_len - 5] != 'S' || sym_name[name_len - 4] != 't' ||
-                sym_name[name_len - 3] != 'a' || sym_name[name_len - 2] != 'r' || sym_name[name_len - 1] != 't')
+            if (!str_endswith(sym_name, name_len, "_Start"))
                 continue;
 
             // Got start symbol, extract name

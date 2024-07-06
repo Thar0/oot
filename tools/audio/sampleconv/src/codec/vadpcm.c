@@ -150,21 +150,6 @@ clamp_bits(int32_t x, int32_t bits)
     return x;
 }
 
-/**
- * Clamp ix to within [llevel, ulevel].
- */
-static int32_t
-clip(int32_t ix, int32_t llevel, int32_t ulevel)
-{
-    if (ix < llevel || ix > ulevel) {
-        if (ix < llevel)
-            return llevel;
-        if (ix > ulevel)
-            return ulevel;
-    }
-    return ix;
-}
-
 static int32_t
 inner_product(int32_t length, int32_t *v1, int32_t *v2)
 {

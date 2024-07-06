@@ -1,3 +1,4 @@
+#pragma increment_block_number 252
 #include "global.h"
 #include "quake.h"
 #include "terminal.h"

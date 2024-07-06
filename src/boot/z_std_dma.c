@@ -18,6 +18,7 @@
  * There are some additional provisions to ensure that audio DMA is particularly high-speed, the audio data is assumed
  * to be uncompressed and the request queue and address translation is skipped.
  */
+#pragma increment_block_number 5
 #include "global.h"
 #include "terminal.h"
 
