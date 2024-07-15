@@ -1,3 +1,3 @@
-# Music Macro Language (Version 1 and 2)
+# Music Macro Language (Zelda64 versions)
 
 

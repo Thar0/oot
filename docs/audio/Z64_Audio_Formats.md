@@ -32,7 +32,7 @@ typedef struct {
  - `medium` is the storage medium for the data this entry points to, either RAM, Cartridge, or N64 Disk Drive.
  - `cachePolicy` determines how long the data will be allocated for when loaded, it may be `PERMANENT`, `PERSISTENT`, `TEMPORARY` or `EITHER`.
 
-Some entries in the table have zero `size` and act as pointers to other entries in the table, in which case the `romAddr` field contains the new ID to use. ([Code](https://github.com/zeldaret/oot/blob/e68f321777be140726591b9a5dc4c45fe127d6d3/src/code/audio_load.c#L741))
+Some entries in the table have zero `size` and act as pointers to other entries in the table, in which case the `romAddr` field contains the new ID to use. ([AudioLoad_GetRealTableIndex](../../src/audio/lib/load.c#L738))
 
 The last three `shortData` fields are used only in the soundfont table associated with `Audiobank`, they are 0 in the other tables. In the soundfont table they represent:
 
@@ -110,7 +110,7 @@ The Audiotable is partitioned into files for each sample bank. Each sample bank 
 
 ### About
 
-The Audiobank file houses "soundfont" data that organizes samples in the sample banks. Each soundfont is it's own file. In OoT there are 38 soundfonts, each has their own ID to be referenced by sequences. A list of named Soundfont IDs is [here](https://github.com/zeldaret/oot/blob/3e298fa818569f9323138ec34f9e3127fa435b9f/include/sequence.inc#L145).
+The Audiobank file houses "soundfont" data that organizes samples in the sample banks. Each soundfont is it's own file. In OoT there are 38 soundfonts, each has their own ID to be referenced by sequences. Soundfont names can be found in `assets/xml/audio/soundfonts`.
 
 #### Envelopes
 
@@ -201,7 +201,7 @@ In both OoT and MM, `medium` is always 0.
 
 Note that in ROM, `medium` does not correspond to the `SampleMedium` enum, i.e. 0 is not `MEDIUM_RAM`.
 
-([AudioLoad_RelocateSample](https://github.com/zeldaret/oot/blob/95b431793182bd021cb4234255f90b996edd8d4d/src/code/audio_load.c#L1574))
+([AudioLoad_RelocateSample](../../src/audio/lib/load.c#L1660))
 
 Accompanying every `Sample` are structures to hold the codebook and loop point information:
 
