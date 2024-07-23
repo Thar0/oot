@@ -492,22 +492,17 @@ $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin: $(BUILD_DIR)/rsp/%.S
 # assemble to code and data binaries
 	$(ARMIPS) -strequ CODE_FILE $(<:.S=.text.bin) -strequ DATA_FILE $(<:.S=.data.bin) $<
 # create an empty file if armips did not error but one of the files was not created
-	touch $(<:.S=.text.bin)
-	touch $(<:.S=.data.bin)
+	touch $(<:.S=.text.bin) $(<:.S=.data.bin)
 
-#	$(RSP_OBJ) $(OBJCOPY) $(RSP_TEXT_SECTION) $(RSP_DATA_SECTION) $(subst .,_,$(@F:.o=)) $^ $@
-$(BUILD_DIR)/rsp/%.o: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin
-# make mostly-empty elf file with dummy section
-	echo \0 > $@
-	$(OBJCOPY) -I binary -O elf32-big --rename-section .data=.temp $@
-# add sections
-	$(OBJCOPY) -I elf32-big --add-section $(RSP_TEXT_SECTION)=$(@:.o=.text.bin) --set-section-flags $(RSP_TEXT_SECTION)=alloc,code,contents,load,readonly $@
-	$(OBJCOPY) -I elf32-big --add-section $(RSP_DATA_SECTION)=$(@:.o=.data.bin) --set-section-flags $(RSP_DATA_SECTION)=alloc,contents,load,readonly $@
-# remove dummy section and symbol
-	$(OBJCOPY) -I elf32-big --remove-section .temp --strip-symbol _binary_$(subst /,_,$(@:.o=))_o_size $@
-# add start/end symbols
-	$(OBJCOPY) -I elf32-big --add-symbol $(subst .,_,$(@F:.o=))TextStart=$(RSP_TEXT_SECTION):0,global --add-symbol $(subst .,_,$(@F:.o=))TextEnd=$(RSP_TEXT_SECTION):$$(du -b $(@:.o=.text.bin) | cut -f1),global $@
-	$(OBJCOPY) -I elf32-big --add-symbol $(subst .,_,$(@F:.o=))DataStart=$(RSP_DATA_SECTION):0,global --add-symbol $(subst .,_,$(@F:.o=))DataEnd=$(RSP_DATA_SECTION):$$(du -b $(@:.o=.data.bin) | cut -f1),global $@
+RSP2ELF_DEFS =                              \
+    -D UC_NAME=$(subst .,_,$(@F:.o=))       \
+    -D UC_TEXT_SECTION=$(RSP_TEXT_SECTION)  \
+    -D UC_DATA_SECTION=$(RSP_DATA_SECTION)  \
+    -D UC_TEXT_BIN_PATH="$(@:.o=.text.bin)" \
+    -D UC_DATA_BIN_PATH="$(@:.o=.data.bin)"
+
+$(BUILD_DIR)/rsp/%.o: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin rsp/rsp2elf.s
+	$(CPP) $(CPPFLAGS) $(RSP2ELF_DEFS) rsp/rsp2elf.s | $(AS) $(ASFLAGS) -o $@
 
 # Dependencies for files that may include the dmadata header automatically generated from the spec file
 $(BUILD_DIR)/src/boot/z_std_dma.o: $(BUILD_DIR)/dmadata_table_spec.h
