@@ -24,6 +24,7 @@ from config import SAMPLECONV_PATH
 from config import AUDIOTABLE_BUFFER_BUGS, FAKE_BANKS
 from config import SEQ_DISAS_HACKS
 from config import HANDWRITTEN_SEQUENCES_OOT, HANDWRITTEN_SEQUENCES_MM
+from config import SEQ_NAMES_OOT, SEQ_NAMES_MM
 
 BASEROM_DEBUG = False
 
@@ -53,6 +54,7 @@ def collect_sample_banks(rom_image : memoryview, extracted_dir : str, version_in
             # debugm(f"{i} Pointer: {entry.rom_addr} -> 0x{entry_dst.rom_addr:X}, 0x{entry_dst.size:X}")
         else:
             # Check whether this samplebank suffers from the buffer bug
+            # TODO it should be possible to detect this automatically by checking padding following sample discovery
             if version_info.version_id in AUDIOTABLE_BUFFER_BUGS:
                 bug = i in AUDIOTABLE_BUFFER_BUGS[version_info.version_id]
             else:
@@ -178,24 +180,15 @@ def extract_sequences(rom_image : memoryview, extracted_dir : str, version_info 
 
     sequence_font_table_cvg = [0] * len(sequence_font_table)
 
-    # Select list of handwritten sequences
+    # Select list of sequence enum names and handwritten sequences
     if version_info.version_id in GAMEVERSION_ALL_OOT:
+        seq_enum_names = SEQ_NAMES_OOT
         handwritten_sequences = HANDWRITTEN_SEQUENCES_OOT
     else:
+        seq_enum_names = SEQ_NAMES_MM
         handwritten_sequences = HANDWRITTEN_SEQUENCES_MM
 
-    all_fonts = []
-
-    seq_enum_names : List[str] = []
-    sequence_table_hdr = None
-    with open(f"include/tables/sequence_table.h", "r") as infile:
-        sequence_table_hdr = infile.read()
-
-    for line in sequence_table_hdr.split("\n"):
-        line = line.strip()
-        if line.startswith("DEFINE_SEQUENCE"):
-            seq_enum_names.append(line.split(",")[1].strip())
-
+    # We should have as many enum names as sequences that require extraction
     assert len(seq_enum_names) == len(sequence_table)
 
     if BASEROM_DEBUG:
@@ -205,6 +198,7 @@ def extract_sequences(rom_image : memoryview, extracted_dir : str, version_info 
     if write_xml:
         os.makedirs(f"assets/xml/audio/sequences", exist_ok=True)
 
+    all_fonts = []
     disas_jobs = []
 
     for i,entry in enumerate(sequence_table):
