@@ -75,25 +75,25 @@ typedef struct {
 u8 gIsLargeSfxBank[7] = {
     (
 #include "tables/sfx/playerbank_table.h"
-        0) > 256,
+        0) > UINT8_MAX,
     (
 #include "tables/sfx/itembank_table.h"
-        0) > 256,
+        0) > UINT8_MAX,
     (
 #include "tables/sfx/environmentbank_table.h"
-        0) > 256,
+        0) > UINT8_MAX,
     (
 #include "tables/sfx/enemybank_table.h"
-        0) > 256,
+        0) > UINT8_MAX,
     (
 #include "tables/sfx/systembank_table.h"
-        0) > 256,
+        0) > UINT8_MAX,
     (
 #include "tables/sfx/ocarinabank_table.h"
-        0) > 256,
+        0) > UINT8_MAX,
     (
 #include "tables/sfx/voicebank_table.h"
-        0) > 256,
+        0) > UINT8_MAX,
 };
 #undef DEFINE_SFX
 

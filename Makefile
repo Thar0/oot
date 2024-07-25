@@ -517,17 +517,8 @@ $(ROMC): $(ROM) $(ELF) $(BUILD_DIR)/compress_ranges.txt
 	$(PYTHON) -m ipl3checksum sum --cic 6105 --update $@
 
 $(ELF): $(TEXTURE_FILES_OUT) $(ASSET_FILES_OUT) $(O_FILES) $(OVL_RELOC_FILES) $(LDSCRIPT) $(BUILD_DIR)/undefined_syms.txt \
-        $(AIFC_FILES) \
-        $(SAMPLEBANK_O_FILES) \
-        $(SOUNDFONT_O_FILES) \
-        $(SEQUENCE_O_FILES) \
-        $(BUILD_DIR)/src/audio/tables/samplebank_table.o \
-        $(BUILD_DIR)/src/audio/tables/soundfont_table.o \
-        $(BUILD_DIR)/src/audio/tables/sequence_table.o \
-        $(BUILD_DIR)/assets/audio/sequence_font_table.o \
-        $(BUILD_DIR)/assets/audio/sequence_sizes.h \
-        $(BUILD_DIR)/assets/audio/soundfont_sizes.h \
-        $(BUILD_DIR)/assets/audio/audiobank_padding.o
+        $(AIFC_FILES) $(SAMPLEBANK_O_FILES) $(SOUNDFONT_O_FILES) $(SEQUENCE_O_FILES) \
+        $(BUILD_DIR)/assets/audio/sequence_font_table.o $(BUILD_DIR)/assets/audio/audiobank_padding.o
 	$(LD) -T $(LDSCRIPT) -T $(BUILD_DIR)/undefined_syms.txt --no-check-sections --accept-unknown-input-arch --emit-relocs -Map $(MAP) -o $@
 
 ## Order-only prerequisites
