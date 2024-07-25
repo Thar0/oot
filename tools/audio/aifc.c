@@ -50,7 +50,11 @@ int16_t_BE;
 
 #define VADPCM_VER ((int16_t)1)
 
-#define DEBUGF(fmt, ...) (void)0
+#if 0
+# define DEBUGF(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#else
+# define DEBUGF(fmt, ...) (void)0
+#endif
 
 typedef BIG_ENDIAN_STRUCT
 {
@@ -260,6 +264,8 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
     FREAD(in, aifc, 4);
     uint32_t size = size_BE.value;
 
+    DEBUGF("total size = 0x%X\n", size);
+
     if (!CC4_CHECK(form, "FORM") || !CC4_CHECK(aifc, "AIFC"))
         error("Not an aifc file?");
 
@@ -283,7 +289,7 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
         chunk_size.value++;
         chunk_size.value &= ~1;
 
-        DEBUGF("%c%c%c%c\n", header.ckID >> 24, header.ckID >> 16, header.ckID >> 8, header.ckID);
+        DEBUGF("%c%c%c%c\n", cc4[0], cc4[1], cc4[2], cc4[3]);
 
         switch (CC4(cc4[0], cc4[1], cc4[2], cc4[3])) {
             case CC4('C', 'O', 'M', 'M'): {
@@ -374,7 +380,7 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
 
                 FREAD(in, subcc4, 4);
 
-                DEBUGF("    %c%c%c%c\n", ts >> 24, ts >> 16, ts >> 8, ts);
+                DEBUGF("    %c%c%c%c\n", subcc4[0], subcc4[1], subcc4[2], subcc4[3]);
 
                 switch (CC4(subcc4[0], subcc4[1], subcc4[2], subcc4[3])) {
                     case CC4('s', 't', 'o', 'c'): {
@@ -511,14 +517,32 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
     if (match_buf != NULL && match_buf_pos != NULL) {
         size_t buf_pos = ALIGN16(*match_buf_pos) % BUG_BUF_SIZE;
         size_t rem = af->ssnd_size;
+        long seek_offset = 0;
 
-        fseek(in, af->ssnd_offset, SEEK_SET);
+        if (rem > BUG_BUF_SIZE) {
+            // The sample is so large that it will cover the buffer more than once, let's only read as much as we
+            // need to.
+
+            // Advance to the buffer position to read only the final data into
+            buf_pos = (buf_pos + rem - BUG_BUF_SIZE) % BUG_BUF_SIZE;
+            // We need to seek to the actual data in the file that would be read at this point
+            seek_offset = rem - BUG_BUF_SIZE;
+            // The remaining data to read is just 1 buffer's worth of data
+            rem = BUG_BUF_SIZE;
+        }
+
+        fseek(in, af->ssnd_offset + seek_offset, SEEK_SET);
 
         if (rem > BUG_BUF_SIZE - buf_pos) {
+            // rem will circle around in the buffer
+
+            // Fill up to the end of the buffer
             FREAD(in, &match_buf[buf_pos], BUG_BUF_SIZE - buf_pos);
             rem -= BUG_BUF_SIZE - buf_pos;
+            // Return to the start of the buffer
             buf_pos = 0;
         }
+        // rem fits in the buffer without circling back, fill buffer
         FREAD(in, &match_buf[buf_pos], rem);
 
         *match_buf_pos = (buf_pos + rem) % BUG_BUF_SIZE;
