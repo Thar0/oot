@@ -1,6 +1,6 @@
 #include "global.h"
 #include "terminal.h"
-#pragma increment_block_number 244
+#pragma increment_block_number 246
 
 extern u8 _buffersSegmentEnd[];
 
@@ -10,7 +10,7 @@ u32 gSystemHeapSize = 0;
 
 // For retail BSS ordering, the block number of gIrqMgr must be greater than the
 // the block numbers assigned to extern variables above (declared in variables.h).
-#pragma increment_block_number 220
+#pragma increment_block_number 222
 
 PreNmiBuff* gAppNmiBufferPtr;
 Scheduler gScheduler;

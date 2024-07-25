@@ -1,5 +1,5 @@
 #include "global.h"
-#pragma increment_block_number 108
+#pragma increment_block_number 134
 
 typedef struct {
     /* 0x0 */ u8 x;
