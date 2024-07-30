@@ -1,4 +1,3 @@
-# audiobank_structs.py
 # SPDX-FileCopyrightText: © 2024 ZeldaRET
 # SPDX-License-Identifier: CC0-1.0
 #
@@ -11,9 +10,9 @@
 import struct
 from enum import IntEnum
 
-from audio_tables import AudioStorageMedium
-from tuning import rate_from_tuning, pitch_names
-from util import XMLWriter
+from .audio_tables import AudioStorageMedium
+from .tuning import rate_from_tuning, pitch_names
+from .util import XMLWriter
 
 VADPCM_VERSTAMP = 1
 
@@ -58,6 +57,7 @@ class SoundFontSample: # SampleHeader ?
         assert not self.is_relocated # Not relocated in ROM
 
     def to_xml(self, xml : XMLWriter, name : str, rate_override = None, note_override = None):
+        # Example xml output:
         # <Sample Name="SAMPLE_NAME" SampleRate="32000" BaseNote="C4" IsDD="false" Cached="false">
 
         attrs = { "Name" : name }
@@ -199,7 +199,7 @@ class SoundFontSound:
         self.sample, self.tuning = struct.unpack(">If", data[:8])
 
     def finalize(self, sample_lookup_fn):
-        from audiotable import AudioTableSample
+        from .audiotable import AudioTableSample
 
         sample = sample_lookup_fn(self.sample)
         if sample is None:
@@ -341,7 +341,7 @@ class Instrument:
         return out
 
     def finalize(self, sample_lookup_fn):
-        from audiotable import AudioTableSample
+        from .audiotable import AudioTableSample
 
         self.sample_rate = [None] * 3
         self.base_note = [None] * 3

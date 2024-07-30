@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# disassemble_sequence.py
 # SPDX-FileCopyrightText: © 2024 ZeldaRET
 # SPDX-License-Identifier: CC0-1.0
 #
@@ -43,7 +42,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Callable, Dict, List, Tuple
 
-from audiobank_file import AudiobankFile
+from .audiobank_file import AudiobankFile
 
 """
 TODO
@@ -771,7 +770,7 @@ class SequenceDisassembler:
     def lookup_cmd(self, id : int) -> MMLCmd:
         # lookup command info
         cmd : MMLCmd = self.cmds[self.cur_section].get(id, None)
-        assert cmd is not None , (self.cur_section, id)
+        assert cmd is not None , (self.cur_section, id, self.cmds)
 
         if isinstance(cmd, tuple):
             # select based on whether we're dealing with large or short notes

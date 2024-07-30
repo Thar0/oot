@@ -1,30 +1,46 @@
-#!/usr/bin/env python3
-# audio_extract.py
 # SPDX-FileCopyrightText: © 2024 ZeldaRET
 # SPDX-License-Identifier: CC0-1.0
 #
 #   Extract audio files
 #
 
-import argparse, os, shutil, time
+import os, shutil, time
+from dataclasses import dataclass
 from multiprocessing.pool import ThreadPool
 from typing import Dict, List, Tuple, Union
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 
-from audio_tables import AudioCodeTable, AudioStorageMedium
-from audiotable import AudioTableData, AudioTableFile, AudioTableSample
-from audiobank_file import AudiobankFile
-from disassemble_sequence import CMD_SPEC, SequenceDisassembler
+from .audio_tables import AudioCodeTable, AudioCodeTableEntry, AudioStorageMedium
+from .audiotable import AudioTableData, AudioTableFile, AudioTableSample
+from .audiobank_file import AudiobankFile
+from .disassemble_sequence import CMD_SPEC, SequenceDisassembler, MMLVersion
+from .util import align, debugm, error, incbin, program_get, XMLWriter
 
-from util import align, debugm, error, incbin, program_get, XMLWriter
+@dataclass
+class GameVersionInfo:
+    # Music Macro Language Version
+    mml_version            : MMLVersion
+    # Soundfont table code offset
+    soundfont_table        : int
+    # Sequence font table code offset
+    seq_font_table         : int
+    # Sequence table code offset
+    seq_table              : int
+    # Sample bank table code offset
+    sample_bank_table      : int
+    # Sequence enum names
+    seq_enum_names         : Tuple[str]
+    # List of indices corresponding to handwritten sequences
+    handwritten_sequences  : Tuple[int]
+    # Some soundfonts report the wrong samplebank, map them to the correct samplebank for proper sample discovery
+    fake_banks             : Dict[int, int]
+    # Contains audiotable indices that suffer from a buffer clearing bug
+    audiotable_buffer_bugs : Tuple[int]
+    # Sequence disassembly hacks
+    seq_disas_hacks        : Dict[int, Tuple[Tuple[int]]]
 
-from config import GAMEVERSION_ALL_OOT, VERSION_TABLE, GameVersionInfo
-from config import SAMPLECONV_PATH
-from config import AUDIOTABLE_BUFFER_BUGS, FAKE_BANKS
-from config import SEQ_DISAS_HACKS
-from config import HANDWRITTEN_SEQUENCES_OOT, HANDWRITTEN_SEQUENCES_MM
-from config import SEQ_NAMES_OOT, SEQ_NAMES_MM
+SAMPLECONV_PATH = f"{os.path.dirname(os.path.realpath(__file__))}/../sampleconv/sampleconv"
 
 BASEROM_DEBUG = False
 
@@ -32,12 +48,12 @@ BASEROM_DEBUG = False
 #   Run
 # ======================================================================================================================
 
-def collect_sample_banks(rom_image : memoryview, extracted_dir : str, version_info : GameVersionInfo,
+def collect_sample_banks(audiotable_seg : memoryview, extracted_dir : str, version_info : GameVersionInfo,
                          table : AudioCodeTable, samplebank_xmls : Dict[int, Tuple[str, Element]]):
-    sample_banks = []
+    sample_banks : List[Union[AudioTableFile, int]] = []
 
     for i,entry in enumerate(table):
-        entry : AudioCodeTable.AudioCodeTableEntry
+        entry : AudioCodeTableEntry
 
         assert entry.short_data1 == 0 and entry.short_data2 == 0 and entry.short_data3 == 0, \
                "Bad data for Sample Bank entry, all short data should be 0"
@@ -50,17 +66,12 @@ def collect_sample_banks(rom_image : memoryview, extracted_dir : str, version_in
             entry_dst = table.entries[entry.rom_addr]
             sample_banks[entry.rom_addr].register_ptr(i)
             sample_banks.append(entry_dst.rom_addr)
-
-            # debugm(f"{i} Pointer: {entry.rom_addr} -> 0x{entry_dst.rom_addr:X}, 0x{entry_dst.size:X}")
         else:
             # Check whether this samplebank suffers from the buffer bug
             # TODO it should be possible to detect this automatically by checking padding following sample discovery
-            if version_info.version_id in AUDIOTABLE_BUFFER_BUGS:
-                bug = i in AUDIOTABLE_BUFFER_BUGS[version_info.version_id]
-            else:
-                bug = False
+            bug = i in version_info.audiotable_buffer_bugs
 
-            bank = AudioTableFile(i, rom_image, entry, version_info.audiotable_rom + table.rom_addr, buffer_bug=bug,
+            bank = AudioTableFile(i, audiotable_seg, entry, table.rom_addr, buffer_bug=bug,
                                   extraction_xml=samplebank_xmls.get(i, None))
 
             if BASEROM_DEBUG:
@@ -70,7 +81,7 @@ def collect_sample_banks(rom_image : memoryview, extracted_dir : str, version_in
 
     return sample_banks
 
-def bank_data_lookup(sample_banks : List[AudioTableFile], e : Union[AudioTableFile, int]) -> AudioTableFile:
+def bank_data_lookup(sample_banks : List[Union[AudioTableFile, int]], e : Union[AudioTableFile, int]) -> AudioTableFile:
     if isinstance(e, int):
         if e == 255:
             return None
@@ -78,23 +89,21 @@ def bank_data_lookup(sample_banks : List[AudioTableFile], e : Union[AudioTableFi
     else:
         return e
 
-def collect_soundfonts(rom_image : memoryview, extracted_dir : str, version_info : GameVersionInfo,
+def collect_soundfonts(audiobank_seg : memoryview, extracted_dir : str, version_info : GameVersionInfo,
                        sound_font_table : AudioCodeTable, soundfont_xmls : Dict[int, Tuple[str, Element]],
-                       sample_banks : List[AudioTableFile]):
+                       sample_banks : List[Union[AudioTableFile, int]]):
     soundfonts = []
 
     for i,entry in enumerate(sound_font_table):
-        entry : AudioCodeTable.AudioCodeTableEntry
+        entry : AudioCodeTableEntry
 
         # Lookup the samplebanks used by this soundfont
-        bank1 = bank_data_lookup(sample_banks, FAKE_BANKS[version_info.version_id].get(i, entry.sample_bank_id_1))
+        bank1 = bank_data_lookup(sample_banks, version_info.fake_banks.get(i, entry.sample_bank_id_1))
         bank2 = bank_data_lookup(sample_banks, entry.sample_bank_id_2)
 
-        # debugm(f"\n\nBANK BEGIN {i} {e.sample_bank_id_1} {e.sample_bank_id_2}\n\n\n")
-
         # Read the data
-        soundfont = AudiobankFile(rom_image, i, entry, version_info.audiobank_rom + sound_font_table.rom_addr, bank1,
-                                  bank2, entry.sample_bank_id_1, entry.sample_bank_id_2,
+        soundfont = AudiobankFile(audiobank_seg, i, entry, sound_font_table.rom_addr, bank1, bank2,
+                                  entry.sample_bank_id_1, entry.sample_bank_id_2,
                                   extraction_xml=soundfont_xmls.get(i, None))
         soundfonts.append(soundfont)
 
@@ -123,7 +132,7 @@ def aifc_extract_one_bin(base_path : str, sample : AudioTableData):
     shutil.copyfile(f"{base_path}/aifc/{sample.filename}", f"{base_path}/{sample.filename}")
     # TODO move instead of copy? (after testing)
 
-def extract_samplebank(pool : ThreadPool, extracted_dir : str, sample_banks : List[AudioTableFile],
+def extract_samplebank(pool : ThreadPool, extracted_dir : str, sample_banks : List[Union[AudioTableFile, int]],
                        bank : AudioTableFile, write_xml : bool):
     # deal with remaining gaps, have to blob them unless we can find an exact match in another bank
     bank.finalize_coverage(sample_banks)
@@ -168,25 +177,20 @@ def disassemble_one_sequence(extracted_dir : str, version_info : GameVersionInfo
                              enum_names : List[str], id : int, data : bytes, name : str, filename : str,
                              fonts : memoryview):
     out_filename = f"{extracted_dir}/assets/audio/sequences/{filename}.seq"
-    disas = SequenceDisassembler(id, data, SEQ_DISAS_HACKS[version_info.version_id].get(id, None), CMD_SPEC,
+    disas = SequenceDisassembler(id, data, version_info.seq_disas_hacks.get(id, None), CMD_SPEC,
                                  version_info.mml_version, out_filename, name,
                                  [soundfonts[i] for i in fonts], enum_names)
     disas.analyze()
     disas.emit()
 
-def extract_sequences(rom_image : memoryview, extracted_dir : str, version_info : GameVersionInfo, write_xml : bool,
+def extract_sequences(audioseq_seg : memoryview, extracted_dir : str, version_info : GameVersionInfo, write_xml : bool,
                       sequence_table : AudioCodeTable, sequence_font_table : memoryview,
                       sequence_xmls : Dict[int, Element], soundfonts : List[AudiobankFile]):
 
     sequence_font_table_cvg = [0] * len(sequence_font_table)
 
-    # Select list of sequence enum names and handwritten sequences
-    if version_info.version_id in GAMEVERSION_ALL_OOT:
-        seq_enum_names = SEQ_NAMES_OOT
-        handwritten_sequences = HANDWRITTEN_SEQUENCES_OOT
-    else:
-        seq_enum_names = SEQ_NAMES_MM
-        handwritten_sequences = HANDWRITTEN_SEQUENCES_MM
+    seq_enum_names = version_info.seq_enum_names
+    handwritten_sequences = version_info.handwritten_sequences
 
     # We should have as many enum names as sequences that require extraction
     assert len(seq_enum_names) == len(sequence_table)
@@ -202,7 +206,7 @@ def extract_sequences(rom_image : memoryview, extracted_dir : str, version_info 
     disas_jobs = []
 
     for i,entry in enumerate(sequence_table):
-        entry : AudioCodeTable.AudioCodeTableEntry
+        entry : AudioCodeTableEntry
 
         # extract font indices
         font_data_offset = (sequence_font_table[2 * i + 0] << 8) | (sequence_font_table[2 * i + 1])
@@ -221,7 +225,7 @@ def extract_sequences(rom_image : memoryview, extracted_dir : str, version_info 
         if entry.size != 0:
             # Real sequence, queue extraction
 
-            seq_data = bytearray(entry.data(rom_image, version_info.audioseq_rom))
+            seq_data = bytearray(entry.data(audioseq_seg, sequence_table.rom_addr))
 
             ext = ".prg" if i in handwritten_sequences else ""
 
@@ -279,7 +283,7 @@ def extract_sequences(rom_image : memoryview, extracted_dir : str, version_info 
     # debugm("FONT CHECK")
 
     for i,entry in enumerate(sequence_table):
-        entry : AudioCodeTable.AudioCodeTableEntry
+        entry : AudioCodeTableEntry
 
         # Fonts for this entry
         fonts = all_fonts[i]
@@ -310,24 +314,27 @@ def extract_sequences(rom_image : memoryview, extracted_dir : str, version_info 
         # block until done
         [res.get() for res in async_results]
 
-def extract_audio_for_version(version_name : str, rom_path : str, read_xml : bool, write_xml : bool):
+def extract_audio_for_version(version_info : GameVersionInfo, extracted_dir : str, read_xml : bool, write_xml : bool):
     print("Setting up...")
 
-    # Get version info
+    # Open baserom segments
 
-    if version_name not in VERSION_TABLE:
-        error(f"Invalid version: {version_name}, must be one of {set(VERSION_TABLE.keys())}")
+    code_seg = None
+    audiotable_seg = None
+    audiobank_seg = None
+    audioseq_seg = None
 
-    version_info = VERSION_TABLE[version_name]
+    with open(f"{extracted_dir}/baserom/code", "rb") as infile:
+        code_seg = memoryview(infile.read())
 
-    game_prefix = "oot-" if version_info.version_id in GAMEVERSION_ALL_OOT else "mm-"
-    extracted_dir = f"extracted/{version_name.replace(game_prefix, '')}"
+    with open(f"{extracted_dir}/baserom/Audiotable", "rb") as infile:
+        audiotable_seg = memoryview(infile.read())
 
-    # Open baserom (uncompressed)
+    with open(f"{extracted_dir}/baserom/Audiobank", "rb") as infile:
+        audiobank_seg = memoryview(infile.read())
 
-    with open(rom_path, "rb") as infile:
-        baserom = bytearray(infile.read())
-    rom_image = memoryview(baserom)
+    with open(f"{extracted_dir}/baserom/Audioseq", "rb") as infile:
+        audioseq_seg = memoryview(infile.read())
 
     # ==================================================================================================================
     # Collect audio tables
@@ -335,10 +342,10 @@ def extract_audio_for_version(version_name : str, rom_path : str, read_xml : boo
 
     seq_font_tbl_len = version_info.seq_table - version_info.seq_font_table
 
-    sound_font_table = AudioCodeTable(rom_image, version_info.soundfont_table)
-    sample_bank_table = AudioCodeTable(rom_image, version_info.sample_bank_table)
-    sequence_table = AudioCodeTable(rom_image, version_info.seq_table)
-    sequence_font_table = incbin(rom_image, version_info.seq_font_table, seq_font_tbl_len)
+    sound_font_table = AudioCodeTable(code_seg, version_info.soundfont_table)
+    sample_bank_table = AudioCodeTable(code_seg, version_info.sample_bank_table)
+    sequence_table = AudioCodeTable(code_seg, version_info.seq_table)
+    sequence_font_table = incbin(code_seg, version_info.seq_font_table, seq_font_tbl_len)
 
     if BASEROM_DEBUG:
         # Extract Table Binaries
@@ -391,7 +398,7 @@ def extract_audio_for_version(version_name : str, rom_path : str, read_xml : boo
 
     if BASEROM_DEBUG:
         os.makedirs(f"{extracted_dir}/baserom_audiotest/audiotable_files", exist_ok=True)
-    sample_banks = collect_sample_banks(rom_image, extracted_dir, version_info, sample_bank_table, samplebank_xmls)
+    sample_banks = collect_sample_banks(audiotable_seg, extracted_dir, version_info, sample_bank_table, samplebank_xmls)
 
     # ==================================================================================================================
     # Collect soundfonts
@@ -399,7 +406,7 @@ def extract_audio_for_version(version_name : str, rom_path : str, read_xml : boo
 
     if BASEROM_DEBUG:
         os.makedirs(f"{extracted_dir}/baserom_audiotest/audiobank_files", exist_ok=True)
-    soundfonts = collect_soundfonts(rom_image, extracted_dir, version_info, sound_font_table, soundfont_xmls,
+    soundfonts = collect_soundfonts(audiobank_seg, extracted_dir, version_info, sound_font_table, soundfont_xmls,
                                     sample_banks)
 
     # ==================================================================================================================
@@ -460,17 +467,7 @@ def extract_audio_for_version(version_name : str, rom_path : str, read_xml : boo
 
     print("Extracting sequences...")
 
-    extract_sequences(rom_image, extracted_dir, version_info, write_xml, sequence_table, sequence_font_table,
+    extract_sequences(audioseq_seg, extracted_dir, version_info, write_xml, sequence_table, sequence_font_table,
                       sequence_xmls, soundfonts)
 
     print("Done")
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="baserom audio asset extractor")
-    parser.add_argument("-r", "--rom", required=True, help="path to baserom image")
-    parser.add_argument("-v", "--version", required=True, help="baserom version")
-    parser.add_argument("--read-xml", required=False, action="store_true", help="Read extraction xml files")
-    parser.add_argument("--write-xml", required=False, action="store_true", help="Write extraction xml files")
-    args = parser.parse_args()
-
-    extract_audio_for_version(args.version, args.rom, args.read_xml, args.write_xml)

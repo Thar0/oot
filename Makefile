@@ -158,7 +158,7 @@ PYTHON     ?= $(VENV)/bin/python3
 BUILD_DIR_REPLACE := sed -e 's|$$(BUILD_DIR)|$(BUILD_DIR)|g'
 
 # Audio tools
-AUDIO_EXTRACT := $(PYTHON) tools/audio/extraction/audio_extract.py
+AUDIO_EXTRACT := $(PYTHON) tools/audio_extraction.py
 SAMPLECONV    := tools/audio/sampleconv/sampleconv
 SBC           := tools/audio/sbc --matching
 SFC           := tools/audio/sfc --matching
@@ -482,8 +482,9 @@ venv:
 	$(PYTHON) -m pip install -U pip
 	$(PYTHON) -m pip install -U -r requirements.txt
 
+# TODO this is a temporary rule for testing audio, to be removed
 setup-audio:
-	$(AUDIO_EXTRACT) -r $(BASEROM_DIR)/baserom-decompressed.z64 -v oot-$(VERSION) --read-xml
+	$(AUDIO_EXTRACT) -o $(EXTRACTED_DIR) -v $(VERSION) --read-xml
 
 setup: venv
 	$(MAKE) -C tools
@@ -491,7 +492,7 @@ setup: venv
 	$(PYTHON) tools/extract_baserom.py $(BASEROM_DIR)/baserom-decompressed.z64 --oot-version $(VERSION) -o $(EXTRACTED_DIR)/baserom
 	$(PYTHON) tools/msgdis.py $(VERSION)
 	$(PYTHON) extract_assets.py -v $(VERSION) -j$(N_THREADS)
-	$(MAKE) setup-audio
+	$(AUDIO_EXTRACT) -o $(EXTRACTED_DIR) -v $(VERSION) --read-xml
 
 disasm:
 	$(RM) -r $(EXPECTED_DIR)

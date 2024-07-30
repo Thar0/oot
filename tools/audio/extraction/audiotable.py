@@ -1,4 +1,3 @@
-# audiotable.py
 # SPDX-FileCopyrightText: © 2024 ZeldaRET
 # SPDX-License-Identifier: CC0-1.0
 #
@@ -9,10 +8,10 @@ import struct
 from typing import Dict, Tuple
 from xml.etree.ElementTree import Element
 
-from audio_tables import AudioCodeTable
-from audiobank_structs import AudioSampleCodec, SoundFontSample, AdpcmBook, AdpcmLoop
-from tuning import pitch_names, note_z64_to_midi, recalc_tuning, rate_from_tuning, rank_rates_notes, BAD_FLOATS
-from util import align, error, XMLWriter, f32_to_u32
+from .audio_tables import AudioCodeTableEntry
+from .audiobank_structs import AudioSampleCodec, SoundFontSample, AdpcmBook, AdpcmLoop
+from .tuning import pitch_names, note_z64_to_midi, recalc_tuning, rate_from_tuning, rank_rates_notes, BAD_FLOATS
+from .util import align, error, XMLWriter, f32_to_u32
 
 class AIFCFile:
 
@@ -209,9 +208,6 @@ class AudioTableSample(AudioTableData):
         return note_z64_to_midi(pitch_names.index(self.base_note))
 
     def resolve_basenote_rate(self, extraction_sample_info : Dict[int, Dict[str,str]]):
-        # print("")
-        # print(f"BANK {self.bank_num} SAMPLE {i:3} [0x{sample.start:05X}:0x{sample.end:05X}]")
-
         assert len(self.notes_rates) != 0
 
         # rate_3ds = None
@@ -297,8 +293,7 @@ class AudioTableSample(AudioTableData):
             else:
                 print(f"WARNING: Missing extraction xml entry for sample at offset=0x{self.start:X}")
 
-        #print("     ",len(FINAL_NOTES_RATES), FINAL_NOTES_RATES)
-
+        # print("     ",len(FINAL_NOTES_RATES), FINAL_NOTES_RATES)
         # if rate_3ds is not None and len(FINAL_NOTES_RATES) == 1:
         #     print(f"3DS : {rate_3ds} N64 : {FINAL_NOTES_RATES[0][0]}")
         #     if rate_3ds != FINAL_NOTES_RATES[0][0]:
@@ -389,11 +384,11 @@ class AudioTableFile:
     Single sample bank in the Audiotable
     """
 
-    def __init__(self, bank_num : int, rom_image : memoryview, table_entry : AudioCodeTable.AudioCodeTableEntry,
-                 rom_offset : int, buffer_bug : bool = False, extraction_xml : Tuple[str, Element] = None):
+    def __init__(self, bank_num : int, audiotable_seg : memoryview, table_entry : AudioCodeTableEntry,
+                 seg_offset : int, buffer_bug : bool = False, extraction_xml : Tuple[str, Element] = None):
         self.bank_num = bank_num
-        self.table_entry : AudioCodeTable.AudioCodeTableEntry = table_entry
-        self.data = self.table_entry.data(rom_image, rom_offset)
+        self.table_entry : AudioCodeTableEntry = table_entry
+        self.data = self.table_entry.data(audiotable_seg, seg_offset)
         self.buffer_bug = buffer_bug
 
         self.samples_final = None
@@ -653,7 +648,6 @@ class AudioTableFile:
                     "Name"       : sample.name,
                     "FileName"   : sample.filename.replace(sample.codec_file_extension_compressed(), ""),
                     "Offset"     : f"0x{sample.start:06X}",
-                    # "Size"     : f"0x{sample.header.size:04X}",
                     "SampleRate" : sample.sample_rate,
                     "BaseNote"   : sample.base_note,
                 })

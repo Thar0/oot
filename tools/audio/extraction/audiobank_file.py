@@ -1,4 +1,3 @@
-# audiobank_file.py
 # SPDX-FileCopyrightText: © 2024 ZeldaRET
 # SPDX-License-Identifier: CC0-1.0
 #
@@ -9,12 +8,12 @@ import struct
 from typing import Optional, Tuple
 from xml.etree.ElementTree import Element
 
-from audio_tables import AudioCodeTable
-from audiobank_structs import AdpcmBook, AdpcmLoop, Drum, Instrument, SoundFontSample, SoundFontSound
-from envelope import Envelope
-from audiotable import AudioTableFile, AudioTableSample
-from tuning import pitch_names
-from util import XMLWriter, align, debugm, merge_like_ranges, merge_ranges
+from .audio_tables import AudioCodeTableEntry
+from .audiobank_structs import AdpcmBook, AdpcmLoop, Drum, Instrument, SoundFontSample, SoundFontSound
+from .envelope import Envelope
+from .audiotable import AudioTableFile, AudioTableSample
+from .tuning import pitch_names
+from .util import XMLWriter, align, debugm, merge_like_ranges, merge_ranges
 
 # Debug settings
 PLOT_DRUM_TUNING = False
@@ -182,13 +181,13 @@ class AudiobankFile:
     """
     """
 
-    def __init__(self, rom_image : memoryview, index : int, table_entry : AudioCodeTable.AudioCodeTableEntry,
-                 rom_offset : int, bank1 : AudioTableFile, bank2 : AudioTableFile, bank1_num : int, bank2_num : int,
+    def __init__(self, audiobank_seg : memoryview, index : int, table_entry : AudioCodeTableEntry,
+                 seg_offset : int, bank1 : AudioTableFile, bank2 : AudioTableFile, bank1_num : int, bank2_num : int,
                  extraction_xml : Tuple[str, Element] = None):
         self.bank_num = index
-        self.table_entry : AudioCodeTable.AudioCodeTableEntry = table_entry
+        self.table_entry : AudioCodeTableEntry = table_entry
         self.num_instruments = self.table_entry.num_instruments
-        self.data = self.table_entry.data(rom_image, rom_offset)
+        self.data = self.table_entry.data(audiobank_seg, seg_offset)
         self.bank1 : AudioTableFile = bank1
         self.bank2 : AudioTableFile = bank2
         self.bank1_num = bank1_num
@@ -255,7 +254,6 @@ class AudiobankFile:
 
         self.cvg_log()
         self.coverage = merge_ranges(self.coverage)
-        # coverage_log([[[interval[0][0], interval[0][1].__name__], [interval[1][0], interval[1][1].__name__]] for interval in self.coverage])
 
         self.resolve_cvg_gaps()
         self.coverage = merge_ranges(self.coverage)
@@ -284,8 +282,6 @@ class AudiobankFile:
             if drum is None:
                 # NULL pointer in drums pointer list
                 continue
-
-            # print(drum)
 
             # Read envelope
             self.read_envelope(drum.envelope, drum.release_rate)
@@ -322,10 +318,7 @@ class AudiobankFile:
         for drum_grp in self.drum_groups:
             note_end = note_start + len(drum_grp) - 1
 
-            if all(d is None for d in drum_grp):
-                pass
-                #print(f"GROUP EMPTY == [{note_start:2}:{note_end:2}]")
-            else:
+            if any(d is not None for d in drum_grp):
                 drum_grp : DrumGroup
                 drum_grp.set_range(note_start, note_end)
 
@@ -449,18 +442,20 @@ class AudiobankFile:
                          f"to 0x{unref_end_offset:X}({unref_end_type.__name__})")
             coverage_log([f"0x{b:02X}" for b in unaccounted_data])
 
-            #coverage_log("assuming this data is of the same type as the data before it")
             try:
                 if unref_start_type == Envelope.EnvelopePoint:
                     # Assume it is an envelope if it follows an envelope
                     assert unref_start_offset not in self.envelopes
+                    coverage_log("Unaccounted follows an envelope, assume it is an envelope")
                     st = self.read_envelope(unref_start_offset, None, is_zero=all(b == 0 for b in unaccounted_data))
 
                 elif unref_start_type in [SoundFontSample, AdpcmLoop]:
                     # Orphaned loops are unlikely, it's more likely a SoundFontSample
+                    coverage_log("Unaccounted follows a SoundFontSample or AdpcmLoop, assuming SoundFontSample")
                     st = self.read_sample_header(unref_start_offset, None, None)
 
                 elif unref_start_type == Instrument:
+                    coverage_log("Unaccounted follows an Instrument, assume it is an Instrument")
                     st : Instrument = self.read_structure(unref_start_offset, unref_start_type)
                     # Check that we already saw the sample header this instrument wants
                     assert st.normal_notes_sample in self.sample_headers
@@ -492,7 +487,7 @@ class AudiobankFile:
                 else:
                     st = self.read_structure(unref_start_offset, unref_start_type)
                     coverage_log(st)
-                    assert False, "Unhandled coverage case" # !! handle more structures if they appear
+                    assert False, "Unhandled coverage case" # handle more structures if they appear
 
                 coverage_log(st)
             except Exception as e:
@@ -720,8 +715,6 @@ class AudiobankFile:
         return self.lookup_sample_name(self.sample_headers[offset])
 
     def finalize(self):
-        # print(f"Finalize soundfont {self.bank_num}")
-
         # Assign envelope names
         for i,(offset,env) in self.sorted_envelopes():
             env : Envelope
