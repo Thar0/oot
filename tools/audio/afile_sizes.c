@@ -33,25 +33,30 @@ file_handler(const char *path, FILE *out, size_t *total_num)
     char *object_name = NULL;
     size_t object_size = 0;
 
-    Elf32_Sym *sym = GET_PTR(data, symtab->sh_offset);
-    Elf32_Sym *sym_end = GET_PTR(data, symtab->sh_offset + symtab->sh_size);
+    uint32_t sh_offset = elf32_read32(symtab->sh_offset);
+    uint32_t sh_size = elf32_read32(symtab->sh_size);
+
+    Elf32_Sym *sym = GET_PTR(data, sh_offset);
+    Elf32_Sym *sym_end = GET_PTR(data, sh_offset + sh_size);
 
     for (size_t i = 0; sym < sym_end; sym++, i++) {
-        validate_read(symtab->sh_offset + i * sizeof(Elf32_Sym), sizeof(Elf32_Sym), data_size);
+        validate_read(sh_offset + i * sizeof(Elf32_Sym), sizeof(Elf32_Sym), data_size);
+
+        uint16_t st_shndx = elf32_read16(sym->st_shndx);
 
         // The start and size symbol should be defined and global
-        if (sym->st_shndx == SHN_UND || (sym->st_info >> 4) != SB_GLOBAL) {
+        if (st_shndx == SHN_UND || (sym->st_info >> 4) != SB_GLOBAL) {
             continue;
         }
 
-        const char *sym_name = elf32_get_string(sym->st_name, strtab, data, data_size);
+        const char *sym_name = elf32_get_string(elf32_read32(sym->st_name), strtab, data, data_size);
         size_t name_len = strlen(sym_name);
 
         if (str_endswith(sym_name, name_len, "_Size")) {
-            if (sym->st_shndx != SHN_ABS)
+            if (st_shndx != SHN_ABS)
                 continue;
 
-            object_size = sym->st_value;
+            object_size = elf32_read32(sym->st_value);
 
             if (object_name != NULL)
                 break;

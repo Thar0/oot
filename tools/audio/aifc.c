@@ -16,26 +16,6 @@
 #include "aifc.h"
 #include "util.h"
 
-#define BIG_ENDIAN_STRUCT __attribute__((scalar_storage_order("big-endian"))) struct
-
-typedef BIG_ENDIAN_STRUCT
-{
-    uint32_t value;
-}
-uint32_t_BE;
-
-typedef BIG_ENDIAN_STRUCT
-{
-    uint16_t value;
-}
-uint16_t_BE;
-
-typedef BIG_ENDIAN_STRUCT
-{
-    int16_t value;
-}
-int16_t_BE;
-
 #define CC4_CHECK(buf, str) \
     ((buf)[0] == (str)[0] && (buf)[1] == (str)[1] && (buf)[2] == (str)[2] && (buf)[3] == (str)[3])
 
@@ -51,13 +31,12 @@ int16_t_BE;
 #define VADPCM_VER ((int16_t)1)
 
 #if 0
-# define DEBUGF(fmt, ...) printf(fmt, ##__VA_ARGS__)
+#define DEBUGF(fmt, ...) printf(fmt, ##__VA_ARGS__)
 #else
-# define DEBUGF(fmt, ...) (void)0
+#define DEBUGF(fmt, ...) (void)0
 #endif
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     int16_t numChannels;
     uint16_t numFramesH;
     uint16_t numFramesL;
@@ -66,22 +45,17 @@ typedef BIG_ENDIAN_STRUCT
     // uint16_t compressionTypeH;
     // uint16_t compressionTypeL;
     // followed by compression type + compression name pstring
-}
-aiff_COMM;
+} aiff_COMM;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     uint16_t nMarkers;
-}
-aiff_MARK;
+} aiff_MARK;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     uint16_t MarkerID;
     uint16_t positionH;
     uint16_t positionL;
-}
-Marker;
+} Marker;
 
 typedef enum {
     LOOP_PLAYMODE_NONE = 0,
@@ -89,17 +63,14 @@ typedef enum {
     LOOP_PLAYMODE_FWD_BWD = 2
 } aiff_loop_playmode;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     int16_t playMode; // aiff_loop_playmode
     // Marker IDs
     int16_t beginLoop;
     int16_t endLoop;
-}
-Loop;
+} Loop;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     int8_t baseNote;
     int8_t detune;
     int8_t lowNote;
@@ -109,15 +80,12 @@ typedef BIG_ENDIAN_STRUCT
     int16_t gain;
     Loop sustainLoop;
     Loop releaseLoop;
-}
-aiff_INST;
+} aiff_INST;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     int32_t offset;
     int32_t blockSize;
-}
-aiff_SSND;
+} aiff_SSND;
 
 static_assert(sizeof(double) == sizeof(uint64_t), "Double is assumed to be 64-bit");
 
@@ -256,13 +224,13 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
         error("Failed to open \"%s\" for reading", path);
 
     char form[4];
-    uint32_t_BE size_BE;
+    uint32_t size;
     char aifc[4];
 
     FREAD(in, form, 4);
-    FREAD(in, &size_BE, 4);
+    FREAD(in, &size, 4);
+    size = be32toh(size);
     FREAD(in, aifc, 4);
-    uint32_t size = size_BE.value;
 
     DEBUGF("total size = 0x%X\n", size);
 
@@ -273,7 +241,7 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
 
     while (true) {
         char cc4[4];
-        uint32_t_BE chunk_size;
+        uint32_t chunk_size;
 
         long start = ftell(in);
         if (start > 8 + size) {
@@ -285,9 +253,10 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
 
         FREAD(in, cc4, 4);
         FREAD(in, &chunk_size, 4);
+        chunk_size = be32toh(chunk_size);
 
-        chunk_size.value++;
-        chunk_size.value &= ~1;
+        chunk_size++;
+        chunk_size &= ~1;
 
         DEBUGF("%c%c%c%c\n", cc4[0], cc4[1], cc4[2], cc4[3]);
 
@@ -295,6 +264,10 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
             case CC4('C', 'O', 'M', 'M'): {
                 aiff_COMM comm;
                 FREAD(in, &comm, sizeof(comm));
+                comm.numChannels = be16toh(comm.numChannels);
+                comm.numFramesH = be16toh(comm.numFramesH);
+                comm.numFramesL = be16toh(comm.numFramesL);
+                comm.sampleSize = be16toh(comm.sampleSize);
 
                 assert(comm.numChannels == 1); // mono
                 assert(comm.sampleSize == 16); // 16-bit samples
@@ -305,15 +278,15 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
                 f80_to_f64(&af->sample_rate, (uint8_t *)comm.sampleRate);
 
                 uint32_t comp_type = CC4('N', 'O', 'N', 'E');
-                if (chunk_size.value > sizeof(aiff_COMM)) {
-                    uint32_t_BE compressionType;
+                if (chunk_size > sizeof(aiff_COMM)) {
+                    uint32_t compressionType;
                     FREAD(in, &compressionType, sizeof(compressionType));
-                    comp_type = compressionType.value;
+                    comp_type = be32toh(compressionType);
                 }
                 af->compression_type = comp_type;
 
                 af->compression_name = NULL;
-                if (chunk_size.value > sizeof(aiff_COMM) + 4) {
+                if (chunk_size > sizeof(aiff_COMM) + 4) {
                     af->compression_name = read_pstring_alloc(in);
                 }
 
@@ -332,6 +305,13 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
             case CC4('I', 'N', 'S', 'T'): {
                 aiff_INST inst;
                 FREAD(in, &inst, sizeof(inst));
+                inst.gain = be16toh(inst.gain);
+                inst.sustainLoop.playMode = be16toh(inst.sustainLoop.playMode);
+                inst.sustainLoop.beginLoop = be16toh(inst.sustainLoop.beginLoop);
+                inst.sustainLoop.endLoop = be16toh(inst.sustainLoop.endLoop);
+                inst.releaseLoop.playMode = be16toh(inst.releaseLoop.playMode);
+                inst.releaseLoop.beginLoop = be16toh(inst.releaseLoop.beginLoop);
+                inst.releaseLoop.endLoop = be16toh(inst.releaseLoop.endLoop);
 
                 // basenote
 
@@ -358,6 +338,7 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
             case CC4('M', 'A', 'R', 'K'):;
                 aiff_MARK mark;
                 FREAD(in, &mark, sizeof(mark));
+                mark.nMarkers = be16toh(mark.nMarkers);
 
                 af->num_markers = mark.nMarkers;
                 af->markers = malloc(mark.nMarkers * sizeof(aifc_marker));
@@ -365,6 +346,9 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
                 for (size_t i = 0; i < mark.nMarkers; i++) {
                     Marker marker;
                     FREAD(in, &marker, sizeof(marker));
+                    marker.MarkerID = be16toh(marker.MarkerID);
+                    marker.positionH = be16toh(marker.positionH);
+                    marker.positionL = be16toh(marker.positionL);
 
                     (*af->markers)[i].id = marker.MarkerID;
                     (*af->markers)[i].pos = (marker.positionH << 16) | marker.positionL;
@@ -390,21 +374,24 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
                         DEBUGF("    %s\n", chunk_name);
 
                         if (strequ(chunk_name, "VADPCMCODES")) {
-                            int16_t_BE version;
-                            uint16_t_BE order;
-                            uint16_t_BE npredictors;
+                            int16_t version;
+                            uint16_t order;
+                            uint16_t npredictors;
 
                             FREAD(in, &version, sizeof(version));
+                            version = be16toh(version);
                             FREAD(in, &order, sizeof(order));
+                            order = be16toh(order);
                             FREAD(in, &npredictors, sizeof(npredictors));
+                            npredictors = be16toh(npredictors);
 
-                            if (version.value != VADPCM_VER)
+                            if (version != VADPCM_VER)
                                 error("Non-identical codebook chunk versions");
 
-                            size_t book_size = 8 * order.value * npredictors.value;
+                            size_t book_size = 8 * order * npredictors;
 
-                            af->book.order = order.value;
-                            af->book.npredictors = npredictors.value;
+                            af->book.order = order;
+                            af->book.npredictors = npredictors;
                             af->book_state = malloc(book_size * sizeof(int16_t));
                             FREAD(in, af->book_state, book_size * sizeof(int16_t));
 
@@ -426,17 +413,19 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
                             }
                             DEBUGF("\n");
                         } else if (strequ(chunk_name, "VADPCMLOOPS")) {
-                            int16_t_BE version;
-                            int16_t_BE nloops;
+                            int16_t version;
+                            int16_t nloops;
 
                             FREAD(in, &version, sizeof(version));
+                            version = be16toh(version);
                             FREAD(in, &nloops, sizeof(nloops));
+                            nloops = be16toh(nloops);
 
-                            if (version.value != VADPCM_VER)
+                            if (version != VADPCM_VER)
                                 error("Non-identical loop chunk versions");
 
-                            if (nloops.value != 1)
-                                error("Only one loop is supported, got %d", nloops.value);
+                            if (nloops != 1)
+                                error("Only one loop is supported, got %d", nloops);
 
                             FREAD(in, &af->loop, sizeof(ALADPCMloop));
                             af->loop.start = be32toh(af->loop.start);
@@ -475,13 +464,15 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
             case CC4('S', 'S', 'N', 'D'): {
                 aiff_SSND ssnd;
                 FREAD(in, &ssnd, sizeof(ssnd));
+                ssnd.offset = be32toh(ssnd.offset);
+                ssnd.blockSize = be32toh(ssnd.blockSize);
 
                 assert(ssnd.offset == 0);
                 assert(ssnd.blockSize == 0);
 
                 af->ssnd_offset = ftell(in);
                 // TODO use numFrames instead?
-                af->ssnd_size = chunk_size.value - sizeof(ssnd);
+                af->ssnd_size = chunk_size - sizeof(ssnd);
 
                 // Skip reading the rest of the chunk
                 fseek(in, af->ssnd_size, SEEK_CUR);
@@ -500,12 +491,12 @@ aifc_read(aifc_data *af, const char *path, uint8_t *match_buf, size_t *match_buf
 
         long read_size = ftell(in) - start - 8;
 
-        if (read_size > chunk_size.value)
-            error("overran chunk: %lu vs %u\n", read_size, chunk_size.value);
-        else if (read_size < chunk_size.value)
-            warning("did not read entire %.*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size.value);
+        if (read_size > chunk_size)
+            error("overran chunk: %lu vs %u\n", read_size, chunk_size);
+        else if (read_size < chunk_size)
+            warning("did not read entire %.*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size);
 
-        fseek(in, start + 8 + chunk_size.value, SEEK_SET);
+        fseek(in, start + 8 + chunk_size, SEEK_SET);
     }
 
     if (!has_comm)

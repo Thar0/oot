@@ -6,7 +6,31 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
-#include <dirent.h>
+
+// Endian
+
+#if defined(__linux__) || defined(__CYGWIN__)
+#include <endian.h>
+#elif defined(__APPLE__)
+#include <libkern/OSByteOrder.h>
+
+#define htobe16(x) OSSwapHostToBigInt16(x)
+#define htole16(x) OSSwapHostToLittleInt16(x)
+#define be16toh(x) OSSwapBigToHostInt16(x)
+#define le16toh(x) OSSwapLittleToHostInt16(x)
+
+#define htobe32(x) OSSwapHostToBigInt32(x)
+#define htole32(x) OSSwapHostToLittleInt32(x)
+#define be32toh(x) OSSwapBigToHostInt32(x)
+#define le32toh(x) OSSwapLittleToHostInt32(x)
+
+#define htobe64(x) OSSwapHostToBigInt64(x)
+#define htole64(x) OSSwapHostToLittleInt64(x)
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#define le64toh(x) OSSwapLittleToHostInt64(x)
+#else
+#error "Endian conversion unsupported, add it"
+#endif
 
 // Attribute macros
 
@@ -27,15 +51,6 @@
 #define ARRAY_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #define ALIGN16(x) (((x) + 0xF) & ~0xF)
-
-#define BSWAP16(x)                  \
-    do {                            \
-        (x) = __builtin_bswap16(x); \
-    } while (0)
-#define BSWAP32(x)                  \
-    do {                            \
-        (x) = __builtin_bswap32(x); \
-    } while (0)
 
 #define BOOL_STR(b) ((b) ? "true" : "false")
 

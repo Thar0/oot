@@ -29,16 +29,19 @@ main(int argc, char **argv)
     if (symtab == NULL)
         error("Symtab not found");
 
+    uint32_t sh_offset = elf32_read32(symtab->sh_offset);
+    uint32_t sh_size = elf32_read32(symtab->sh_size);
+
     // patch defined symbols to be ABS
 
-    Elf32_Sym *sym = GET_PTR(data, symtab->sh_offset);
-    Elf32_Sym *sym_end = GET_PTR(data, symtab->sh_offset + symtab->sh_size);
+    Elf32_Sym *sym = GET_PTR(data, sh_offset);
+    Elf32_Sym *sym_end = GET_PTR(data, sh_offset + sh_size);
 
     for (size_t i = 0; sym < sym_end; sym++, i++) {
-        validate_read(symtab->sh_offset + i * sizeof(Elf32_Sym), sizeof(Elf32_Sym), data_size);
+        validate_read(sh_offset + i * sizeof(Elf32_Sym), sizeof(Elf32_Sym), data_size);
 
-        if (sym->st_shndx != SHN_UND)
-            sym->st_shndx = SHN_ABS;
+        if (elf32_read16(sym->st_shndx) != SHN_UND)
+            sym->st_shndx = elf32_write16(SHN_ABS);
     }
 
     // write output elf file

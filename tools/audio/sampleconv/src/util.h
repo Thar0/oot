@@ -11,6 +11,31 @@
 
 #include <stdint.h>
 
+// Endian
+
+#if defined(__linux__) || defined(__CYGWIN__)
+#include <endian.h>
+#elif defined(__APPLE__)
+#include <libkern/OSByteOrder.h>
+
+#define htobe16(x) OSSwapHostToBigInt16(x)
+#define htole16(x) OSSwapHostToLittleInt16(x)
+#define be16toh(x) OSSwapBigToHostInt16(x)
+#define le16toh(x) OSSwapLittleToHostInt16(x)
+
+#define htobe32(x) OSSwapHostToBigInt32(x)
+#define htole32(x) OSSwapHostToLittleInt32(x)
+#define be32toh(x) OSSwapBigToHostInt32(x)
+#define le32toh(x) OSSwapLittleToHostInt32(x)
+
+#define htobe64(x) OSSwapHostToBigInt64(x)
+#define htole64(x) OSSwapHostToLittleInt64(x)
+#define be64toh(x) OSSwapBigToHostInt64(x)
+#define le64toh(x) OSSwapLittleToHostInt64(x)
+#else
+#error "Endian conversion unsupported, add it"
+#endif
+
 #define ARRAY_COUNT(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #define NORETURN __attribute__((noreturn))
@@ -40,45 +65,6 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #define ABS(x) (((x) < 0) ? (-(x)) : (x))
-
-#define LITTLE_ENDIAN_STRUCT __attribute__((scalar_storage_order("little-endian"))) struct
-#define BIG_ENDIAN_STRUCT    __attribute__((scalar_storage_order("big-endian"))) struct
-
-typedef LITTLE_ENDIAN_STRUCT
-{
-    uint32_t value;
-}
-uint32_t_LE;
-
-typedef LITTLE_ENDIAN_STRUCT
-{
-    uint16_t value;
-}
-uint16_t_LE;
-
-typedef LITTLE_ENDIAN_STRUCT
-{
-    int16_t value;
-}
-int16_t_LE;
-
-typedef BIG_ENDIAN_STRUCT
-{
-    uint32_t value;
-}
-uint32_t_BE;
-
-typedef BIG_ENDIAN_STRUCT
-{
-    uint16_t value;
-}
-uint16_t_BE;
-
-typedef BIG_ENDIAN_STRUCT
-{
-    int16_t value;
-}
-int16_t_BE;
 
 #define FWRITE(file, data, size)                                                                    \
     do {                                                                                            \
@@ -112,13 +98,13 @@ int16_t_BE;
 
 #define CHUNK_WRITE_RAW(file, data, length) FWRITE(file, data, length)
 
-#define CHUNK_END(file, start, endian_type)     \
-    do {                                        \
-        long end = ftell(out);                  \
-        endian_type size = { end - (start)-8 }; \
-        fseek(out, (start) + 4, SEEK_SET);      \
-        FWRITE(out, &size, 4);                  \
-        fseek(out, end, SEEK_SET);              \
+#define CHUNK_END(file, start, endian_func)           \
+    do {                                              \
+        long end = ftell(out);                        \
+        uint32_t size = endian_func(end - (start)-8); \
+        fseek(out, (start) + 4, SEEK_SET);            \
+        FWRITE(out, &size, 4);                        \
+        fseek(out, end, SEEK_SET);                    \
     } while (0)
 
 __attribute__((format(printf, 1, 2))) NORETURN void

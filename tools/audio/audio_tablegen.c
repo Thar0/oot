@@ -514,20 +514,23 @@ tablegen_sequences(const char *seq_font_tbl_out, const char *seq_order_path, con
 
         // Find the <name>_Start symbol
 
-        Elf32_Sym *sym = GET_PTR(data, symtab->sh_offset);
-        Elf32_Sym *sym_end = GET_PTR(data, symtab->sh_offset + symtab->sh_size);
+        uint32_t sh_offset = elf32_read32(symtab->sh_offset);
+        uint32_t sh_size = elf32_read32(symtab->sh_size);
+
+        Elf32_Sym *sym = GET_PTR(data, sh_offset);
+        Elf32_Sym *sym_end = GET_PTR(data, sh_offset + sh_size);
 
         char *seq_name = NULL;
 
         for (size_t i = 0; sym < sym_end; sym++, i++) {
-            validate_read(symtab->sh_offset + i * sizeof(Elf32_Sym), sizeof(Elf32_Sym), data_size);
+            validate_read(sh_offset + i * sizeof(Elf32_Sym), sizeof(Elf32_Sym), data_size);
 
             // The start symbol should be defined and global
             int bind = sym->st_info >> 4;
-            if (bind != SB_GLOBAL || sym->st_shndx == SHN_UND)
+            if (bind != SB_GLOBAL || elf32_read16(sym->st_shndx) == SHN_UND)
                 continue;
 
-            const char *sym_name = elf32_get_string(sym->st_name, strtab, data, data_size);
+            const char *sym_name = elf32_get_string(elf32_read32(sym->st_name), strtab, data, data_size);
             size_t name_len = strlen(sym_name);
 
             if (!str_endswith(sym_name, name_len, "_Start"))
@@ -547,8 +550,8 @@ tablegen_sequences(const char *seq_font_tbl_out, const char *seq_order_path, con
         struct seqdata *seqdata = &file_data[i];
         seqdata->elf_path = strdup(path);
         seqdata->name = seq_name;
-        seqdata->font_section_offset = font_section->sh_offset;
-        seqdata->font_section_size = font_section->sh_size;
+        seqdata->font_section_offset = elf32_read32(font_section->sh_offset);
+        seqdata->font_section_size = elf32_read32(font_section->sh_size);
 
         free(data);
     }

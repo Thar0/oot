@@ -7,11 +7,14 @@
 
 #include "util.h"
 
+#define elf32_read16(x)  be16toh(x)
+#define elf32_write16(x) htobe16(x)
+#define elf32_read32(x)  be32toh(x)
+#define elf32_write32(x) htobe32(x)
+
 #ifndef ELF32_QUALIFIERS
 #define ELF32_QUALIFIERS static UNUSED ALWAYS_INLINE
 #endif
-
-#define BIG_ENDIAN_STRUCT __attribute__((scalar_storage_order("big-endian"))) struct
 
 #define GET_PTR(data, offset) ((void *)&((uint8_t *)(data))[(offset)])
 
@@ -27,8 +30,7 @@
 #define EI_ABIVERSION 0x08
 #define EI_PAD        0x09
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     uint8_t e_ident[EI_NIDENT];
     uint16_t e_type;
     uint16_t e_machine;
@@ -43,8 +45,7 @@ typedef BIG_ENDIAN_STRUCT
     uint16_t e_shentsize;
     uint16_t e_shnum;
     uint16_t e_shstrndx;
-}
-Elf32_Ehdr;
+} Elf32_Ehdr;
 
 #define ELF32_HAS_MAGIC(ehdr)                                                                                    \
     ((ehdr)->e_ident[EI_MAG0] == '\x7F' && (ehdr)->e_ident[EI_MAG1] == 'E' && (ehdr)->e_ident[EI_MAG2] == 'L' && \
@@ -54,8 +55,7 @@ Elf32_Ehdr;
 
 #define ELF32_IS_BE(ehdr) ((ehdr)->e_ident[EI_DATA] == 2 /*EI_DATA_BE*/)
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     uint32_t sh_name;
     uint32_t sh_type;
     uint32_t sh_flags;
@@ -66,19 +66,16 @@ typedef BIG_ENDIAN_STRUCT
     uint32_t sh_info;
     uint32_t sh_addralign;
     uint32_t sh_entsize;
-}
-Elf32_Shdr;
+} Elf32_Shdr;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     uint32_t st_name;
     uint32_t st_value;
     uint32_t st_size;
     uint8_t st_info;
     uint8_t st_other;
     uint16_t st_shndx;
-}
-Elf32_Sym;
+} Elf32_Sym;
 
 // sh_type
 
@@ -164,14 +161,14 @@ ELF32_QUALIFIERS Elf32_Shdr *
 elf32_get_symtab(void *data, size_t data_size)
 {
     Elf32_Ehdr *ehdr = GET_PTR(data, 0);
-    uint32_t e_shoff = ehdr->e_shoff;
-    uint16_t e_shnum = ehdr->e_shnum;
+    uint32_t e_shoff = elf32_read32(ehdr->e_shoff);
+    uint16_t e_shnum = elf32_read16(ehdr->e_shnum);
 
     Elf32_Shdr *shdr = GET_PTR(data, e_shoff);
     for (size_t i = 0; i < e_shnum; i++, shdr++) {
         validate_read(e_shoff + i * sizeof(Elf32_Shdr), sizeof(Elf32_Shdr), data_size);
 
-        if (shdr->sh_type == SHT_SYMTAB) {
+        if (elf32_read32(shdr->sh_type) == SHT_SYMTAB) {
             // there should be only one section of this type
             return shdr;
         }
@@ -183,8 +180,8 @@ ELF32_QUALIFIERS Elf32_Shdr *
 ef32_section_foridx(size_t idx, void *data, size_t data_size)
 {
     Elf32_Ehdr *ehdr = GET_PTR(data, 0);
-    uint32_t e_shoff = ehdr->e_shoff;
-    uint16_t e_shnum = ehdr->e_shnum;
+    uint32_t e_shoff = elf32_read32(ehdr->e_shoff);
+    uint16_t e_shnum = elf32_read16(ehdr->e_shnum);
     Elf32_Shdr *shdr = GET_PTR(data, e_shoff);
 
     if (idx >= e_shnum)
@@ -198,28 +195,30 @@ ELF32_QUALIFIERS Elf32_Shdr *
 elf32_get_shstrtab(void *data, size_t data_size)
 {
     Elf32_Ehdr *ehdr = GET_PTR(data, 0);
-    return ef32_section_foridx(ehdr->e_shstrndx, data, data_size);
+    return ef32_section_foridx(elf32_read16(ehdr->e_shstrndx), data, data_size);
 }
 
 ELF32_QUALIFIERS const char *
 elf32_get_string(size_t offset, Elf32_Shdr *strtab, void *data, size_t data_size)
 {
-    validate_read(strtab->sh_offset + offset, 1, data_size);
-    return (const char *)GET_PTR(data, strtab->sh_offset + offset);
+    uint32_t sh_offset = elf32_read32(strtab->sh_offset);
+
+    validate_read(sh_offset + offset, 1, data_size);
+    return (const char *)GET_PTR(data, sh_offset + offset);
 }
 
 ELF32_QUALIFIERS Elf32_Shdr *
 elf32_section_forname(const char *name, Elf32_Shdr *shstrtab, void *data, size_t data_size)
 {
     Elf32_Ehdr *ehdr = GET_PTR(data, 0);
-    uint32_t e_shoff = ehdr->e_shoff;
-    uint16_t e_shnum = ehdr->e_shnum;
+    uint32_t e_shoff = elf32_read32(ehdr->e_shoff);
+    uint16_t e_shnum = elf32_read16(ehdr->e_shnum);
 
     Elf32_Shdr *shdr = GET_PTR(data, e_shoff);
     for (size_t i = 0; i < e_shnum; i++, shdr++) {
         validate_read(e_shoff + i * sizeof(Elf32_Shdr), sizeof(Elf32_Shdr), data_size);
 
-        const char *s_name = elf32_get_string(shdr->sh_name, shstrtab, data, data_size);
+        const char *s_name = elf32_get_string(elf32_read32(shdr->sh_name), shstrtab, data, data_size);
         if (strequ(s_name, name)) {
             return shdr;
         }

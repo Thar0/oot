@@ -25,57 +25,20 @@ typedef enum {
     WAVE_TYPE_EXTENSIBLE = 0xFFFE,
 } wav_type;
 
-typedef enum {
-    BIT_DEPTH_8 = 8,
-    BIT_DEPTH_16 = 16,
-    BIT_DEPTH_24 = 24,
-    BIT_DEPTH_32 = 32,
-    BIT_DEPTH_64 = 64,
-} bit_depth_e;
-
 typedef struct {
-    const char *path;
-    bit_depth_e bit_depth;
-    bool sample_f32;
-    unsigned num_samples;
-    unsigned num_channels;
-    unsigned sample_rate;
-    char *sample_data;
-    size_t n_sample_data;
-
-    int8_t base_note;
-    int8_t fine_tune;
-    int8_t gain;
-    int8_t key_low;
-    int8_t key_hi;
-    int8_t vel_low;
-    int8_t vel_hi;
-
-    ALADPCMbookhead *book_header;
-    ALADPCMbookstate *book_data;
-
-    void *loop;
-} container_context;
-
-typedef LITTLE_ENDIAN_STRUCT
-{
     uint16_t type;
     uint16_t num_channels;
     uint32_t sample_rate;
     uint32_t byte_rate;
     uint16_t block_align;
     uint16_t bit_depth;
-}
-wav_fmt;
+} wav_fmt;
 
-typedef LITTLE_ENDIAN_STRUCT
-{
+typedef struct {
     uint32_t num_samples;
-}
-wav_fact;
+} wav_fact;
 
-typedef LITTLE_ENDIAN_STRUCT
-{
+typedef struct {
     int8_t base_note;
     int8_t fine_tune;
     int8_t gain;
@@ -84,11 +47,9 @@ typedef LITTLE_ENDIAN_STRUCT
     int8_t vel_low;
     int8_t vel_hi;
     char _pad[1];
-}
-wav_inst;
+} wav_inst;
 
-typedef LITTLE_ENDIAN_STRUCT
-{
+typedef struct {
     uint32_t manufacturer;
     uint32_t product;
     uint32_t sample_period;
@@ -99,19 +60,16 @@ typedef LITTLE_ENDIAN_STRUCT
     uint32_t offset;
     uint32_t num_sample_loops;
     uint32_t sampler_data;
-}
-wav_smpl;
+} wav_smpl;
 
-typedef LITTLE_ENDIAN_STRUCT
-{
+typedef struct {
     uint32_t cue_point_index;
     uint32_t type;
     uint32_t start;
     uint32_t end;
     uint32_t fraction;
     uint32_t num;
-}
-wav_loop;
+} wav_loop;
 
 int
 wav_read(container_data *out, const char *path, UNUSED bool matching)
@@ -128,11 +86,12 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
         error("Failed to open \"%s\" for reading", path);
 
     char riff[4];
-    uint32_t_LE size;
+    uint32_t size;
     char wave[4];
 
     FREAD(in, riff, 4);
     FREAD(in, &size, 4);
+    size = le32toh(size);
     FREAD(in, wave, 4);
 
     if (!CC4_CHECK(riff, "RIFF") || !CC4_CHECK(wave, "WAVE"))
@@ -141,24 +100,31 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
     while (true) {
         bool skipped = false;
 
-        char cc4[4];
-        uint32_t_LE chunk_size;
-
         long start = ftell(in);
-        if (start > 8 + size.value) {
+        if (start > 8 + size) {
             error("Overran file");
         }
-        if (start == 8 + size.value) {
+        if (start == 8 + size) {
             break;
         }
 
+        char cc4[4];
+        uint32_t chunk_size;
+
         FREAD(in, cc4, 4);
         FREAD(in, &chunk_size, 4);
+        chunk_size = le32toh(chunk_size);
 
         switch (CC4(cc4[0], cc4[1], cc4[2], cc4[3])) {
             case CC4('f', 'm', 't', ' '): {
                 wav_fmt fmt;
                 FREAD(in, &fmt, sizeof(fmt));
+                fmt.type = le16toh(fmt.type);
+                fmt.num_channels = le16toh(fmt.num_channels);
+                fmt.sample_rate = le32toh(fmt.sample_rate);
+                fmt.byte_rate = le32toh(fmt.byte_rate);
+                fmt.block_align = le16toh(fmt.block_align);
+                fmt.bit_depth = le16toh(fmt.bit_depth);
 
                 // printf("fmt : { %u, %u, %u, %u, %u, %u }\n", fmt.type, fmt.num_channels, fmt.sample_rate,
                 // fmt.byte_rate,
@@ -193,6 +159,7 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
             case CC4('f', 'a', 'c', 't'): {
                 wav_fact fact;
                 FREAD(in, &fact, sizeof(fact));
+                fact.num_samples = le32toh(fact.num_samples);
 
                 // printf("fact: { %u }\n", fact.num_samples);
 
@@ -202,13 +169,13 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
             } break;
 
             case CC4('d', 'a', 't', 'a'): {
-                // printf("data: size=%u\n", chunk_size.value);
+                // printf("data: size=%u\n", chunk_size);
 
-                void *data = MALLOC_CHECKED_INFO(chunk_size.value, "data size = %u", chunk_size.value);
-                FREAD(in, data, chunk_size.value);
+                void *data = MALLOC_CHECKED_INFO(chunk_size, "data size = %u", chunk_size);
+                FREAD(in, data, chunk_size);
 
                 out->data = data;
-                out->data_size = chunk_size.value;
+                out->data_size = chunk_size;
 
                 has_data = true;
             } break;
@@ -234,6 +201,14 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
             case CC4('s', 'm', 'p', 'l'): {
                 wav_smpl smpl;
                 FREAD(in, &smpl, sizeof(smpl));
+                smpl.manufacturer = le32toh(smpl.manufacturer);
+                smpl.product = le32toh(smpl.product);
+                smpl.sample_period = le32toh(smpl.sample_period);
+                smpl.unity_note = le32toh(smpl.unity_note);
+                smpl.format = le32toh(smpl.format);
+                smpl.offset = le32toh(smpl.offset);
+                smpl.num_sample_loops = le32toh(smpl.num_sample_loops);
+                smpl.sampler_data = le32toh(smpl.sampler_data);
 
                 // printf("smpl: { %u, %u, %u, %u, %u, %u, %u, %u, %u }\n", smpl.manufacturer, smpl.product,
                 //        smpl.sample_period, smpl.unity_note, smpl.fine_tune, smpl.format, smpl.offset,
@@ -259,6 +234,12 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
                     for (size_t i = 0; i < out->num_loops; i++) {
                         wav_loop loop;
                         FREAD(in, &loop, sizeof(loop));
+                        loop.cue_point_index = le32toh(loop.cue_point_index);
+                        loop.type = le32toh(loop.type);
+                        loop.start = le32toh(loop.start);
+                        loop.end = le32toh(loop.end);
+                        loop.fraction = le32toh(loop.fraction);
+                        loop.num = le32toh(loop.num);
 
                         // printf("    loop: { %u, %u, %u, %u, %u, %u }\n", loop.cue_point_index, loop.type, loop.start,
                         //        loop.end, loop.fraction, loop.num);
@@ -296,25 +277,28 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
 
             case CC4('z', 'z', 'b', 'k'): {
                 char vadpcmcodes[12];
-                uint16_t_LE version;
-                uint16_t_LE order;
-                uint16_t_LE npredictors;
+                uint16_t version;
+                uint16_t order;
+                uint16_t npredictors;
 
                 FREAD(in, vadpcmcodes, sizeof(vadpcmcodes));
                 FREAD(in, &version, sizeof(version));
+                version = le16toh(version);
                 FREAD(in, &order, sizeof(order));
+                order = le16toh(order);
                 FREAD(in, &npredictors, sizeof(npredictors));
+                npredictors = le16toh(npredictors);
 
-                // printf("VADPCM book: order=%u npredictors=%u\n", order.value, npredictors.value);
+                // printf("VADPCM book: order=%u npredictors=%u\n", order, npredictors);
 
-                size_t book_size = VADPCM_BOOK_SIZE(order.value, npredictors.value);
+                size_t book_size = VADPCM_BOOK_SIZE(order, npredictors);
                 size_t book_data_size = sizeof(int16_t) * book_size;
                 int16_t *book_data =
-                    MALLOC_CHECKED_INFO(book_data_size, "order=%u, npredictors=%u", order.value, npredictors.value);
+                    MALLOC_CHECKED_INFO(book_data_size, "order=%u, npredictors=%u", order, npredictors);
                 FREAD(in, book_data, book_data_size);
 
-                out->vadpcm.book_header.order = order.value;
-                out->vadpcm.book_header.npredictors = npredictors.value;
+                out->vadpcm.book_header.order = order;
+                out->vadpcm.book_header.npredictors = npredictors;
                 out->vadpcm.book_data = book_data;
 
                 for (size_t i = 0; i < book_size; i++) {
@@ -325,31 +309,34 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
             } break;
 
             case CC4('z', 'z', 'l', 'p'): {
-                uint16_t_LE version;
-                uint16_t_LE nloops;
+                uint16_t version;
+                uint16_t nloops;
 
                 FREAD(in, &version, sizeof(version));
+                version = le16toh(version);
                 FREAD(in, &nloops, sizeof(nloops));
+                nloops = le16toh(nloops);
 
-                if (nloops.value != 0)
-                    out->vadpcm.loops =
-                        MALLOC_CHECKED_INFO(nloops.value * sizeof(ALADPCMloop), "nloops=%u", nloops.value);
+                if (nloops != 0)
+                    out->vadpcm.loops = MALLOC_CHECKED_INFO(nloops * sizeof(ALADPCMloop), "nloops=%u", nloops);
 
-                for (size_t i = 0; i < nloops.value; i++) {
-                    uint32_t_LE loop_start;
-                    uint32_t_LE loop_end;
-                    uint32_t_LE loop_num;
+                for (size_t i = 0; i < nloops; i++) {
+                    uint32_t loop_start;
+                    uint32_t loop_end;
+                    uint32_t loop_num;
 
                     FREAD(in, &loop_start, sizeof(loop_start));
+                    loop_start = le32toh(loop_start);
                     FREAD(in, &loop_end, sizeof(loop_end));
+                    loop_end = le32toh(loop_end);
                     FREAD(in, &loop_num, sizeof(loop_num));
+                    loop_num = le32toh(loop_num);
 
-                    out->vadpcm.loops[i].start = loop_start.value;
-                    out->vadpcm.loops[i].end = loop_end.value;
-                    out->vadpcm.loops[i].count = loop_num.value;
+                    out->vadpcm.loops[i].start = loop_start;
+                    out->vadpcm.loops[i].end = loop_end;
+                    out->vadpcm.loops[i].count = loop_num;
 
-                    // printf("VADPCM loop (start=%u, end=%u, num=%u)\n", loop_start.value, loop_end.value,
-                    //        loop_num.value);
+                    // printf("VADPCM loop (start=%u, end=%u, num=%u)\n", loop_start, loop_end, loop_num);
 
                     if (out->vadpcm.loops[i].count != 0) {
                         FREAD(in, out->vadpcm.loops[i].state, sizeof(out->vadpcm.loops[i].state));
@@ -372,15 +359,6 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
                 }
             } break;
 
-#if 0
-            case CC4('z', 'z', 'f', 'm'): {
-                char fmt[4];
-                FREAD(in, fmt, 4);
-
-                printf("zzfm=\"%.*s\"\n", 4,fmt);
-            } break;
-#endif
-
             default:
                 warning("Skipping unknown wav chunk: \"%c%c%c%c\"", cc4[0], cc4[1], cc4[2], cc4[3]);
                 skipped = true;
@@ -389,12 +367,12 @@ wav_read(container_data *out, const char *path, UNUSED bool matching)
 
         long read_size = ftell(in) - start - 8;
 
-        if (read_size > chunk_size.value)
+        if (read_size > chunk_size)
             error("overran chunk");
-        else if (!skipped && read_size < chunk_size.value)
-            warning("did not read entire %*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size.value);
+        else if (!skipped && read_size < chunk_size)
+            warning("did not read entire %*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size);
 
-        fseek(in, start + 8 + chunk_size.value, SEEK_SET);
+        fseek(in, start + 8 + chunk_size, SEEK_SET);
     }
 
     if (!has_fmt)
@@ -456,23 +434,23 @@ wav_write(container_data *in, const char *path, bool matching)
     }
 
     wav_fmt fmt = {
-        .type = fmt_type,
-        .num_channels = in->num_channels,
-        .sample_rate = in->sample_rate,
-        .byte_rate = in->sample_rate * (in->bit_depth / 8),
-        .block_align = in->num_channels * (in->bit_depth / 8),
-        .bit_depth = in->bit_depth,
+        .type = htole16(fmt_type),
+        .num_channels = htole16(in->num_channels),
+        .sample_rate = htole32(in->sample_rate),
+        .byte_rate = htole32(in->sample_rate * (in->bit_depth / 8)),
+        .block_align = htole16(in->num_channels * (in->bit_depth / 8)),
+        .bit_depth = htole16(in->bit_depth),
     };
     CHUNK_BEGIN(out, "fmt ", &chunk_start);
     CHUNK_WRITE(out, &fmt);
-    CHUNK_END(out, chunk_start, uint32_t_LE);
+    CHUNK_END(out, chunk_start, htole32);
 
     wav_fact fact = {
-        .num_samples = in->num_samples,
+        .num_samples = htole32(in->num_samples),
     };
     CHUNK_BEGIN(out, "fact", &chunk_start);
     CHUNK_WRITE(out, &fact);
-    CHUNK_END(out, chunk_start, uint32_t_LE);
+    CHUNK_END(out, chunk_start, htole32);
 
     if (in->data_type == SAMPLE_TYPE_PCM16) {
         assert(in->data_size % 2 == 0);
@@ -485,7 +463,7 @@ wav_write(container_data *in, const char *path, bool matching)
 
     CHUNK_BEGIN(out, "data", &chunk_start);
     CHUNK_WRITE_RAW(out, in->data, in->data_size);
-    CHUNK_END(out, chunk_start, uint32_t_LE);
+    CHUNK_END(out, chunk_start, htole32);
 
     wav_inst inst = {
         .base_note = in->base_note,
@@ -499,7 +477,7 @@ wav_write(container_data *in, const char *path, bool matching)
     };
     CHUNK_BEGIN(out, "inst", &chunk_start);
     CHUNK_WRITE(out, &inst);
-    CHUNK_END(out, chunk_start, uint32_t_LE);
+    CHUNK_END(out, chunk_start, htole32);
 
     wav_smpl smpl = {
         .manufacturer = 0,
@@ -510,7 +488,7 @@ wav_write(container_data *in, const char *path, bool matching)
         .fine_tune = 0,
         .format = 0,
         .offset = 0,
-        .num_sample_loops = in->num_loops,
+        .num_sample_loops = htole32(in->num_loops),
         .sampler_data = 0,
     };
     CHUNK_BEGIN(out, "smpl", &chunk_start);
@@ -536,24 +514,24 @@ wav_write(container_data *in, const char *path, bool matching)
 
         wav_loop loop = {
             .cue_point_index = 0,
-            .type = wav_loop_type,
-            .start = in->loops[i].start,
-            .end = in->loops[i].end,
-            .fraction = in->loops[i].fraction,
-            .num = in->loops[i].num,
+            .type = htole32(wav_loop_type),
+            .start = htole32(in->loops[i].start),
+            .end = htole32(in->loops[i].end),
+            .fraction = htole32(in->loops[i].fraction),
+            .num = htole32(in->loops[i].num),
         };
         CHUNK_WRITE(out, &loop);
     }
-    CHUNK_END(out, chunk_start, uint32_t_LE);
+    CHUNK_END(out, chunk_start, htole32);
 
     // Books generally don't match on round-trip, if matching we should write a vadpcm book chunk to the uncompressed
     // output so it may be read back when re-encoding.
     if (in->vadpcm.has_book && matching) {
         uint32_t book_size = VADPCM_BOOK_SIZE(in->vadpcm.book_header.order, in->vadpcm.book_header.npredictors);
 
-        uint16_t_LE version = { in->vadpcm.book_version };
-        uint16_t_LE order = { in->vadpcm.book_header.order };
-        uint16_t_LE npredictors = { in->vadpcm.book_header.npredictors };
+        uint16_t version = htole16(in->vadpcm.book_version);
+        uint16_t order = htole16(in->vadpcm.book_header.order);
+        uint16_t npredictors = htole16(in->vadpcm.book_header.npredictors);
 
         int16_t book_state[book_size];
         for (size_t i = 0; i < book_size; i++) {
@@ -566,7 +544,7 @@ wav_write(container_data *in, const char *path, bool matching)
         CHUNK_WRITE(out, &order);
         CHUNK_WRITE(out, &npredictors);
         CHUNK_WRITE_RAW(out, book_state, sizeof(int16_t) * book_size);
-        CHUNK_END(out, chunk_start, uint32_t_LE);
+        CHUNK_END(out, chunk_start, htole32);
     }
 
     // Loop states match on round-trip while books don't, so don't write a vadpcm loop chunk if the output format
@@ -575,9 +553,9 @@ wav_write(container_data *in, const char *path, bool matching)
         CHUNK_BEGIN(out, "zzlp", &chunk_start);
 
         for (size_t i = 0; i < in->vadpcm.num_loops; i++) {
-            uint32_t_LE loop_start = { in->vadpcm.loops[i].start };
-            uint32_t_LE loop_end = { in->vadpcm.loops[i].end };
-            uint32_t_LE loop_count = { in->vadpcm.loops[i].count };
+            uint32_t loop_start = htole32(in->vadpcm.loops[i].start);
+            uint32_t loop_end = htole32(in->vadpcm.loops[i].end);
+            uint32_t loop_count = htole32(in->vadpcm.loops[i].count);
 
             int16_t loop_state[16];
             for (size_t j = 0; j < ARRAY_COUNT(in->vadpcm.loops[i].state); j++) {
@@ -590,16 +568,10 @@ wav_write(container_data *in, const char *path, bool matching)
             CHUNK_WRITE_RAW(out, loop_state, sizeof(loop_state));
         }
 
-        CHUNK_END(out, chunk_start, uint32_t_LE);
+        CHUNK_END(out, chunk_start, htole32);
     }
 
-#if 0
-    CHUNK_BEGIN(out, "zzfm", &chunk_start);
-    CHUNK_WRITE_RAW(out, in->zzfm.fmt, 4);
-    CHUNK_END(out, chunk_start, uint32_t_LE);
-#endif
-
-    uint32_t_LE size = { ftell(out) - 8 };
+    uint32_t size = htole32(ftell(out) - 8);
     fseek(out, 4, SEEK_SET);
     fwrite(&size, 4, 1, out);
     fclose(out);

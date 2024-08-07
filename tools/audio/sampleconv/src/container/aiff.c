@@ -18,8 +18,7 @@
 #include "../codec/vadpcm.h"
 #include "aiff.h"
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     int16_t numChannels;
     uint16_t numFramesH;
     uint16_t numFramesL;
@@ -28,22 +27,17 @@ typedef BIG_ENDIAN_STRUCT
     // uint16_t compressionTypeH;
     // uint16_t compressionTypeL;
     // followed by compression type + compression name pstring
-}
-aiff_COMM;
+} aiff_COMM;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     uint16_t nMarkers;
-}
-aiff_MARK;
+} aiff_MARK;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     uint16_t MarkerID;
     uint16_t positionH;
     uint16_t positionL;
-}
-Marker;
+} Marker;
 
 typedef enum {
     LOOP_PLAYMODE_NONE = 0,
@@ -51,17 +45,14 @@ typedef enum {
     LOOP_PLAYMODE_FWD_BWD = 2
 } aiff_loop_playmode;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     int16_t playMode; // aiff_loop_playmode
     // Marker IDs
     int16_t beginLoop;
     int16_t endLoop;
-}
-Loop;
+} Loop;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     int8_t baseNote;
     int8_t detune;
     int8_t lowNote;
@@ -71,15 +62,12 @@ typedef BIG_ENDIAN_STRUCT
     int16_t gain;
     Loop sustainLoop;
     Loop releaseLoop;
-}
-aiff_INST;
+} aiff_INST;
 
-typedef BIG_ENDIAN_STRUCT
-{
+typedef struct {
     int32_t offset;
     int32_t blockSize;
-}
-aiff_SSND;
+} aiff_SSND;
 
 static void
 read_pstring(FILE *f, char *out)
@@ -229,9 +217,6 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
     memset(out, 0, sizeof(*out));
 
     while (true) {
-        char cc4[4];
-        uint32_t_BE chunk_size;
-
         long start = ftell(in);
         if (start > 8 + size) {
             error("Overran file");
@@ -240,11 +225,15 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
             break;
         }
 
+        char cc4[4];
+        uint32_t chunk_size;
+
         FREAD(in, cc4, 4);
         FREAD(in, &chunk_size, 4);
+        chunk_size = be32toh(chunk_size);
 
-        chunk_size.value++;
-        chunk_size.value &= ~1;
+        chunk_size++;
+        chunk_size &= ~1;
 
         // printf("%c%c%c%c\n", cc4[0], cc4[1], cc4[2], cc4[3]);
 
@@ -252,16 +241,20 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
             case CC4('C', 'O', 'M', 'M'): {
                 aiff_COMM comm;
                 FREAD(in, &comm, sizeof(comm));
+                comm.numChannels = be16toh(comm.numChannels);
+                comm.numFramesH = be16toh(comm.numFramesH);
+                comm.numFramesL = be16toh(comm.numFramesL);
+                comm.sampleSize = be16toh(comm.sampleSize);
 
                 uint32_t num_samples = (comm.numFramesH << 16) | comm.numFramesL;
                 double sample_rate;
                 f80_to_f64(&sample_rate, (uint8_t *)comm.sampleRate);
 
                 uint32_t comp_type = CC4('N', 'O', 'N', 'E');
-                if (chunk_size.value > sizeof(aiff_COMM)) {
-                    uint32_t_BE compressionType;
+                if (chunk_size > sizeof(aiff_COMM)) {
+                    uint32_t compressionType;
                     FREAD(in, &compressionType, sizeof(compressionType));
-                    comp_type = compressionType.value;
+                    comp_type = be32toh(compressionType);
                 }
 
                 out->num_channels = comm.numChannels;
@@ -294,7 +287,7 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
                 // printf("comm: { %d, %u, %d, %g, \"%c%c%c%c\" }\n", comm.numChannels, num_samples, comm.sampleSize,
                 //        sample_rate, comp_type >> 24, comp_type >> 16, comp_type >> 8, comp_type);
 
-                if (chunk_size.value > sizeof(aiff_COMM) + 4) {
+                if (chunk_size > sizeof(aiff_COMM) + 4) {
                     char compression_name[257];
                     read_pstring(in, compression_name);
                     // printf("%s\n", compression_name);
@@ -305,6 +298,13 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
             case CC4('I', 'N', 'S', 'T'): {
                 aiff_INST inst;
                 FREAD(in, &inst, sizeof(inst));
+                inst.gain = be16toh(inst.gain);
+                inst.sustainLoop.playMode = be16toh(inst.sustainLoop.playMode);
+                inst.sustainLoop.beginLoop = be16toh(inst.sustainLoop.beginLoop);
+                inst.sustainLoop.endLoop = be16toh(inst.sustainLoop.endLoop);
+                inst.releaseLoop.playMode = be16toh(inst.releaseLoop.playMode);
+                inst.releaseLoop.beginLoop = be16toh(inst.releaseLoop.beginLoop);
+                inst.releaseLoop.endLoop = be16toh(inst.releaseLoop.endLoop);
 
                 out->base_note = inst.baseNote;
                 out->fine_tune = inst.detune;
@@ -383,6 +383,7 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
             case CC4('M', 'A', 'R', 'K'): {
                 aiff_MARK mark;
                 FREAD(in, &mark, sizeof(mark));
+                mark.nMarkers = be16toh(mark.nMarkers);
 
                 num_markers = mark.nMarkers;
                 markers = MALLOC_CHECKED_INFO(num_markers * sizeof(container_marker), "num_markers=%lu", num_markers);
@@ -393,8 +394,8 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
                     FREAD(in, &marker, sizeof(marker));
                     name = read_pstring_alloc(in);
 
-                    markers[i].id = marker.MarkerID;
-                    markers[i].frame_number = (marker.positionH << 16) | marker.positionL;
+                    markers[i].id = be16toh(marker.MarkerID);
+                    markers[i].frame_number = (be16toh(marker.positionH) << 16) | be16toh(marker.positionL);
                     markers[i].name = name;
                 }
             } break;
@@ -411,37 +412,42 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
                         // printf("APPL::stoc::%s\n", chunk_name);
 
                         if (strequ(chunk_name, "VADPCMCODES")) {
-                            int16_t_BE version;
-                            uint16_t_BE order;
-                            uint16_t_BE npredictors;
+                            int16_t version;
+                            uint16_t order;
+                            uint16_t npredictors;
 
                             FREAD(in, &version, sizeof(version));
+                            version = be16toh(version);
                             FREAD(in, &order, sizeof(order));
+                            order = be16toh(order);
                             FREAD(in, &npredictors, sizeof(npredictors));
+                            npredictors = be16toh(npredictors);
 
-                            size_t book_size_bytes = VADPCM_BOOK_SIZE_BYTES(order.value, npredictors.value);
-                            int16_t *book_state = MALLOC_CHECKED_INFO(book_size_bytes, "order=%u, npredictors=%u",
-                                                                      order.value, npredictors.value);
+                            size_t book_size_bytes = VADPCM_BOOK_SIZE_BYTES(order, npredictors);
+                            int16_t *book_state =
+                                MALLOC_CHECKED_INFO(book_size_bytes, "order=%u, npredictors=%u", order, npredictors);
                             FREAD(in, book_state, book_size_bytes);
 
-                            out->vadpcm.book_version = version.value;
-                            out->vadpcm.book_header.order = order.value;
-                            out->vadpcm.book_header.npredictors = npredictors.value;
+                            out->vadpcm.book_version = version;
+                            out->vadpcm.book_header.order = order;
+                            out->vadpcm.book_header.npredictors = npredictors;
                             out->vadpcm.book_data = book_state;
 
-                            for (size_t i = 0; i < VADPCM_BOOK_SIZE(order.value, npredictors.value); i++)
+                            for (size_t i = 0; i < VADPCM_BOOK_SIZE(order, npredictors); i++)
                                 out->vadpcm.book_data[i] = be16toh(out->vadpcm.book_data[i]);
 
                             out->vadpcm.has_book = true;
                         } else if (strequ(chunk_name, "VADPCMLOOPS")) {
-                            int16_t_BE version;
-                            int16_t_BE nloops;
+                            int16_t version;
+                            int16_t nloops;
 
                             FREAD(in, &version, sizeof(version));
+                            version = be16toh(version);
                             FREAD(in, &nloops, sizeof(nloops));
+                            nloops = be16toh(nloops);
 
-                            out->vadpcm.loop_version = version.value;
-                            out->vadpcm.num_loops = nloops.value;
+                            out->vadpcm.loop_version = version;
+                            out->vadpcm.num_loops = nloops;
 
                             if (out->vadpcm.num_loops)
                                 out->vadpcm.loops = MALLOC_CHECKED_INFO(out->vadpcm.num_loops * sizeof(ALADPCMloop),
@@ -470,8 +476,10 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
             case CC4('S', 'S', 'N', 'D'): {
                 aiff_SSND ssnd;
                 FREAD(in, &ssnd, sizeof(ssnd));
+                ssnd.offset = be32toh(ssnd.offset);
+                ssnd.blockSize = be32toh(ssnd.blockSize);
 
-                size_t data_size = chunk_size.value - sizeof(ssnd);
+                size_t data_size = chunk_size - sizeof(ssnd);
                 // printf("ssnd: { %d, %d } size=%lu\n", ssnd.offset, ssnd.blockSize, data_size);
 
                 void *data = MALLOC_CHECKED_INFO(data_size, "SSND chunk size = %lu", data_size);
@@ -493,12 +501,12 @@ aiff_aifc_common_read(container_data *out, FILE *in, UNUSED bool matching, uint3
 
         long read_size = ftell(in) - start - 8;
 
-        if (read_size > chunk_size.value)
-            error("overran chunk: %lu vs %u\n", read_size, chunk_size.value);
-        else if (read_size < chunk_size.value)
-            warning("did not read entire %.*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size.value);
+        if (read_size > chunk_size)
+            error("overran chunk: %lu vs %u\n", read_size, chunk_size);
+        else if (read_size < chunk_size)
+            warning("did not read entire %.*s chunk: %lu vs %u", 4, cc4, read_size, chunk_size);
 
-        fseek(in, start + 8 + chunk_size.value, SEEK_SET);
+        fseek(in, start + 8 + chunk_size, SEEK_SET);
     }
 
     if (!has_comm)
@@ -556,17 +564,18 @@ aifc_read(container_data *out, const char *path, bool matching)
         error("Failed to open \"%s\" for reading", path);
 
     char form[4];
-    uint32_t_BE size;
+    uint32_t size;
     char aifc[4];
 
     FREAD(in, form, 4);
     FREAD(in, &size, 4);
+    size = be32toh(size);
     FREAD(in, aifc, 4);
 
     if (!CC4_CHECK(form, "FORM") || !CC4_CHECK(aifc, "AIFC"))
         error("Not an aifc file?");
 
-    return aiff_aifc_common_read(out, in, matching, size.value);
+    return aiff_aifc_common_read(out, in, matching, size);
 }
 
 int
@@ -577,17 +586,18 @@ aiff_read(container_data *out, const char *path, bool matching)
         error("Failed to open \"%s\" for reading", path);
 
     char form[4];
-    uint32_t_BE size;
+    uint32_t size;
     char aiff[4];
 
     FREAD(in, form, 4);
     FREAD(in, &size, 4);
+    size = be32toh(size);
     FREAD(in, aiff, 4);
 
     if (!CC4_CHECK(form, "FORM") || !CC4_CHECK(aiff, "AIFF"))
         error("Not an aiff file?");
 
-    return aiff_aifc_common_read(out, in, matching, size.value);
+    return aiff_aifc_common_read(out, in, matching, size);
 }
 
 static int
@@ -637,21 +647,21 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
     }
 
     aiff_COMM comm = {
-        .numChannels = in->num_channels,
-        .numFramesH = in->num_samples >> 16,
-        .numFramesL = in->num_samples,
-        .sampleSize = in->bit_depth,
+        .numChannels = htobe16(in->num_channels),
+        .numFramesH = htobe16(in->num_samples >> 16),
+        .numFramesL = htobe16(in->num_samples),
+        .sampleSize = htobe16(in->bit_depth),
         .sampleRate = { 0 },
     };
     f64_to_f80(in->sample_rate, (uint8_t *)comm.sampleRate);
     CHUNK_BEGIN(out, "COMM", &chunk_start);
     CHUNK_WRITE(out, &comm);
     if (compression_name != NULL) {
-        uint32_t_BE compressionType = { compression_type };
+        uint32_t compressionType = htobe32(compression_type);
         CHUNK_WRITE(out, &compressionType);
         write_pstring(out, compression_name);
     }
-    CHUNK_END(out, chunk_start, uint32_t_BE);
+    CHUNK_END(out, chunk_start, htobe32);
 
     if (in->num_loops > 2)
         error("Only up to two loops are supported for AIFF/C");
@@ -698,38 +708,38 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
                 break;
         }
 
-        target->playMode = type;
+        target->playMode = htobe16(type);
 
         markers[num_markers].id = num_markers + 1;
         markers[num_markers].name = marker_names[num_markers];
         markers[num_markers].frame_number = in->loops[i].start;
-        target->beginLoop = 1 + num_markers++;
+        target->beginLoop = htobe16(1 + num_markers++);
 
         markers[num_markers].id = num_markers + 1;
         markers[num_markers].name = marker_names[num_markers];
         markers[num_markers].frame_number = in->loops[i].end;
-        target->endLoop = 1 + num_markers++;
+        target->endLoop = htobe16(1 + num_markers++);
     }
 
     if (num_markers != 0) {
         CHUNK_BEGIN(out, "MARK", &chunk_start);
 
         aiff_MARK mark = {
-            .nMarkers = num_markers,
+            .nMarkers = htobe16(num_markers),
         };
         CHUNK_WRITE(out, &mark);
 
         for (size_t i = 0; i < num_markers; i++) {
             Marker marker = {
-                .MarkerID = markers[i].id,
-                .positionH = markers[i].frame_number >> 16,
-                .positionL = markers[i].frame_number,
+                .MarkerID = htobe16(markers[i].id),
+                .positionH = htobe16(markers[i].frame_number >> 16),
+                .positionL = htobe16(markers[i].frame_number),
             };
             CHUNK_WRITE(out, &marker);
             write_pstring(out, markers[i].name);
         }
 
-        CHUNK_END(out, chunk_start, uint32_t_BE);
+        CHUNK_END(out, chunk_start, htobe32);
     }
 
     aiff_INST inst = {
@@ -739,13 +749,13 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
         .highNote = in->key_hi,
         .lowVelocity = in->vel_low,
         .highVelocity = in->vel_hi,
-        .gain = in->gain,
+        .gain = htobe16(in->gain),
         .sustainLoop = sustainLoop,
         .releaseLoop = releaseLoop,
     };
     CHUNK_BEGIN(out, "INST", &chunk_start);
     CHUNK_WRITE(out, &inst);
-    CHUNK_END(out, chunk_start, uint32_t_BE);
+    CHUNK_END(out, chunk_start, htobe32);
 
     if (aifc || matching) {
         // If we're writing an aifc, or we want to match on round-trip, emit an application-specific chunk for the
@@ -756,9 +766,9 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
             CHUNK_WRITE_RAW(out, "stoc", 4);
             write_pstring(out, "VADPCMCODES");
 
-            int16_t_BE version = { in->vadpcm.book_version };
-            int16_t_BE order = { in->vadpcm.book_header.order };
-            int16_t_BE npredictors = { in->vadpcm.book_header.npredictors };
+            int16_t version = htobe16(in->vadpcm.book_version);
+            int16_t order = htobe16(in->vadpcm.book_header.order);
+            int16_t npredictors = htobe16(in->vadpcm.book_header.npredictors);
 
             CHUNK_WRITE(out, &version);
             CHUNK_WRITE(out, &order);
@@ -766,13 +776,13 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
 
             size_t book_size = VADPCM_BOOK_SIZE(in->vadpcm.book_header.order, in->vadpcm.book_header.npredictors);
 
-            int16_t_BE book_data_out[book_size];
+            int16_t book_data_out[book_size];
             for (size_t i = 0; i < book_size; i++)
-                book_data_out[i].value = in->vadpcm.book_data[i];
+                book_data_out[i] = htobe16(in->vadpcm.book_data[i]);
 
             CHUNK_WRITE_RAW(out, book_data_out, sizeof(int16_t) * book_size);
 
-            CHUNK_END(out, chunk_start, uint32_t_BE);
+            CHUNK_END(out, chunk_start, htobe32);
         }
 
         // Only write a vadpcm loop structure for compressed output. Loop states match on round-trip so we need not
@@ -783,8 +793,8 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
             CHUNK_WRITE_RAW(out, "stoc", 4);
             write_pstring(out, "VADPCMLOOPS");
 
-            int16_t_BE version = { in->vadpcm.loop_version };
-            int16_t_BE nloops = { in->vadpcm.num_loops };
+            int16_t version = htobe16(in->vadpcm.loop_version);
+            int16_t nloops = htobe16(in->vadpcm.num_loops);
 
             CHUNK_WRITE(out, &version);
             CHUNK_WRITE(out, &nloops);
@@ -800,7 +810,7 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
                 CHUNK_WRITE(out, &outloop);
             }
 
-            CHUNK_END(out, chunk_start, uint32_t_BE);
+            CHUNK_END(out, chunk_start, htobe32);
         }
     }
 
@@ -820,9 +830,9 @@ aiff_aifc_common_write(container_data *in, const char *path, bool aifc, bool mat
     CHUNK_BEGIN(out, "SSND", &chunk_start);
     CHUNK_WRITE(out, &ssnd);
     CHUNK_WRITE_RAW(out, in->data, in->data_size);
-    CHUNK_END(out, chunk_start, uint32_t_BE);
+    CHUNK_END(out, chunk_start, htobe32);
 
-    uint32_t_BE size = { ftell(out) - 8 };
+    uint32_t size = htobe32(ftell(out) - 8);
     fseek(out, 4, SEEK_SET);
     fwrite(&size, 4, 1, out);
     fclose(out);
