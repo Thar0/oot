@@ -7,7 +7,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 #include <assert.h>
-#include <endian.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>

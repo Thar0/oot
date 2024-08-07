@@ -1,9 +1,8 @@
 
 CC := gcc
-CFLAGS := -Wall -Wextra -ffunction-sections -fdata-sections -MD -MMD
+CFLAGS := -Wall -Wextra -MMD
 OPTFLAGS := -Og -g3
-
-LDFLAGS := -Wl,--gc-sections
+LDFLAGS :=
 
 CLANG_FORMAT := clang-format-14
 FORMAT_ARGS := -i -style=file
