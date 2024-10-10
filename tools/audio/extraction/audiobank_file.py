@@ -5,13 +5,13 @@
 #
 
 import struct
-from typing import Optional, Tuple
-from xml.etree.ElementTree import Element
+from typing import Optional
 
 from .audio_tables import AudioCodeTableEntry
 from .audiobank_structs import AdpcmBook, AdpcmLoop, Drum, Instrument, SoundFontSample, SoundFontSound
-from .envelope import Envelope
 from .audiotable import AudioTableFile, AudioTableSample
+from .envelope import Envelope
+from .extraction_xml import SoundFontExtractionDescription
 from .tuning import pitch_names
 from .util import XMLWriter, align, debugm, merge_like_ranges, merge_ranges
 
@@ -183,7 +183,7 @@ class AudiobankFile:
 
     def __init__(self, audiobank_seg : memoryview, index : int, table_entry : AudioCodeTableEntry,
                  seg_offset : int, bank1 : AudioTableFile, bank2 : AudioTableFile, bank1_num : int, bank2_num : int,
-                 extraction_xml : Tuple[str, Element] = None):
+                 extraction_desc : Optional[SoundFontExtractionDescription] = None):
         self.bank_num = index
         self.table_entry : AudioCodeTableEntry = table_entry
         self.num_instruments = self.table_entry.num_instruments
@@ -193,7 +193,7 @@ class AudiobankFile:
         self.bank1_num = bank1_num
         self.bank2_num = bank2_num
 
-        if extraction_xml is None:
+        if extraction_desc is None:
             self.file_name = f"Soundfont_{self.bank_num}"
             self.name = f"Soundfont_{self.bank_num}"
 
@@ -202,31 +202,13 @@ class AudiobankFile:
             self.extraction_drums_info = None
             self.extraction_effects_info = None
         else:
-            self.file_name = extraction_xml[0]
-            self.name = extraction_xml[1].attrib["Name"]
+            self.file_name = extraction_desc.file_name
+            self.name = extraction_desc.name
 
-            self.extraction_envelopes_info = []
-            self.extraction_instruments_info = {}
-            self.extraction_drums_info = []
-            self.extraction_effects_info = []
-
-            for item in extraction_xml[1]:
-                if item.tag == "Envelopes":
-                    for env in item:
-                        assert env.tag == "Envelope"
-                        self.extraction_envelopes_info.append(env.attrib["Name"])
-                elif item.tag == "Instruments":
-                    for instr in item:
-                        assert instr.tag == "Instrument"
-                        self.extraction_instruments_info[int(instr.attrib["ProgramNumber"])] = instr.attrib["Name"]
-                elif item.tag == "Drums":
-                    for drum in item:
-                        self.extraction_drums_info.append(drum.attrib["Name"])
-                elif item.tag == "Effects":
-                    for effect in item:
-                        self.extraction_effects_info.append(effect.attrib["Name"])
-                else:
-                    assert False, item.tag
+            self.extraction_envelopes_info = extraction_desc.envelopes_info
+            self.extraction_instruments_info = extraction_desc.instruments_info
+            self.extraction_drums_info = extraction_desc.drums_info
+            self.extraction_effects_info = extraction_desc.effects_info
 
         # Coverage consists of a list of itervals of the form [[start,type],[end,type]]
         self.coverage = []
