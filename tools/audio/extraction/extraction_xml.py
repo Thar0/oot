@@ -28,6 +28,23 @@ class ExtractionDescription:
     def post_init(self, xml_root : Element, version_name : str):
         raise NotImplementedError() # Implement in subclass
 
+    def in_version(self, version_include, version_exclude, version_name : str):
+        if version_include == "":
+            version_include = "All"
+        if version_exclude == "":
+            version_exclude = "None"
+
+        # Determine if this layout is the one we need
+        if version_include != "All":
+            version_include = version_include.split(",")
+        if version_exclude != "None":
+            version_exclude = version_exclude.split(",")
+
+        included = version_include == "All" or version_name in version_include
+        excluded = version_exclude != "None" and version_name in version_exclude
+
+        return included and not excluded
+
 class SampleBankExtractionDescription(ExtractionDescription):
 
     def post_init(self, xml_root : Element, version_name : str):
@@ -51,21 +68,7 @@ class SampleBankExtractionDescription(ExtractionDescription):
             assert (version_include, version_exclude) not in self.all_version_contents
             self.all_version_contents[version_ident] = version_contents
 
-            if version_include == "":
-                version_include = "All"
-            if version_exclude == "":
-                version_exclude = "None"
-
-            # Determine if this layout is the one we need
-            if version_include != "All":
-                version_include = version_include.split(",")
-            if version_exclude != "None":
-                version_exclude = version_exclude.split(",")
-
-            included = version_include == "All" or version_name in version_include
-            excluded = version_exclude != "None" and version_name in version_exclude
-
-            if included and not excluded:
+            if self.in_version(version_include, version_exclude, version_name):
                 # This item is the one we need to reference for extraction and rebuild the contents of if we're
                 # writing it back out
                 assert not was_included
@@ -90,22 +93,53 @@ class SoundFontExtractionDescription(ExtractionDescription):
         self.instruments_info = {}
         self.drums_info = []
         self.effects_info = []
-
+        self.envelopes_info_versions = []
+        self.instruments_info_versions = []
+        self.drums_info_versions = []
+        self.effects_info_versions = []
+        
         for item in xml_root:
             if item.tag == "Envelopes":
                 for env in item:
                     assert env.tag == "Envelope"
-                    self.envelopes_info.append(env.attrib["Name"])
+
+                    version_include = env.attrib.get("VersionInclude", "")
+                    version_exclude = env.attrib.get("VersionExclude", "")
+                    in_version = self.in_version(version_include, version_exclude, version_name)
+                    if in_version:
+                        self.envelopes_info.append(env.attrib["Name"])
+                    self.envelopes_info_versions.append((env.attrib, in_version))
             elif item.tag == "Instruments":
                 for instr in item:
                     assert instr.tag == "Instrument"
-                    self.instruments_info[int(instr.attrib["ProgramNumber"])] = instr.attrib["Name"]
+                    prg_num = int(instr.attrib["ProgramNumber"])
+
+                    version_include = instr.attrib.get("VersionInclude", "")
+                    version_exclude = instr.attrib.get("VersionExclude", "")
+                    in_version = self.in_version(version_include, version_exclude, version_name)
+                    if in_version:
+                        self.instruments_info[prg_num] = instr.attrib["Name"]
+                    self.instruments_info_versions.append((instr.attrib, in_version))
             elif item.tag == "Drums":
                 for drum in item:
-                    self.drums_info.append(drum.attrib["Name"])
+                    assert drum.tag == "Drum"
+
+                    version_include = drum.attrib.get("VersionInclude", "")
+                    version_exclude = drum.attrib.get("VersionExclude", "")
+                    in_version = self.in_version(version_include, version_exclude, version_name)
+                    if in_version:
+                        self.drums_info.append(drum.attrib["Name"])
+                    self.drums_info_versions.append((drum.attrib, in_version))
             elif item.tag == "Effects":
                 for effect in item:
-                    self.effects_info.append(effect.attrib["Name"])
+                    assert effect.tag == "Effect"
+
+                    version_include = effect.attrib.get("VersionInclude", "")
+                    version_exclude = effect.attrib.get("VersionExclude", "")
+                    in_version = self.in_version(version_include, version_exclude, version_name)
+                    if in_version:
+                        self.effects_info.append(effect.attrib["Name"])
+                    self.effects_info_versions.append((effect.attrib, in_version))
             else:
                 assert False, item.tag
 

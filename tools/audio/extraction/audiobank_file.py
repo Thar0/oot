@@ -201,6 +201,10 @@ class AudiobankFile:
             self.extraction_instruments_info = None
             self.extraction_drums_info = None
             self.extraction_effects_info = None
+            self.extraction_envelopes_info_versions = []
+            self.extraction_instruments_info_versions = {}
+            self.extraction_drums_info_versions = []
+            self.extraction_effects_info_versions = []
         else:
             self.file_name = extraction_desc.file_name
             self.name = extraction_desc.name
@@ -209,6 +213,10 @@ class AudiobankFile:
             self.extraction_instruments_info = extraction_desc.instruments_info
             self.extraction_drums_info = extraction_desc.drums_info
             self.extraction_effects_info = extraction_desc.effects_info
+            self.extraction_envelopes_info_versions = extraction_desc.envelopes_info_versions
+            self.extraction_instruments_info_versions = extraction_desc.instruments_info_versions
+            self.extraction_drums_info_versions = extraction_desc.drums_info_versions
+            self.extraction_effects_info_versions = extraction_desc.effects_info_versions
 
         # Coverage consists of a list of itervals of the form [[start,type],[end,type]]
         self.coverage = []
@@ -737,25 +745,25 @@ class AudiobankFile:
         # TODO resolve decay/release index overrides?
 
     def envelope_name(self, index):
-        if self.extraction_envelopes_info is not None:
+        if self.extraction_envelopes_info is not None and index < len(self.extraction_envelopes_info):
             return self.extraction_envelopes_info[index]
         else:
             return f"Env{index}"
 
     def instrument_name(self, program_number):
-        if self.extraction_instruments_info is not None:
+        if self.extraction_instruments_info is not None and program_number in self.extraction_instruments_info:
             return self.extraction_instruments_info[program_number]
         else:
             return f"INST_{program_number}"
 
     def drum_grp_name(self, index):
-        if self.extraction_drums_info is not None:
+        if self.extraction_drums_info is not None and index < len(self.extraction_drums_info):
             return self.extraction_drums_info[index]
         else:
             return f"DRUM_{index}"
 
     def effect_name(self, index):
-        if self.extraction_effects_info is not None:
+        if self.extraction_effects_info is not None and index < len(self.extraction_effects_info):
             return self.extraction_effects_info[index]
         else:
             return f"EFFECT_{index}"
@@ -887,21 +895,41 @@ class AudiobankFile:
 
         # add contents for names
 
-        if len(self.envelopes) != 0:
+        if len(self.envelopes) != 0 or len(self.extraction_envelopes_info_versions) != 0:
             xml.write_start_tag("Envelopes")
 
-            for i in range(len(self.envelopes)):
+            # First write envelopes that were defined in the extraction xml, possibly interleaved with envelopes
+            # we ignored for this version
+            i = 0
+            for envelope_entry,in_version in self.extraction_envelopes_info_versions:
+                xml.write_element("Envelope", envelope_entry)
+                # Count how many envelopes we saw that were defined for this version
+                i += in_version
+
+            # Write any remaining envelopes that weren't defined in the xml
+            for j in range(i, len(self.envelopes)):
                 xml.write_element("Envelope", {
-                    "Name" : self.envelope_name(i)
+                    "Name" : self.envelope_name(j)
                 })
 
             xml.write_end_tag()
 
-        if len(self.instruments) != 0:
+        if len(self.instruments) != 0 or len(self.extraction_instruments_info_versions) != 0:
             xml.write_start_tag("Instruments")
 
             # Write in struct order
-            for instr in sorted(self.instruments, key=lambda instr : instr.struct_index):
+            sorted_instruments = tuple(sorted(self.instruments, key=lambda instr : instr.struct_index))
+
+            # First write instruments that were defined in the extraction xml, possibly interleaved with instruments
+            # we ignored for this version
+            i = 0
+            for instr_entry,in_version in self.extraction_instruments_info_versions:
+                xml.write_element("Instrument", instr_entry)
+                # Count how many instruments we saw that were defined for this version
+                i += in_version
+
+            # Write any remaining instruments that weren't defined in the xml
+            for instr in sorted_instruments[i:]:
                 instr : Instrument
                 if not instr.unused:
                     xml.write_element("Instrument", {
@@ -911,23 +939,39 @@ class AudiobankFile:
 
             xml.write_end_tag()
 
-        if any(isinstance(dg, DrumGroup) for dg in self.drum_groups):
+        if any(isinstance(dg, DrumGroup) for dg in self.drum_groups) or len(self.extraction_drums_info_versions):
             xml.write_start_tag("Drums")
 
-            for i,drum_grp in enumerate(self.drum_groups):
+            # First write drums that were defined in the extraction xml, possibly interleaved with drums
+            # we ignored for this version
+            i = 0
+            for drum_entry,in_version in self.extraction_drums_info_versions:
+                xml.write_element("Drum", drum_entry)
+                # Count how many drum groups we saw that were defined for this version
+                i += in_version
+
+            for j,drum_grp in enumerate(self.drum_groups[i:], i):
                 if isinstance(drum_grp, DrumGroup):
                     xml.write_element("Drum", {
-                        "Name" : self.drum_grp_name(i)
+                        "Name" : self.drum_grp_name(j)
                     })
 
             xml.write_end_tag()
 
-        if len(self.sfx) != 0:
+        if len(self.sfx) != 0 or len(self.extraction_effects_info_versions):
             xml.write_start_tag("Effects")
 
-            for i,sfx in enumerate(self.sfx):
+            # First write effects that were defined in the extraction xml, possibly interleaved with effects
+            # we ignored for this version
+            i = 0
+            for sfx_entry,in_version in self.extraction_effects_info_versions:
+                xml.write_element("Effect", sfx_entry)
+                # Count how many effects we saw that were defined for this version
+                i += in_version
+
+            for j,sfx in enumerate(self.sfx[i:], i):
                 xml.write_element("Effect", {
-                    "Name" : self.effect_name(i)
+                    "Name" : self.effect_name(j)
                 })
 
             xml.write_end_tag()
