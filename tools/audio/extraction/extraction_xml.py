@@ -1,3 +1,8 @@
+# SPDX-FileCopyrightText: © 2024 ZeldaRET
+# SPDX-License-Identifier: CC0-1.0
+#
+#
+#
 
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
@@ -21,7 +26,7 @@ class ExtractionDescription:
         self.post_init(xml_root, version_name)
 
     def post_init(self, xml_root : Element, version_name : str):
-        pass
+        raise NotImplementedError() # Implement in subclass
 
 class SampleBankExtractionDescription(ExtractionDescription):
 
