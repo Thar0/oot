@@ -1014,7 +1014,9 @@ $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)
 
 RSP_TEXT_SECTION := .text
 RSP_DATA_SECTION := .rodata
+ifeq ($(PLATFORM),GC)
 $(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.o: RSP_TEXT_SECTION := .rodata
+endif
 
 .PRECIOUS: $(BUILD_DIR)/rsp/%.S
 $(BUILD_DIR)/rsp/%.S: rsp/%.s

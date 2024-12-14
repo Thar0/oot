@@ -86,7 +86,7 @@ beginseg
 
     // RSP microcode
     include "$(BUILD_DIR)/rsp/rspboot.o"
-    include "$(BUILD_DIR)/data/cic6105.text.o"
+    include "$(BUILD_DIR)/rsp/cic6105.o"
 
     // Extra files for non-matching debug builds
 #if DEBUG_FEATURES

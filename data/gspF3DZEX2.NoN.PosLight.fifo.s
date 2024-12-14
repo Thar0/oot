@@ -1,16 +1,11 @@
 .include "macro.inc"
+#include "versions.h"
 
+#if PLATFORM_N64
 .section .text
-
-.balign 16
-
-#ifndef F3DEX_GBI_PL
-glabel gspF3DZEX2_NoN_fifoTextStart
-    .incbin "incbin/gspF3DZEX2_NoN_fifoText"
-glabel gspF3DZEX2_NoN_fifoTextEnd
-#endif
-
+#else
 .section .rodata
+#endif
 
 .balign 16
 
@@ -18,6 +13,10 @@ glabel gspF3DZEX2_NoN_fifoTextEnd
 glabel gspF3DZEX2_NoN_PosLight_fifoTextStart
     .incbin "incbin/gspF3DZEX2_NoN_PosLight_fifoText"
 glabel gspF3DZEX2_NoN_PosLight_fifoTextEnd
+#else
+glabel gspF3DZEX2_NoN_fifoTextStart
+    .incbin "incbin/gspF3DZEX2_NoN_fifoText"
+glabel gspF3DZEX2_NoN_fifoTextEnd
 #endif
 
 .section .rodata
