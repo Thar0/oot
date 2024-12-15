@@ -435,7 +435,7 @@ SPEC := spec/spec
 SPEC_INCLUDES := $(wildcard spec/*.inc)
 
 SRC_DIRS := $(shell find src -type d)
-RSP_DIRS := $(shell find rsp -type d)
+RSP_DIRS := $(shell find rsp -type d -not -path rsp/f3dex2)
 UNDECOMPILED_DATA_DIRS := $(shell find data -type d)
 
 ifneq ($(wildcard $(EXTRACTED_DIR)/assets/audio),)
@@ -1017,6 +1017,13 @@ RSP_DATA_SECTION := .rodata
 ifeq ($(PLATFORM),GC)
 $(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.o: RSP_TEXT_SECTION := .rodata
 endif
+
+GRUCODE := F3DZEX_NoN_2.08J
+
+$(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.text.bin $(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.data.bin &: rsp/f3dex2/f3dex2.s
+	$(MAKE) -C rsp/f3dex2 $(GRUCODE) ARMIPS=../../tools/armips BUILD_DIR=../../$(BUILD_DIR)/rsp/f3dex2 PR_HEADERS=../../include/ultra64 RSP_HEADERS=../../rsp
+	mv $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).code $(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.text.bin
+	mv $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).data $(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.data.bin
 
 .PRECIOUS: $(BUILD_DIR)/rsp/%.S
 $(BUILD_DIR)/rsp/%.S: rsp/%.s
