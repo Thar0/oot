@@ -377,8 +377,13 @@ ifeq ($(COMPILER),gcc)
 endif
 
 GBI_DEFINES := -DF3DEX_GBI_2
-ifneq ($(PLATFORM),N64)
+ifeq ($(PLATFORM),GC)
+  GRUCODE := F3DZEX_NoN_2.08J
+  GRUCODE_NAME := gspF3DZEX2.NoN.PosLight.fifo
   GBI_DEFINES += -DF3DEX_GBI_PL -DGBI_DOWHILE
+else
+  GRUCODE := F3DZEX_NoN_2.06H
+  GRUCODE_NAME := gspF3DZEX2.NoN.fifo
 endif
 ifeq ($(DEBUG_FEATURES),1)
   GBI_DEFINES += -DGBI_DEBUG
@@ -1015,15 +1020,19 @@ $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)
 RSP_TEXT_SECTION := .text
 RSP_DATA_SECTION := .rodata
 ifeq ($(PLATFORM),GC)
-$(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.o: RSP_TEXT_SECTION := .rodata
+$(BUILD_DIR)/rsp/$(GRUCODE_NAME).o: RSP_TEXT_SECTION := .rodata
 endif
 
-GRUCODE := F3DZEX_NoN_2.08J
-
-$(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.text.bin $(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.data.bin &: rsp/f3dex2/f3dex2.s
+$(BUILD_DIR)/rsp/$(GRUCODE_NAME).code $(BUILD_DIR)/rsp/$(GRUCODE_NAME).data &: rsp/f3dex2/f3dex2.s
 	$(MAKE) -C rsp/f3dex2 $(GRUCODE) ARMIPS=../../tools/armips BUILD_DIR=../../$(BUILD_DIR)/rsp/f3dex2 PR_HEADERS=../../include/ultra64 RSP_HEADERS=../../rsp
-	mv $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).code $(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.text.bin
-	mv $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).data $(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.data.bin
+	touch $(BUILD_DIR)/rsp/$(GRUCODE_NAME).code
+	touch $(BUILD_DIR)/rsp/$(GRUCODE_NAME).data
+
+$(BUILD_DIR)/rsp/$(GRUCODE_NAME).text.bin: $(BUILD_DIR)/rsp/$(GRUCODE_NAME).code
+	mv $< $@
+
+$(BUILD_DIR)/rsp/$(GRUCODE_NAME).data.bin: $(BUILD_DIR)/rsp/$(GRUCODE_NAME).data
+	mv $< $@
 
 .PRECIOUS: $(BUILD_DIR)/rsp/%.S
 $(BUILD_DIR)/rsp/%.S: rsp/%.s
@@ -1037,12 +1046,15 @@ $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin: $(BUILD_DIR)/rsp/%.S
 # create an empty file if armips did not error but one of the files was not created
 	touch $(<:.S=.text.bin) $(<:.S=.data.bin)
 
+UC_NAME = $(subst .,_,$(@F:.o=))
 RSP2ELF_DEFS =                              \
-    -D UC_NAME=$(subst .,_,$(@F:.o=))       \
+    -D UC_NAME=$(UC_NAME)                   \
     -D UC_TEXT_SECTION=$(RSP_TEXT_SECTION)  \
     -D UC_DATA_SECTION=$(RSP_DATA_SECTION)  \
     -D UC_TEXT_BIN_PATH="$(@:.o=.text.bin)" \
     -D UC_DATA_BIN_PATH="$(@:.o=.data.bin)"
+
+$(BUILD_DIR)/rsp/rspboot_ap.o: UC_NAME = rspboot
 
 $(BUILD_DIR)/rsp/%.o: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin rsp/rsp2elf.s
 	$(CPP) $(CPPFLAGS) $(RSP2ELF_DEFS) rsp/rsp2elf.s | $(AS) $(ASFLAGS) -o $@
