@@ -38,6 +38,16 @@ void Collider_DrawRedPoly(GraphicsContext* gfxCtx, Vec3f* vA, Vec3f* vB, Vec3f* 
  * Draws the triangle with vertices vA, vB, and vC and with the specified color.
  */
 void Collider_DrawPoly(GraphicsContext* gfxCtx, Vec3f* vA, Vec3f* vB, Vec3f* vC, u8 r, u8 g, u8 b) {
+    static Gfx polySetup[] = {
+        gsSPTexture(0, 0, 0, G_TX_RENDERTILE, G_OFF),
+        gsSPClearGeometryMode(G_CULL_BOTH),
+        gsSPSetGeometryMode(G_LIGHTING),
+        gsDPPipeSync(),
+        gsDPSetRenderMode(G_RM_FOG_SHADE_A, G_RM_AA_ZB_OPA_SURF2),
+        gsDPPipeSync(),
+        gsDPSetCombineLERP(SHADE, 0, PRIMITIVE, 0, SHADE, 0, PRIMITIVE, 0, 0, 0, 0, COMBINED, 0, 0, 0, COMBINED),
+        gsSPEndDisplayList(),
+    };
     Vtx* vtxTbl;
     Vtx* vtx;
     f32 nx;
@@ -47,17 +57,9 @@ void Collider_DrawPoly(GraphicsContext* gfxCtx, Vec3f* vA, Vec3f* vB, Vec3f* vC,
 
     OPEN_DISPS(gfxCtx, "../z_collision_check.c", 713);
 
+    gSPDisplayList(POLY_OPA_DISP++, polySetup);
     gSPMatrix(POLY_OPA_DISP++, &gIdentityMtx, G_MTX_NOPUSH | G_MTX_LOAD | G_MTX_MODELVIEW);
     gDPSetPrimColor(POLY_OPA_DISP++, 0x00, 0xFF, r, g, b, 50);
-    gDPPipeSync(POLY_OPA_DISP++);
-    gDPSetRenderMode(POLY_OPA_DISP++, G_RM_FOG_SHADE_A, G_RM_AA_ZB_OPA_SURF2);
-    gSPTexture(POLY_OPA_DISP++, 0, 0, 0, G_TX_RENDERTILE, G_OFF);
-    gDPPipeSync(POLY_OPA_DISP++);
-    gDPSetCombineLERP(POLY_OPA_DISP++, SHADE, 0, PRIMITIVE, 0, SHADE, 0, PRIMITIVE, 0, 0, 0, 0, COMBINED, 0, 0, 0,
-                      COMBINED);
-    gSPClearGeometryMode(POLY_OPA_DISP++, G_CULL_BOTH);
-    gSPSetGeometryMode(POLY_OPA_DISP++, G_LIGHTING);
-    gDPPipeSync(POLY_OPA_DISP++);
 
     vtxTbl = GRAPH_ALLOC(gfxCtx, 3 * sizeof(Vtx));
     ASSERT(vtxTbl != NULL, "vtx_tbl != NULL", "../z_collision_check.c", 726);

@@ -3,19 +3,18 @@
 
 #include "ultra64/ultratypes.h"
 #include "z_math.h"
+#include "alignment.h"
 
 struct PlayState;
 struct Actor;
 struct DynaPolyActor;
-
-#define DYNAPOLY_INVALIDATE_LOOKUP (1 << 0)
 
 #define BGACTOR_NEG_ONE -1
 #define BG_ACTOR_MAX 50
 #define BGCHECK_SCENE BG_ACTOR_MAX
 #define BGCHECK_Y_MIN -32000.0f
 #define BGCHECK_XYZ_ABSMAX 32760.0f
-#define BGCHECK_SUBDIV_OVERLAP 50
+#define BGCHECK_SUBDIV_OVERLAP 50 // TODO investigate removing or lowering
 #define BGCHECK_SUBDIV_MIN 150.0f
 
 #define FUNC_80041EA4_RESPAWN 5
@@ -49,8 +48,17 @@ typedef struct ScaleRotPos {
 // flags for flags_vIB
 #define COLPOLY_IS_FLOOR_CONVEYOR (1 << 0)
 
-typedef struct CollisionPoly {
+typedef ALIGNED(0x10) struct CollisionPoly {
+#if 0
+    // TODO bbIndices are a fast way to look up the min/max x/z coordinates for any given poly, 4x 2-bit indices
+    // which identify which axis is min/max for x/z.
+    // It does limit how many distinct floor types there can be but it's unlikely that anyone has ever gone above even
+    // 128 so a limit of 256 distinct types sounds ok.
+    /* 0x00 */ u8 bbIndices;
+    /* 0x01 */ u8 type;
+#else
     /* 0x00 */ u16 type;
+#endif
     union {
         u16 vtxData[3];
         struct {
@@ -65,6 +73,24 @@ typedef struct CollisionPoly {
 
     /* 0x0E */ s16 dist; // Plane distance from origin along the normal
 } CollisionPoly; // size = 0x10
+
+typedef struct AABB {
+    Vec3s min;
+    Vec3s max;
+} AABB; // size = 0xC
+
+// TODO eventually implement this structure for faster collision queries
+typedef ALIGNED(0x10) struct BVHNode {
+    AABB aabb;
+    union {
+        u16 left;      // when polyCount == 0 , right = left + 1
+        u16 polyFirst; // when polyCount != 0
+    };
+    u16 polyCount; // != 0 => leaf
+} BVHNode; // size = 0x10
+#define BVH_NODE_IS_LEAF(node) ((node)->polyCount != 0)
+#define BVH_LEFT(node) ((node)->left)
+#define BVH_RIGHT(node) ((node)->left + 1)
 
 typedef struct BgCamInfo {
     /* 0x0 */ u16 setting; // camera setting described by CameraSettingType enum
@@ -248,6 +274,10 @@ typedef struct CollisionHeader {
     /* 0x10 */ Vec3s* vtxList;
     /* 0x14 */ u16 numPolygons;
     /* 0x18 */ CollisionPoly* polyList;
+#if 0
+    // TODO...
+    BVHNode* tree;
+#endif
     /* 0x1C */ SurfaceType* surfaceTypeList;
     /* 0x20 */ BgCamInfo* bgCamList;
     /* 0x24 */ u16 numWaterBoxes;
@@ -255,7 +285,7 @@ typedef struct CollisionHeader {
 } CollisionHeader; // original name: BGDataInfo
 
 typedef struct SSNode {
-    s16 polyId;
+    u16 polyId;
     u16 next; // next SSNode index
 } SSNode;
 
@@ -264,72 +294,59 @@ typedef struct SSList {
 } SSList;
 
 typedef struct SSNodeList {
-    /* 0x00 */ u16 max;          // original name: short_slist_node_size
-    /* 0x02 */ u16 count;        // original name: short_slist_node_last_index
-    /* 0x04 */ SSNode* tbl;      // original name: short_slist_node_tbl
-    /* 0x08 */ u8* polyCheckTbl; // points to an array of bytes, one per static poly. Zero initialized when starting a
-                                 // bg check, and set to 1 if that poly has already been tested.
-} SSNodeList;
+    /* 0x00 */ SSNode* tbl; // original name: short_slist_node_tbl
+    /* 0x04 */ u16 count;   // original name: short_slist_node_last_index
+    /* 0x06 */ u16 max;     // original name: short_slist_node_size
+} SSNodeList; // size = 8
 
-typedef struct DynaSSNodeList {
-    SSNode* tbl;
-    s32 count;
-    s32 max;
-} DynaSSNodeList;
-
-typedef struct StaticLookup {
+typedef struct SSLookup {
     SSList floor;
     SSList wall;
     SSList ceiling;
-} StaticLookup;
-
-typedef struct DynaLookup {
-    u16 polyStartIndex;
-    SSList ceiling;
-    SSList wall;
-    SSList floor;
-} DynaLookup;
+} SSLookup;
 
 typedef struct BgActor {
     /* 0x00 */ struct Actor* actor;
     /* 0x04 */ CollisionHeader* colHeader;
-    /* 0x08 */ DynaLookup dynaLookup;
-    /* 0x10 */ u16 vtxStartIndex;
+    /* 0x08 */ SSLookup dynaLookup;         // Dyna collision isn't split into subdivisions
     /* 0x14 */ ScaleRotPos prevTransform;
     /* 0x34 */ ScaleRotPos curTransform;
-    /* 0x54 */ Sphere16 boundingSphere;
-    /* 0x5C */ f32 minY;
-    /* 0x60 */ f32 maxY;
-} BgActor; // size = 0x64
+    /* 0x54 */ SSNodeList polyNodes;
+    /* 0x5C */ CollisionPoly* polyList;
+    /* 0x60 */ Vec3s* vtxList;
+    /* 0x64 */ MtxF relTransform;
+    /* 0xA4 */ Sphere16 boundingSphere;
+    /* 0xAC */ f32 minY;
+    /* 0xB0 */ f32 maxY;
+} BgActor; // size = 0xB4
 
 #define BGACTOR_IN_USE (1 << 0) // The bgActor entry is in use
-#define BGACTOR_1 (1 << 1)
+#define BGACTOR_MARKED_FOR_DELETION (1 << 1)
 #define BGACTOR_COLLISION_DISABLED (1 << 2) // The collision of the bgActor is disabled
 #define BGACTOR_CEILING_COLLISION_DISABLED (1 << 3) // The ceilings in the collision of the bgActor are ignored
+#define BGACTOR_TRANSFORM_NEEDS_UPDATE (1 << 4) // relTransform needs updating
+#define BGACTOR_TRANSFORM_NEEDS_UPDATE_D (1 << 5) // relTransform needs updating for 1 extra frame
+#define BGACTOR_INVALIDATE_LOOKUP (1 << 6)
 
 typedef struct DynaCollisionContext {
-    /* 0x0000 */ u8 bitFlag;
     /* 0x0004 */ BgActor bgActors[BG_ACTOR_MAX];
     /* 0x138C */ u16 bgActorFlags[BG_ACTOR_MAX];
-    /* 0x13F0 */ CollisionPoly* polyList;
-    /* 0x13F4 */ Vec3s* vtxList;
-    /* 0x13F8 */ DynaSSNodeList polyNodes;
-    /* 0x1404 */ s32 polyNodesMax;
-    /* 0x1408 */ s32 polyListMax;
-    /* 0x140C */ s32 vtxListMax;
-} DynaCollisionContext; // size = 0x1410
+} DynaCollisionContext; // size = 0x238C
 
 typedef struct CollisionContext {
-    /* 0x00 */ CollisionHeader* colHeader; // scene's static collision
-    /* 0x04 */ Vec3f minBounds;            // minimum coordinates of collision bounding box
-    /* 0x10 */ Vec3f maxBounds;            // maximum coordinates of collision bounding box
-    /* 0x1C */ Vec3i subdivAmount;         // x, y, z subdivisions of the scene's static collision
-    /* 0x28 */ Vec3f subdivLength;         // x, y, z subdivision worldspace lengths
-    /* 0x34 */ Vec3f subdivLengthInv;      // inverse of subdivision length
-    /* 0x40 */ StaticLookup* lookupTbl;    // 3d array of length subdivAmount
-    /* 0x44 */ SSNodeList polyNodes;
-    /* 0x50 */ DynaCollisionContext dyna;
-    /* 0x1460 */ u32 memSize; // Size of all allocated memory plus CollisionContext
+    /* 0x0000 */ CollisionHeader* colHeader;    // scene's static collision
+    /* 0x0004 */ Vec3f minBounds;               // minimum coordinates of collision bounding box
+    /* 0x0010 */ Vec3f maxBounds;               // maximum coordinates of collision bounding box
+    /* 0x001C */ Vec3i subdivAmount;            // x, y, z subdivisions of the scene's static collision
+    /* 0x0028 */ Vec3f subdivLength;            // x, y, z subdivision worldspace lengths
+    /* 0x0034 */ Vec3f subdivLengthInv;         // inverse of subdivision length
+    /* 0x0040 */ SSLookup* lookupTbl;           // 3d array of length subdivAmount
+    /* 0x0044 */ SSNodeList polyNodes;
+    /*        */ u32* polyCheckTbl;             // points to an array of bits, one per static poly. Zero initialized
+                                                // when starting a bg check, and set to 1 if that poly has already been
+                                                // tested.
+    /* 0x0050 */ DynaCollisionContext dyna;
+    /* 0x1460 */ u32 memSize;                   // Size of all allocated memory plus CollisionContext
 } CollisionContext; // size = 0x1464
 
 typedef struct DynaRaycastDown {
@@ -342,9 +359,9 @@ typedef struct DynaRaycastDown {
     /* 0x18 */ s32* bgId;
     /* 0x1C */ struct Actor* actor;
     /* 0x20 */ u32 downChkFlags;
-    /* 0x24 */ f32 chkDist;
     /* 0x28 */ DynaCollisionContext* dyna;
     /* 0x2C */ SSList* ssList;
+    BgActor* bgActor;
 } DynaRaycastDown;
 
 typedef struct DynaLineTest {
@@ -358,8 +375,32 @@ typedef struct DynaLineTest {
     /* 0x1C */ CollisionPoly** resultPoly;
     /* 0x20 */ s32 chkOneFace; // bccFlags & 0x8
     /* 0x24 */ f32* distSq;    // distance from posA to poly squared
-    /* 0x28 */ f32 chkDist;    // distance from poly
+    BgActor* bgActor;
 } DynaLineTest;
+
+typedef struct BgCheckStats {
+    u32 numLineTests;
+    u32 numLinePolysTraversed;
+    u32 numLinePolysTested;
+    u32 numLinePolysPassed;
+
+    u32 numFloorTests;
+    u32 numFloorPolysTraversed;
+    u32 numFloorPolysTested;
+    u32 numFloorPolysPassed;
+
+    u32 numWallTests;
+    u32 numWallPolysTraversed;
+    u32 numWallPolysTested;
+    u32 numWallPolysPassed;
+
+    u32 numCeilingTests;
+    u32 numCeilingPolysTraversed;
+    u32 numCeilingPolysTested;
+    u32 numCeilingPolysPassed;
+} BgCheckStats;
+
+extern BgCheckStats gBgCheckStats;
 
 void func_80038A28(CollisionPoly* poly, f32 tx, f32 ty, f32 tz, MtxF* dest);
 f32 CollisionPoly_GetPointDistanceFromPlane(CollisionPoly* poly, Vec3f* point);
@@ -424,7 +465,7 @@ s32 DynaPoly_SetBgActor(struct PlayState* play, DynaCollisionContext* dyna, stru
                         CollisionHeader* colHeader);
 struct DynaPolyActor* DynaPoly_GetActor(CollisionContext* colCtx, s32 bgId);
 void DynaPoly_DeleteBgActor(struct PlayState* play, DynaCollisionContext* dyna, s32 bgId);
-void DynaPoly_InvalidateLookup(struct PlayState* play, DynaCollisionContext* dyna);
+void DynaPoly_InvalidateLookup(struct PlayState* play, DynaCollisionContext* dyna, s32 bgId);
 void DynaPoly_UnsetAllInteractFlags(struct PlayState* play, DynaCollisionContext* dyna, struct Actor* actor);
 void DynaPoly_UpdateContext(struct PlayState* play, DynaCollisionContext* dyna);
 void DynaPoly_UpdateBgActorTransforms(struct PlayState* play, DynaCollisionContext* dyna);

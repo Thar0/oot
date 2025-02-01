@@ -295,10 +295,7 @@ void Math3D_Vec3fReflect(Vec3f* vec, Vec3f* normal, Vec3f* reflVec) {
  * (`lowerRightX`,`lowerRightY`)
  */
 s32 Math3D_PointInSquare2D(f32 upperLeftX, f32 lowerRightX, f32 upperLeftY, f32 lowerRightY, f32 x, f32 y) {
-    if (x >= upperLeftX && x <= lowerRightX && y >= upperLeftY && y <= lowerRightY) {
-        return true;
-    }
-    return false;
+    return x >= upperLeftX && x <= lowerRightX && y >= upperLeftY && y <= lowerRightY;
 }
 
 /**
@@ -446,7 +443,7 @@ f32 Math3D_Vec3fMagnitudeSq(Vec3f* vec) {
  * Returns the magnitude (length) of `vec`
  */
 f32 Math3D_Vec3fMagnitude(Vec3f* vec) {
-    return sqrt(Math3D_Vec3fMagnitudeSq(vec));
+    return sqrtf(Math3D_Vec3fMagnitudeSq(vec));
 }
 
 /**
@@ -526,31 +523,16 @@ void Math3D_SurfaceNorm(Vec3f* va, Vec3f* vb, Vec3f* vc, Vec3f* normal) {
  */
 s32 Math3D_PointRelativeToCubeFaces(Vec3f* point, Vec3f* min, Vec3f* max) {
     s32 ret = 0;
+    u32 flag = 1;
 
-    if (point->x > max->x) {
-        ret = 1;
+    for (s32 i = 0; i < 3; i++) {
+        if (point->a[i] > max->a[i])
+            ret |= flag;
+        flag <<= 1;
+        if (point->a[i] < min->a[i])
+            ret |= flag;
+        flag <<= 1;
     }
-
-    if (point->x < min->x) {
-        ret |= 2;
-    }
-
-    if (point->y > max->y) {
-        ret |= 4;
-    }
-
-    if (point->y < min->y) {
-        ret |= 8;
-    }
-
-    if (point->z > max->z) {
-        ret |= 0x10;
-    }
-
-    if (point->z < min->z) {
-        ret |= 0x20;
-    }
-
     return ret;
 }
 
@@ -651,227 +633,41 @@ s32 Math3D_PointRelativeToCubeVertices(Vec3f* point, Vec3f* min, Vec3f* max) {
     return ret;
 }
 
-/**
- * Checks if a line segment with endpoints `a` and `b` intersect a cube
- */
 s32 Math3D_LineVsCube(Vec3f* min, Vec3f* max, Vec3f* a, Vec3f* b) {
-    static Vec3f triVtx0;
-    static Vec3f triVtx1;
-    static Vec3f triVtx2;
-    static Vec3f intersectPoint;
+    f32 tmin = 0.0f;
+    f32 tmax = 1.0f;
 
-    s32 flags[2];
+    for (s32 i = 0; i < 3; i++) {
+        f32 dir = b->a[i] - a->a[i];
 
-    flags[0] = flags[1] = 0;
-    flags[0] = Math3D_PointRelativeToCubeFaces(a, min, max);
-    if (!flags[0]) {
-        return true;
-    }
+        if (dir == 0.0f) {
+            // Line is parallel
+            if (a->a[i] < min->a[i] || a->a[i] > max->a[i]) {
+                return false;
+            }
+            continue;
+        }
 
-    flags[1] = Math3D_PointRelativeToCubeFaces(b, min, max);
-    if (!flags[1]) {
-        return true;
-    }
+        f32 invDir = 1.0f / dir;
+        f32 t0 = (min->a[i] - a->a[i]) * invDir;
+        f32 t1 = (max->a[i] - a->a[i]) * invDir;
 
-    if (flags[0] & flags[1]) {
-        return false;
-    }
+        if (t1 < t0) {
+            SWAP(f32, t0, t1);
+        }
+        if (t0 > tmin) {
+            tmin = t0;
+        }
+        if (t1 < tmax) {
+            tmax = t1;
+        }
 
-    flags[0] |= (Math3D_PointRelativeToCubeEdges(a, min, max) << 8);
-    flags[1] |= (Math3D_PointRelativeToCubeEdges(b, min, max) << 8);
-    if (flags[0] & flags[1]) {
-        return false;
+        if (tmin > tmax) {
+            // no overlap with the AABB in this axis
+            return false;
+        }
     }
-
-    flags[0] |= (Math3D_PointRelativeToCubeVertices(a, min, max) << 0x18);
-    flags[1] |= (Math3D_PointRelativeToCubeVertices(b, min, max) << 0x18);
-    if (flags[0] & flags[1]) {
-        return false;
-    }
-
-    // face 1
-    triVtx0.x = min->x;
-    triVtx0.y = min->y;
-    triVtx0.z = min->z;
-    triVtx1.x = min->x;
-    triVtx1.y = min->y;
-    triVtx1.z = max->z;
-    triVtx2.x = min->x;
-    triVtx2.y = max->y;
-    triVtx2.z = max->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, -1.0f, 0.0f, 0.0f, min->x, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-
-    triVtx0.x = min->x;
-    triVtx0.y = min->y;
-    triVtx0.z = min->z;
-    triVtx1.x = min->x;
-    triVtx1.y = max->y;
-    triVtx1.z = max->z;
-    triVtx2.x = min->x;
-    triVtx2.y = max->y;
-    triVtx2.z = min->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, -1.0f, 0.0f, 0.0f, min->x, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-
-    // face 2
-    triVtx0.x = min->x;
-    triVtx0.y = max->y;
-    triVtx0.z = max->z;
-    triVtx1.x = min->x;
-    triVtx1.y = min->y;
-    triVtx1.z = max->z;
-    triVtx2.x = max->x;
-    triVtx2.y = max->y;
-    triVtx2.z = max->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 0.0f, 0.0f, 1.0f, -max->z, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-    triVtx0.x = max->x;
-    triVtx0.y = max->y;
-    triVtx0.z = max->z;
-    triVtx1.x = min->x;
-    triVtx1.y = min->y;
-    triVtx1.z = max->z;
-    triVtx2.x = max->x;
-    //! @bug trVtx1.y should be triVtx2.y, prevents a tri on the cube from being checked.
-    triVtx1.y = min->y;
-    triVtx2.z = max->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 0.0f, 0.0f, 1.0f, -max->z, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-
-    // face 3
-    triVtx0.x = max->x;
-    triVtx0.y = max->y;
-    triVtx0.z = max->z;
-    triVtx1.x = min->x;
-    triVtx1.y = max->y;
-    triVtx1.z = min->z;
-    triVtx2.x = min->x;
-    triVtx2.y = max->y;
-    triVtx2.z = max->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 0.0f, 1.0f, 0.0f, -max->y, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-    triVtx0.x = max->x;
-    triVtx0.y = max->y;
-    triVtx0.z = max->z;
-    triVtx1.x = max->x;
-    triVtx1.y = max->y;
-    triVtx1.z = min->z;
-    triVtx2.x = min->x;
-    triVtx2.y = max->y;
-    triVtx2.z = min->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 0.0f, 1.0f, 0.0f, -max->y, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-
-    // face 4
-    triVtx0.x = min->x;
-    triVtx0.y = min->y;
-    triVtx0.z = min->z;
-    triVtx1.x = min->x;
-    triVtx1.y = max->y;
-    triVtx1.z = min->z;
-    triVtx2.x = max->x;
-    triVtx2.y = max->y;
-    triVtx2.z = min->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 0.0f, 0.0f, -1.0f, min->z, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-    triVtx0.x = min->x;
-    triVtx0.y = min->y;
-    triVtx0.z = min->z;
-    triVtx1.x = max->x;
-    triVtx1.y = max->y;
-    triVtx1.z = min->z;
-    triVtx2.x = max->x;
-    triVtx2.y = min->y;
-    triVtx2.z = min->z;
-
-    // face 5
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 0.0f, 0.0f, -1.0f, min->z, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-    triVtx0.x = min->x;
-    triVtx0.y = min->y;
-    triVtx0.z = min->z;
-    triVtx1.x = max->x;
-    triVtx1.y = min->y;
-    triVtx1.z = min->z;
-    triVtx2.x = max->x;
-    triVtx2.y = min->y;
-    triVtx2.z = max->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 0.0f, -1.0f, 0.0f, min->y, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-    triVtx0.x = min->x;
-    triVtx0.y = min->y;
-    triVtx0.z = min->z;
-    triVtx1.x = max->x;
-    triVtx1.y = min->y;
-    triVtx1.z = max->z;
-    triVtx2.x = min->x;
-    triVtx2.y = min->y;
-    triVtx2.z = max->z;
-
-    // face 6
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 0.0f, -1.0f, 0.0f, min->y, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-    triVtx0.x = max->x;
-    triVtx0.y = max->y;
-    triVtx0.z = max->z;
-    triVtx1.x = max->x;
-    triVtx1.y = min->y;
-    triVtx1.z = min->z;
-    triVtx2.x = max->x;
-    triVtx2.y = max->y;
-    triVtx2.z = min->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 1.0f, 0.0f, 0.0f, -max->x, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-    triVtx0.x = max->x;
-    triVtx0.y = max->y;
-    triVtx0.z = max->z;
-    triVtx1.x = max->x;
-    triVtx1.y = min->y;
-    triVtx1.z = max->z;
-    triVtx2.x = max->x;
-    triVtx2.y = min->y;
-    triVtx2.z = min->z;
-    if (Math3D_TriLineIntersect(&triVtx0, &triVtx1, &triVtx2, 1.0f, 0.0f, 0.0f, -max->x, a, b, &intersectPoint, 0)) {
-        return true;
-    }
-
-    return false;
-}
-
-/**
- * Checks if a line segment with endpoints `a` and `b` intersect a cube
- */
-s32 Math3D_LineVsCubeShort(Vec3s* min, Vec3s* max, Vec3s* a, Vec3s* b) {
-    static Vec3f minF;
-    static Vec3f maxF;
-    static Vec3f aF;
-    static Vec3f bF;
-
-    minF.x = min->x;
-    minF.y = min->y;
-    minF.z = min->z;
-    maxF.x = max->x;
-    maxF.y = max->y;
-    maxF.z = max->z;
-    aF.x = a->x;
-    aF.y = a->y;
-    aF.z = a->z;
-    bF.x = b->x;
-    bF.y = b->y;
-    bF.z = b->z;
-    return Math3D_LineVsCube(&minF, &maxF, &aF, &bF);
+    return true;
 }
 
 /**
@@ -947,15 +743,8 @@ f32 Math3D_UDistPlaneToPos(f32 nx, f32 ny, f32 nz, f32 originDist, Vec3f* p) {
  * `nx`, `ny`, `nz`, and `originDist`
  */
 f32 Math3D_DistPlaneToPos(f32 nx, f32 ny, f32 nz, f32 originDist, Vec3f* p) {
-    f32 normMagnitude;
-
-    normMagnitude = sqrtf(SQ(nx) + SQ(ny) + SQ(nz));
+    f32 normMagnitude = sqrtf(SQ(nx) + SQ(ny) + SQ(nz));
     if (IS_ZERO(normMagnitude)) {
-        PRINTF_COLOR_WARNING();
-        PRINTF(T("Math3DSignedLengthPlaneAndPos():法線size がゼロ近いです%f %f %f\n",
-                 "Math3DSignedLengthPlaneAndPos(): Normal size is close to zero %f %f %f\n"),
-               nx, ny, nz);
-        PRINTF_RST();
         return 0.0f;
     }
     return Math3D_Planef(nx, ny, nz, originDist, p) / normMagnitude;
@@ -1156,7 +945,7 @@ s32 Math3D_TriChkPointParaXIntersect(Vec3f* v0, Vec3f* v1, Vec3f* v2, f32 nx, f3
         return false;
     }
 
-    if (Math3D_TriChkPointParaXImpl(v0, v1, v2, y, z, 300.0f, 1.0f, nx)) {
+    if (Math3D_TriChkPointParaXImpl(v0, v1, v2, y, z, 0.0f, 1.0f, nx)) {
         *xIntersect = (((-ny * y) - (nz * z)) - originDist) / nx;
         return true;
     }
@@ -1270,7 +1059,7 @@ s32 Math3D_TriChkPointParaZIntersect(Vec3f* v0, Vec3f* v1, Vec3f* v2, f32 nx, f3
         return false;
     }
 
-    if (Math3D_TriChkPointParaZImpl(v0, v1, v2, x, y, 300.0f, 1.0f, nz)) {
+    if (Math3D_TriChkPointParaZImpl(v0, v1, v2, x, y, 0.0f, 1.0f, nz)) {
         *zIntersect = (f32)((((-nx * x) - (ny * y)) - originDist) / nz);
         return true;
     }
@@ -1949,7 +1738,7 @@ s32 Math3D_SphVsSphOverlapCenterDist(Sphere16* sphereA, Sphere16* sphereB, f32* 
     diff.y = (f32)sphereA->center.y - (f32)sphereB->center.y;
     diff.z = (f32)sphereA->center.z - (f32)sphereB->center.z;
 
-    *centerDist = sqrt(SQ(diff.x) + SQ(diff.y) + SQ(diff.z));
+    *centerDist = sqrtf(SQ(diff.x) + SQ(diff.y) + SQ(diff.z));
 
     *overlapSize = (((f32)sphereA->radius + (f32)sphereB->radius) - *centerDist);
     if (*overlapSize > 0.008f) {
@@ -2114,42 +1903,6 @@ s32 Math3D_TriVsTriIntersect(TriNorm* ta, TriNorm* tb, Vec3f* intersect) {
     if (Math3D_TriLineIntersect(&ta->vtx[0], &ta->vtx[1], &ta->vtx[2], ta->plane.normal.x, ta->plane.normal.y,
                                 ta->plane.normal.z, ta->plane.originDist, &tb->vtx[2], &tb->vtx[0], intersect,
                                 0) == 1) {
-        return true;
-    }
-    return false;
-}
-
-s32 Math3D_XZInSphere(Sphere16* sphere, f32 x, f32 z) {
-    f32 xDiff;
-    f32 zDiff;
-
-    xDiff = sphere->center.x - x;
-    zDiff = sphere->center.z - z;
-    if ((SQ(xDiff) + SQ(zDiff)) <= SQ(sphere->radius)) {
-        return true;
-    }
-    return false;
-}
-
-s32 Math3D_XYInSphere(Sphere16* sphere, f32 x, f32 y) {
-    f32 xDiff;
-    f32 yDiff;
-
-    xDiff = sphere->center.x - x;
-    yDiff = sphere->center.y - y;
-    if ((SQ(xDiff) + SQ(yDiff)) <= SQ(sphere->radius)) {
-        return true;
-    }
-    return false;
-}
-
-s32 Math3D_YZInSphere(Sphere16* sphere, f32 y, f32 z) {
-    f32 yDiff;
-    f32 zDiff;
-
-    yDiff = sphere->center.y - y;
-    zDiff = sphere->center.z - z;
-    if ((SQ(yDiff) + SQ(zDiff)) <= SQ(sphere->radius)) {
         return true;
     }
     return false;

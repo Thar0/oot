@@ -15,20 +15,29 @@ typedef struct Vec2f {
     f32 x, y;
 } Vec2f; // size = 0x08
 
-typedef struct Vec3f {
-    f32 x, y, z;
+typedef union Vec3f {
+    struct {
+        f32 x, y, z;
+    };
+    f32 a[3];
 } Vec3f; // size = 0x0C
 
 typedef struct Vec3us {
     u16 x, y, z;
 } Vec3us; // size = 0x06
 
-typedef struct Vec3s {
-    s16 x, y, z;
+typedef union Vec3s {
+    struct {
+        s16 x, y, z;
+    };
+    s16 a[3];
 } Vec3s; // size = 0x06
 
-typedef struct Vec3i {
-    s32 x, y, z;
+typedef union Vec3i {
+    struct {
+        s32 x, y, z;
+    };
+    s32 a[3];
 } Vec3i; // size = 0x0C
 
 typedef struct Sphere16 {
@@ -130,8 +139,10 @@ typedef VecSphGeo VecGeo;
     (dst)->z = (v0)->z + (((v1)->z - (v0)->z) * t); \
 }
 
-// Floating point macros
-#define IS_ZERO(f) (fabsf(f) < 0.008f)
+// Note that reducing this too much can cause calculations to become unstable and reducing it to smaller than 1/32767
+// breaks some comparisons against normal components.
+#define IS_ZERO_EPS 0.008f
+#define IS_ZERO(f) (fabsf(f) < IS_ZERO_EPS)
 
 // Casting a float to an integer, when the float value is larger than what the integer type can hold,
 // leads to undefined behavior. For example (f32)0x8000 doesn't fit in a s16, so it cannot be cast to s16.

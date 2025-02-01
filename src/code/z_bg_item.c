@@ -8,7 +8,7 @@
  *   See `DYNA_TRANSFORM_POS`, `DYNA_TRANSFORM_ROT_Y`.
  */
 void DynaPolyActor_Init(DynaPolyActor* dynaActor, s32 transformFlags) {
-    dynaActor->bgId = -1;
+    dynaActor->bgId = BGACTOR_NEG_ONE;
     dynaActor->unk_150 = 0.0f;
     dynaActor->unk_154 = 0.0f;
     dynaActor->transformFlags = transformFlags;
@@ -52,35 +52,19 @@ void DynaPolyActor_SetSwitchPressed(DynaPolyActor* dynaActor) {
 }
 
 s32 DynaPolyActor_IsActorOnTop(DynaPolyActor* dynaActor) {
-    if (dynaActor->interactFlags & DYNA_INTERACT_ACTOR_ON_TOP) {
-        return true;
-    } else {
-        return false;
-    }
+    return !!(dynaActor->interactFlags & DYNA_INTERACT_ACTOR_ON_TOP);
 }
 
 s32 DynaPolyActor_IsPlayerOnTop(DynaPolyActor* dynaActor) {
-    if (dynaActor->interactFlags & DYNA_INTERACT_PLAYER_ON_TOP) {
-        return true;
-    } else {
-        return false;
-    }
+    return !!(dynaActor->interactFlags & DYNA_INTERACT_PLAYER_ON_TOP);
 }
 
 s32 DynaPolyActor_IsPlayerAbove(DynaPolyActor* dynaActor) {
-    if (dynaActor->interactFlags & DYNA_INTERACT_PLAYER_ABOVE) {
-        return true;
-    } else {
-        return false;
-    }
+    return !!(dynaActor->interactFlags & DYNA_INTERACT_PLAYER_ABOVE);
 }
 
 s32 DynaPolyActor_IsSwitchPressed(DynaPolyActor* dynaActor) {
-    if (dynaActor->interactFlags & DYNA_INTERACT_ACTOR_SWITCH_PRESSED) {
-        return true;
-    } else {
-        return false;
-    }
+    return !!(dynaActor->interactFlags & DYNA_INTERACT_ACTOR_SWITCH_PRESSED);
 }
 
 s32 func_800435D8(PlayState* play, DynaPolyActor* dynaActor, s16 arg2, s16 arg3, s16 arg4) {

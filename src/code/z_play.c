@@ -46,6 +46,7 @@
 #include "player.h"
 #include "save.h"
 #include "vis.h"
+#include "profiler.h"
 
 #pragma increment_block_number "gc-eu:224 gc-eu-mq:224 gc-jp:224 gc-jp-ce:224 gc-jp-mq:224 gc-us:224 gc-us-mq:224" \
                                "ique-cn:224 ntsc-1.0:240 ntsc-1.1:240 ntsc-1.2:240 pal-1.0:240 pal-1.1:240"
@@ -551,6 +552,8 @@ void Play_Update(PlayState* this) {
     s32 isPaused;
     s32 pad1;
 
+    bzero(&gBgCheckStats, sizeof(BgCheckStats));
+
 #if DEBUG_FEATURES
     if ((SREG(1) < 0) || (DREG(0) != 0)) {
         SREG(1) = 0;
@@ -986,6 +989,8 @@ void Play_Update(PlayState* this) {
                     PLAY_LOG(3606);
                     Room_ProcessRoomRequest(this, &this->roomCtx);
 
+                    Profiler_Start(&gCollisionCheckProfiler);
+
                     PLAY_LOG(3612);
                     CollisionCheck_AT(this, &this->colChkCtx);
 
@@ -998,10 +1003,14 @@ void Play_Update(PlayState* this) {
                     PLAY_LOG(3631);
                     CollisionCheck_ClearContext(this, &this->colChkCtx);
 
+                    Profiler_End(&gCollisionCheckProfiler);
+
                     PLAY_LOG(3637);
 
                     if (!this->haltAllActors) {
+                        Profiler_Start(&gActorUpdateProfiler);
                         Actor_UpdateAll(this, &this->actorCtx);
+                        Profiler_End(&gActorUpdateProfiler);
                     }
 
                     PLAY_LOG(3643);
@@ -1134,6 +1143,42 @@ void Play_DrawOverlayElements(PlayState* this) {
 
     if (this->gameOverCtx.state != GAMEOVER_INACTIVE) {
         GameOver_FadeInLights(this);
+    }
+
+    if (gProfilerEnabled) {
+        GfxPrint printer;
+        Gfx* polyOpa;
+        Gfx* gfx;
+
+        OPEN_DISPS(this->state.gfxCtx, __FILE__, __LINE__);
+        polyOpa = POLY_OPA_DISP;
+        gfx = Gfx_Open(polyOpa);
+        gSPDisplayList(OVERLAY_DISP++, gfx);
+
+        GfxPrint_Init(&printer);
+        GfxPrint_Open(&printer, gfx);
+
+        GfxPrint_SetColor(&printer, 255, 255, 0, 255);
+        GfxPrint_SetPos(&printer, 2, 8);
+        GfxPrint_Printf(&printer, "lines    = %d (%d/%d/%d)", gBgCheckStats.numLineTests,
+                        gBgCheckStats.numLinePolysPassed, gBgCheckStats.numLinePolysTested, gBgCheckStats.numLinePolysTraversed);
+        GfxPrint_SetPos(&printer, 2, 9);
+        GfxPrint_Printf(&printer, "floors   = %d (%d/%d/%d)", gBgCheckStats.numFloorTests,
+                        gBgCheckStats.numFloorPolysPassed, gBgCheckStats.numFloorPolysTested, gBgCheckStats.numFloorPolysTraversed);
+        GfxPrint_SetPos(&printer, 2, 10);
+        GfxPrint_Printf(&printer, "walls    = %d (%d/%d/%d)", gBgCheckStats.numWallTests,
+                        gBgCheckStats.numWallPolysPassed, gBgCheckStats.numWallPolysTested, gBgCheckStats.numWallPolysTraversed);
+        GfxPrint_SetPos(&printer, 2, 11);
+        GfxPrint_Printf(&printer, "ceilings = %d (%d/%d/%d)", gBgCheckStats.numCeilingTests,
+                        gBgCheckStats.numCeilingPolysPassed, gBgCheckStats.numCeilingPolysTested, gBgCheckStats.numCeilingPolysTraversed);
+
+        gfx = GfxPrint_Close(&printer);
+        GfxPrint_Destroy(&printer);
+
+        gSPEndDisplayList(gfx++);
+        Gfx_Close(polyOpa, gfx);
+        POLY_OPA_DISP = gfx;
+        CLOSE_DISPS(this->state.gfxCtx, __FILE__, __LINE__);
     }
 }
 
@@ -1441,7 +1486,9 @@ void Play_Main(GameState* thisx) {
     }
 
     if (!DEBUG_FEATURES || (R_HREG_MODE != HREG_MODE_PLAY) || R_PLAY_RUN_UPDATE) {
+        Profiler_Start(&gPlayUpdateProfiler);
         Play_Update(this);
+        Profiler_End(&gPlayUpdateProfiler);
     }
 
     PLAY_LOG(4583);

@@ -538,6 +538,7 @@ beginseg
     include "*$(BUILD_DIR)/code_bss_z_actor.o"
 #endif
     include "$(BUILD_DIR)/src/code/z_actor_dlftbls.o"
+    include "$(BUILD_DIR)/src/code/profiler.o"
     include "$(BUILD_DIR)/src/code/z_bgcheck.o"
     include "$(BUILD_DIR)/src/code/z_bg_collect.o"
     include "$(BUILD_DIR)/src/code/z_bg_item.o"

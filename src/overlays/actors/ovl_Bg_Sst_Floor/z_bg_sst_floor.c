@@ -129,7 +129,7 @@ void BgSstFloor_Update(Actor* thisx, PlayState* play) {
         this->drumPhase--;
     }
     if (1) {}
-    DynaPoly_InvalidateLookup(play, &play->colCtx.dyna);
+    DynaPoly_InvalidateLookup(play, &play->colCtx.dyna, this->dyna.bgId);
 }
 
 void BgSstFloor_Draw(Actor* thisx, PlayState* play) {
