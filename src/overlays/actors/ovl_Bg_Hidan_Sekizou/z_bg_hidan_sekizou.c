@@ -5,6 +5,17 @@
  */
 
 #include "z_bg_hidan_sekizou.h"
+
+#include "gfx.h"
+#include "gfx_setupdl.h"
+#include "ichain.h"
+#include "segmented_address.h"
+#include "sfx.h"
+#include "sys_matrix.h"
+#include "z_lib.h"
+#include "z64play.h"
+#include "z64player.h"
+
 #include "assets/objects/object_hidan_objects/object_hidan_objects.h"
 
 #define FLAGS 0
@@ -349,7 +360,7 @@ Gfx* func_8088DC50(PlayState* play, BgHidanSekizou* this, s16 arg2, s16 arg3, Gf
     }
     temp_f20 = Math_SinS(arg2);
     temp_f22 = Math_CosS(arg2);
-    Matrix_MtxFCopy(&sp68, &gMtxFClear);
+    Matrix_MtxFCopy(&sp68, &gIdentityMtxF);
     temp_v1 = Camera_GetCamDirYaw(GET_ACTIVE_CAM(play)) - arg2;
 
     if (ABS(temp_v1) < 0x4000) {
