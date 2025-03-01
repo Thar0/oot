@@ -1,5 +1,4 @@
-CFLAGS := -I. -Wall -Wextra -pedantic -std=gnu99 -g -O2
-PROGRAMS := armips bin2c mkdmadata mkldscript mkspecrules preprocess_pragmas vtxdis
+PROGRAMS := bin2c elf2rom makeromfs mkdmadata mkldscript preprocess_pragmas reloc_prereq vtxdis
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
@@ -30,11 +29,12 @@ else
   CXX := g++
 endif
 
+LLD ?= 0
+
 ifeq ($(shell command -v ld.lld >/dev/null 2>&1; echo $$?),0)
   LLD := 1
-else
-  LLD := 0
 endif
+
 ifneq ($(LLD),0)
   LDFLAGS += -fuse-ld=lld
 endif
@@ -61,7 +61,7 @@ distclean: clean
 	$(RM) armips
 
 armips: armips.cpp
-	$(CXX) -I. $(WARNFLAGS) -std=c++17 $(OPTFLAGS) -s -fno-rtti -pipe -Wno-unused-parameter $^ -pthread -o $@
+	$(CXX) $(WARNFLAGS) -std=c++17 $(OPTFLAGS) -s -fno-rtti -pipe -Wno-unused-parameter $^ -pthread -o $@
 
 armips_SOURCES             := armips.cpp
 bin2c_SOURCES              := bin2c.c
@@ -73,7 +73,7 @@ vtxdis_SOURCES             := vtxdis.c
 
 define COMPILE
 $(1): $($1_SOURCES)
-	$(CC) -I. $(WARNFLAGS) -std=c99 $(OPTFLAGS) $$^ $(LDFLAGS) -o $$@
+	$(CC) $(WARNFLAGS) -std=gnu99 $(OPTFLAGS) $$^ $(LDFLAGS) -o $$@
 endef
 
 $(foreach p,$(PROGRAMS),$(eval $(call COMPILE,$(p))))

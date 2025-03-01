@@ -1014,9 +1014,6 @@ DEP_FILES += $(BUILD_DIR)/src/code/z_message.d $(BUILD_DIR)/src/code/z_game_over
 $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)/spec
 	$(MKDMADATA) $< $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt
 
-$(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)/$(SPEC)
-	$(MKDMADATA) $< $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt
-
 RSP_TEXT_SECTION := .text
 RSP_DATA_SECTION := .rodata
 ifeq ($(PLATFORM),GC)
