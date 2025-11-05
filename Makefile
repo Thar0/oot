@@ -195,7 +195,11 @@ ifeq ($(NON_MATCHING),1)
 endif
 
 PROJECT_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+ifeq ($(COMPILER),gcc)
+BUILD_DIR := build/$(VERSION)-gcc
+else
 BUILD_DIR := build/$(VERSION)
+endif
 EXPECTED_DIR := expected/$(BUILD_DIR)
 BASEROM_DIR := baseroms/$(VERSION)
 EXTRACTED_DIR := extracted/$(VERSION)

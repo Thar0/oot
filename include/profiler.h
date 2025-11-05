@@ -23,7 +23,8 @@ extern Profiler gActorUpdateProfiler;
 
 void Profiler_UpdateAndDraw(struct GraphicsContext* gfxCtx);
 
-#ifndef NDEBUG
+/* #ifndef NDEBUG */
+#if 1
 static inline __attribute__((always_inline))
 void Profiler_Start(Profiler* prof) {
     prof->start = osGetTime();

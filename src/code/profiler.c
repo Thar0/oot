@@ -4,7 +4,15 @@
 #include "speed_meter.h"
 #include "array_count.h"
 
-u32 gProfilerEnabled = false;
+u32 gProfilerEnabled = true;
+
+#if 0 /* PLATFORM_IQUE */
+#define CPU_COUNT (144000000/2)
+#define RCP_COUNT  96000000
+#else
+#define CPU_COUNT  (93750000/2)
+#define RCP_COUNT  62500000
+#endif
 
 static void Profiler_RingBufferUpdate(Profiler* profiler) {
     u32 cur = profiler->bufferIndex;
@@ -24,7 +32,7 @@ static f32 Profiler_CalcFPS(Profiler* profiler) {
         sum += (f32)(u32)profiler->buffer[i];
     }
     // <OSTime[PROF_RINGBUFFER_LEN]> to 1/sec
-    return (OS_CPU_COUNTER * PROF_RINGBUFFER_LEN) / sum;
+    return (CPU_COUNT * PROF_RINGBUFFER_LEN) / sum;
 }
 
 static f32 Profiler_CalcUsec(Profiler* profiler) {
@@ -33,10 +41,10 @@ static f32 Profiler_CalcUsec(Profiler* profiler) {
         sum += (f32)(u32)profiler->buffer[i];
     }
     // <OSTime[PROF_RINGBUFFER_LEN]> to usec
-    return (1000000 * sum) / (OS_CPU_COUNTER * PROF_RINGBUFFER_LEN);
+    return (1000000 * sum) / (CPU_COUNT * PROF_RINGBUFFER_LEN);
 }
 
-#define RCP_CYCLES_TO_USEC(c)   (((u64)(c) * (1000000LL / 15625LL)) / (OS_CLOCK_RATE / 15625LL))
+#define RCP_CYCLES_TO_USEC(c)   (((u64)(c) * (1000000LL / 15625LL)) / (RCP_COUNT / 15625LL))
 
 Profiler gPlayUpdateProfiler;
 
