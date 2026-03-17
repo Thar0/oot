@@ -377,7 +377,7 @@ ifeq ($(COMPILER),gcc)
 endif
 
 GBI_DEFINES := -DF3DEX_GBI_2
-ifeq ($(PLATFORM),GC)
+ifneq ($(PLATFORM),N64)
   GRUCODE := F3DZEX_NoN_2.08J
   GRUCODE_NAME := gspF3DZEX2.NoN.PosLight.fifo
   GBI_DEFINES += -DF3DEX_GBI_PL -DGBI_DOWHILE
@@ -1016,19 +1016,19 @@ $(BUILD_DIR)/dmadata_table_spec.h $(BUILD_DIR)/compress_ranges.txt: $(BUILD_DIR)
 
 RSP_TEXT_SECTION := .text
 RSP_DATA_SECTION := .rodata
-ifeq ($(PLATFORM),GC)
+ifneq ($(PLATFORM),N64)
 $(BUILD_DIR)/rsp/$(GRUCODE_NAME).o: RSP_TEXT_SECTION := .rodata
 endif
 
-$(BUILD_DIR)/rsp/$(GRUCODE_NAME).code $(BUILD_DIR)/rsp/$(GRUCODE_NAME).data &: rsp/f3dex2/f3dex2.s
+$(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).code $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).data &: rsp/f3dex2/f3dex2.s
 	$(MAKE) -C rsp/f3dex2 $(GRUCODE) ARMIPS=../../tools/armips BUILD_DIR=../../$(BUILD_DIR)/rsp/f3dex2 PR_HEADERS=../../include/ultra64 RSP_HEADERS=../../rsp
-	touch $(BUILD_DIR)/rsp/$(GRUCODE_NAME).code
-	touch $(BUILD_DIR)/rsp/$(GRUCODE_NAME).data
+	touch $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).code
+	touch $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).data
 
-$(BUILD_DIR)/rsp/$(GRUCODE_NAME).text.bin: $(BUILD_DIR)/rsp/$(GRUCODE_NAME).code
+$(BUILD_DIR)/rsp/$(GRUCODE_NAME).text.bin: $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).code
 	mv $< $@
 
-$(BUILD_DIR)/rsp/$(GRUCODE_NAME).data.bin: $(BUILD_DIR)/rsp/$(GRUCODE_NAME).data
+$(BUILD_DIR)/rsp/$(GRUCODE_NAME).data.bin: $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).data
 	mv $< $@
 
 .PRECIOUS: $(BUILD_DIR)/rsp/%.S

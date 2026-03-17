@@ -821,7 +821,11 @@ beginseg
 
     // RSP microcode
     include "$(BUILD_DIR)/rsp/aspMain.o"
-    include "$(BUILD_DIR)/data/gspF3DZEX2.NoN.PosLight.fifo.o"
+#if PLATFORM_N64
+    include "$(BUILD_DIR)/rsp/gspF3DZEX2.NoN.fifo.o"
+#else
+    include "$(BUILD_DIR)/rsp/gspF3DZEX2.NoN.PosLight.fifo.o"
+#endif
     include "$(BUILD_DIR)/rsp/gspS2DEX2d.fifo.o"
     include "$(BUILD_DIR)/rsp/njpgdspMain.o"
 
