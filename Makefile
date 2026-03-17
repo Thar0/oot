@@ -1026,15 +1026,15 @@ $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).code $(BUILD_DIR)/rsp/f3dex2/$(GRU
 	touch $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).data
 
 $(BUILD_DIR)/rsp/$(GRUCODE_NAME).text.bin: $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).code
-	mv $< $@
+	cp $< $@
 
 $(BUILD_DIR)/rsp/$(GRUCODE_NAME).data.bin: $(BUILD_DIR)/rsp/f3dex2/$(GRUCODE)/$(GRUCODE).data
-	mv $< $@
+	cp $< $@
 
 .PRECIOUS: $(BUILD_DIR)/rsp/%.S
 $(BUILD_DIR)/rsp/%.S: rsp/%.s
 # preprocess
-	$(CPP) $(CPPFLAGS) -D_LANGUAGE_ASSEMBLY $(GBI_DEFINES) -I include -I include/ultra64 -I rsp $< -o $(@:.o=.S)
+	$(CPP) $(CPPFLAGS) -D_LANGUAGE_ASSEMBLY $(GBI_DEFINES) -MMD -MP -MT $@ -I include -I include/ultra64 -I rsp $< -o $@
 
 .PRECIOUS: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin
 $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin: $(BUILD_DIR)/rsp/%.S
