@@ -49,6 +49,8 @@ DEBUG_OBJECTS ?= 0
 MIPS_BINUTILS_PREFIX ?= mips-linux-gnu-
 # Emulator w/ flags for 'make run'.
 N64_EMULATOR ?=
+# Set to also write .temp and .sym files when assembling microcodes, for build debugging or development purposes
+UCODE_ASM_DEBUG ?= 1
 # Set to override game region in the ROM header (options: JP, US, EU). This can be used to build a fake US version
 # of the debug ROM for better emulator compatibility, or to build US versions of NTSC N64 ROMs.
 # REGION ?= US
@@ -1036,10 +1038,16 @@ $(BUILD_DIR)/rsp/%.S: rsp/%.s
 # preprocess
 	$(CPP) $(CPPFLAGS) -D_LANGUAGE_ASSEMBLY $(GBI_DEFINES) -MMD -MP -MT $@ -I include -I include/ultra64 -I rsp $< -o $@
 
+ifneq ($(UCODE_ASM_DEBUG),0)
+ARMIPS_EXTRA_FLAGS = -sym2 $(<:.S=.sym) -temp $(<:.S=.temp.s)
+else
+ARMIPS_EXTRA_FLAGS =
+endif
+
 .PRECIOUS: $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin
 $(BUILD_DIR)/rsp/%.text.bin $(BUILD_DIR)/rsp/%.data.bin: $(BUILD_DIR)/rsp/%.S
 # assemble to code and data binaries
-	$(ARMIPS) -strequ CODE_FILE $(<:.S=.text.bin) -strequ DATA_FILE $(<:.S=.data.bin) $<
+	$(ARMIPS) -strequ CODE_FILE $(<:.S=.text.bin) -strequ DATA_FILE $(<:.S=.data.bin) $< $(ARMIPS_EXTRA_FLAGS)
 # create an empty file if armips did not error but one of the files was not created
 	touch $(<:.S=.text.bin) $(<:.S=.data.bin)
 

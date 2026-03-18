@@ -152,9 +152,10 @@ data_03C0:
 #define DMEM_RIGHT_CH               0xAE0
 #define DMEM_WET_LEFT_CH            0xC80
 #define DMEM_WET_RIGHT_CH           0xE20 // = DMEM_WET_LEFT_CH + DEFAULT_LEN_1CH
+                                    0xFC0
 */
 
-// temporary area
+// temporary area used by resampling and filtering
 // 0x0FB0
 tmpData:
     .skip 0x50
