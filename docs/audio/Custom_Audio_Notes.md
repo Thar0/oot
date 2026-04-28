@@ -1,5 +1,12 @@
 # Custom Audio Notes
 
+```diff
+--DEPRECATED--
+```
+**These notes has been re-published to HackMD at https://hackmd.io/@Thar0/Z64-Custom-Audio**
+
+**This copy will not receive further changes, refer to the HackMD note for the most up-to-date version**
+
 ## BGM
 
 To add bgm you would:
