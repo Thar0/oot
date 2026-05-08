@@ -1,4 +1,4 @@
-PROGRAMS := bin2c elf2rom makeromfs mkdmadata mkldscript preprocess_pragmas reloc_prereq vtxdis
+PROGRAMS := bin2c mkdmadata mkldscript mkspecrules preprocess_pragmas vtxdis
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
@@ -63,7 +63,6 @@ distclean: clean
 armips: armips.cpp
 	$(CXX) $(WARNFLAGS) -std=c++17 $(OPTFLAGS) -s -fno-rtti -pipe -Wno-unused-parameter $^ -pthread -o $@
 
-armips_SOURCES             := armips.cpp
 bin2c_SOURCES              := bin2c.c
 mkdmadata_SOURCES          := mkdmadata.c spec.c util.c
 mkldscript_SOURCES         := mkldscript.c spec.c util.c
